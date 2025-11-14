@@ -1,0 +1,7 @@
+frontend:
+  replicaCount: 1
+
+backend:
+  replicaCount: 1
+  email:
+    enabled: true

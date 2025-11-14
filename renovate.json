@@ -1,0 +1,81 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":enableVulnerabilityAlerts",
+    ":dependencyDashboard"
+  ],
+  "prHourlyLimit": 30,
+  "prConcurrentLimit": 30,
+  "timezone": "Europe/Berlin",
+  "dependencyDashboard": true,
+  "rangeStrategy": "auto",
+  "schedule": [
+    "before 5am on monday"
+  ],
+  "automerge": false,
+  "major": {
+    "automerge": false
+  },
+  "minor": {
+    "automerge": true
+  },
+  "patch": {
+    "automerge": true
+  },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": [
+      "before 5am on monday"
+    ]
+  },
+  "packageRules": [
+    {
+      "matchDatasources": [
+        "maven"
+      ],
+      "matchFileNames": [
+        "backend/**"
+      ],
+      "groupName": "maven dependencies"
+    },
+    {
+      "matchManagers": [
+        "npm"
+      ],
+      "matchFileNames": [
+        "frontend/**"
+      ],
+      "groupName": "npm dependencies"
+    },
+    {
+      "matchDepTypes": [
+        "devDependencies"
+      ],
+      "matchFileNames": [
+        "frontend/**"
+      ],
+      "groupName": "frontend dev dependencies"
+    },
+    {
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "matchCurrentVersion": "!/^0/",
+      "automerge": true
+    }
+  ],
+  "maven": {
+    "managerFilePatterns": [
+      "/pom.xml$/",
+      "/^backend/.+\\.xml$/"
+    ]
+  },
+  "npm": {
+    "managerFilePatterns": [
+      "/frontend/package.json/",
+      "/frontend/.+\\.json$/"
+    ]
+  }
+}

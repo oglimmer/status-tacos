@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "status-tacos.fullname" . }}-backend
+  labels:
+    {{- include "status-tacos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  {{- if not .Values.backend.autoscaling.enabled }}
+  replicas: {{ .Values.backend.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "status-tacos.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: backend
+  template:
+    metadata:
+      labels:
+        {{- include "status-tacos.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: backend
+    spec:
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "status-tacos.serviceAccountName" . }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: backend
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.global.imageRegistry }}/{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.backend.service.targetPort }}
+              protocol: TCP
+          env:
+            - name: JAVA_OPTS
+              value: "-Xmx1536m -Xms768m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:MaxMetaspaceSize=256m -Xss512k"
+            - name: DB_HOST
+              value: {{ .Values.database.host }}
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "status-tacos.fullname" . }}-database-secret
+                  key: database-password
+            - name: SPRING_PROFILES_ACTIVE
+              value: {{ .Values.backend.env.springProfilesActive }}
+            - name: MONITOR_EMAIL_ENABLED
+              value: {{ .Values.backend.email.enabled | quote }}
+            - name: MONITOR_EMAIL_SMTP_HOST
+              value: {{ .Values.backend.email.smtp.host | quote }}
+            - name: MONITOR_EMAIL_SMTP_PORT
+              value: {{ .Values.backend.email.smtp.port | quote }}
+            - name: MONITOR_EMAIL_SMTP_USERNAME
+              value: {{ .Values.backend.email.smtp.username | quote }}
+            - name: MONITOR_EMAIL_SMTP_PASSWORD
+              value: {{ .Values.backend.email.smtp.password | quote }}
+            - name: MONITOR_EMAIL_SMTP_AUTH
+              value: {{ .Values.backend.email.smtp.auth | quote }}
+            - name: MONITOR_EMAIL_SMTP_STARTTLS_ENABLE
+              value: {{ .Values.backend.email.smtp.starttls.enable | quote }}
+            - name: MONITOR_EMAIL_SMTP_STARTTLS_REQUIRED
+              value: {{ .Values.backend.email.smtp.starttls.required | quote }}
+            - name: MONITOR_EMAIL_FROM
+              value: {{ .Values.backend.email.from | quote }}
+            - name: MONITOR_EMAIL_SUBJECT_PREFIX
+              value: {{ .Values.backend.email.subjectPrefix | quote }}
+          {{- if .Values.backend.livenessProbe }}
+          livenessProbe:
+            {{- toYaml .Values.backend.livenessProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.backend.readinessProbe }}
+          readinessProbe:
+            {{- toYaml .Values.backend.readinessProbe | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

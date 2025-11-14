@@ -1,0 +1,47 @@
+---
+spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: "your-google-client-id"
+            client-secret: "your-google-client-secret"
+            scope:
+            - "openid"
+            - "profile"
+            - "email"
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+          azure:
+            client-id: "your-azure-client-id"
+            client-secret: "your-azure-client-secret"
+            scope:
+            - "openid"
+            - "profile"
+            - "email"
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+          keycloak:
+            client-id: "your-keycloak-client-id"
+            client-secret: "your-keycloak-client-secret"
+            scope:
+            - "openid"
+            - "profile"
+            - "email"
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+        provider:
+          azure:
+            issuer-uri: "https://login.microsoftonline.com/{tenant-id}/v2.0"
+          keycloak:
+            issuer-uri: "https://your-keycloak-domain/realms/your-realm"
+monitor:
+  scheduling:
+    enabled: true
+    check-interval: 60000
+    retry-interval: 300000
+    uptime-stats-cron: "0 */15 * * * *"
+    cleanup-cron: "0 0 2 * * *"
+    health-check-interval: 30000
+  cleanup:
+    retention-days: 90
+  retry:
+    consecutive-failures-threshold: 3
