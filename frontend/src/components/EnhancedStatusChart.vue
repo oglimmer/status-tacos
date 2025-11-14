@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import type { TimeframeType } from './TimeframeSwitcher.vue'
 
 interface StatusDownPeriod {
@@ -16,6 +16,33 @@ interface StatusChartProps {
 defineProps<StatusChartProps>()
 
 const showModal = ref(false)
+const hasLockedBody = ref(false)
+
+let openModalCount = 0
+let previousBodyOverflow: string | null = null
+
+const lockBodyScroll = () => {
+  if (typeof window === 'undefined') return
+
+  if (openModalCount === 0) {
+    previousBodyOverflow = document.body.style.overflow || ''
+    document.body.style.overflow = 'hidden'
+  }
+
+  openModalCount += 1
+}
+
+const unlockBodyScroll = () => {
+  if (typeof window === 'undefined') return
+  if (openModalCount === 0) return
+
+  openModalCount -= 1
+
+  if (openModalCount === 0) {
+    document.body.style.overflow = previousBodyOverflow ?? ''
+    previousBodyOverflow = null
+  }
+}
 
 const openModal = () => {
   showModal.value = true
@@ -24,6 +51,25 @@ const openModal = () => {
 const closeModal = () => {
   showModal.value = false
 }
+
+watch(showModal, isOpen => {
+  if (typeof window === 'undefined') return
+
+  if (isOpen && !hasLockedBody.value) {
+    lockBodyScroll()
+    hasLockedBody.value = true
+  } else if (!isOpen && hasLockedBody.value) {
+    unlockBodyScroll()
+    hasLockedBody.value = false
+  }
+})
+
+onBeforeUnmount(() => {
+  if (hasLockedBody.value) {
+    unlockBodyScroll()
+    hasLockedBody.value = false
+  }
+})
 
 // Generate status line data (1 for up, 0 for down)
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -392,37 +438,39 @@ const formatDuration = (ms: number): string => {
     </div>
 
     <!-- Modal Dialog -->
-    <div v-if="showModal" class="modal-overlay" @click="closeModal">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h3 class="modal-title">Downtime Periods ({{ getTimeframeLabel(timeframe) }})</h3>
-          <button class="modal-close" @click="closeModal">&times;</button>
-        </div>
-        <div class="modal-body">
-          <div v-if="statusDownPeriods.length === 0" class="no-downtime">
-            <p>No downtime periods recorded for this timeframe.</p>
+    <Teleport to="body">
+      <div v-if="showModal" class="modal-overlay" @click="closeModal">
+        <div class="modal-content" @click.stop>
+          <div class="modal-header">
+            <h3 class="modal-title">Downtime Periods ({{ getTimeframeLabel(timeframe) }})</h3>
+            <button class="modal-close" @click="closeModal">&times;</button>
           </div>
-          <div v-else class="downtime-table-container">
-            <table class="downtime-table">
-              <thead>
-                <tr>
-                  <th>Start</th>
-                  <th>End</th>
-                  <th>Duration</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(period, index) in formatDowntimePeriods(statusDownPeriods)" :key="index">
-                  <td>{{ period.start }}</td>
-                  <td>{{ period.end }}</td>
-                  <td>{{ period.duration }}</td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="modal-body">
+            <div v-if="statusDownPeriods.length === 0" class="no-downtime">
+              <p>No downtime periods recorded for this timeframe.</p>
+            </div>
+            <div v-else class="downtime-table-container">
+              <table class="downtime-table">
+                <thead>
+                  <tr>
+                    <th>Start</th>
+                    <th>End</th>
+                    <th>Duration</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(period, index) in formatDowntimePeriods(statusDownPeriods)" :key="index">
+                    <td>{{ period.start }}</td>
+                    <td>{{ period.end }}</td>
+                    <td>{{ period.duration }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>
 
@@ -556,24 +604,26 @@ const formatDuration = (ms: number): string => {
 /* Modal styles */
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 1.5rem;
+  box-sizing: border-box;
   background: rgba(0, 0, 0, 0.5);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   z-index: 1000;
+  overflow-y: auto;
 }
 
 .modal-content {
   background: white;
   border-radius: 8px;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-  max-width: 600px;
-  width: 90%;
-  max-height: 80vh;
+  width: min(600px, 100%);
+  max-height: calc(100vh - 3rem);
+  max-height: calc(100dvh - 3rem);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -735,8 +785,9 @@ const formatDuration = (ms: number): string => {
   }
 
   .modal-content {
-    width: 95%;
-    max-height: 90vh;
+    width: 100%;
+    max-height: calc(100vh - 2rem);
+    max-height: calc(100dvh - 2rem);
   }
 
   .modal-header {
