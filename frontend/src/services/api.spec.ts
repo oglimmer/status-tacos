@@ -139,7 +139,7 @@ describe('ApiService', () => {
 
     describe('get', () => {
       it('should throw error on non-ok response', async () => {
-        global.fetch = vi.fn().mockResolvedValue({
+        window.fetch = vi.fn().mockResolvedValue({
           ok: false,
           status: 404
         })
@@ -149,7 +149,7 @@ describe('ApiService', () => {
 
       it('should return parsed JSON on success', async () => {
         const mockData = { id: 1, name: 'Test' }
-        global.fetch = vi.fn().mockResolvedValue({
+        window.fetch = vi.fn().mockResolvedValue({
           ok: true,
           json: async () => mockData
         })
@@ -172,7 +172,7 @@ describe('ApiService', () => {
 
     describe('post', () => {
       it('should throw error on non-ok response', async () => {
-        global.fetch = vi.fn().mockResolvedValue({
+        window.fetch = vi.fn().mockResolvedValue({
           ok: false,
           status: 400
         })
@@ -184,7 +184,7 @@ describe('ApiService', () => {
         const mockResponse = { id: 1, created: true }
         const postData = { name: 'New Item' }
 
-        global.fetch = vi.fn().mockResolvedValue({
+        window.fetch = vi.fn().mockResolvedValue({
           ok: true,
           json: async () => mockResponse
         })
@@ -208,7 +208,7 @@ describe('ApiService', () => {
 
     describe('put', () => {
       it('should throw error on non-ok response', async () => {
-        global.fetch = vi.fn().mockResolvedValue({
+        window.fetch = vi.fn().mockResolvedValue({
           ok: false,
           status: 403
         })
@@ -220,7 +220,7 @@ describe('ApiService', () => {
         const mockResponse = { id: 1, updated: true }
         const putData = { name: 'Updated Item' }
 
-        global.fetch = vi.fn().mockResolvedValue({
+        window.fetch = vi.fn().mockResolvedValue({
           ok: true,
           json: async () => mockResponse
         })
@@ -233,7 +233,7 @@ describe('ApiService', () => {
 
     describe('delete', () => {
       it('should throw error on non-ok response', async () => {
-        global.fetch = vi.fn().mockResolvedValue({
+        window.fetch = vi.fn().mockResolvedValue({
           ok: false,
           status: 500
         })
@@ -242,7 +242,7 @@ describe('ApiService', () => {
       })
 
       it('should complete successfully on ok response', async () => {
-        global.fetch = vi.fn().mockResolvedValue({
+        window.fetch = vi.fn().mockResolvedValue({
           ok: true
         })
 
@@ -252,7 +252,7 @@ describe('ApiService', () => {
 
     describe('patch', () => {
       it('should throw error on non-ok response', async () => {
-        global.fetch = vi.fn().mockResolvedValue({
+        window.fetch = vi.fn().mockResolvedValue({
           ok: false,
           status: 422
         })
@@ -263,7 +263,7 @@ describe('ApiService', () => {
       it('should return parsed JSON on success', async () => {
         const mockResponse = { id: 1, patched: true }
 
-        global.fetch = vi.fn().mockResolvedValue({
+        window.fetch = vi.fn().mockResolvedValue({
           ok: true,
           json: async () => mockResponse
         })
