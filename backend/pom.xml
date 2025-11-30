@@ -10,7 +10,7 @@
   </parent>
   <groupId>de.oglimmer</groupId>
   <artifactId>status-tacos</artifactId>
-  <version>0.0.16</version>
+  <version>0.0.17</version>
   <name>status-tacos</name>
   <description>a http/https status system</description>
   <url/>
