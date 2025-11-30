@@ -77,7 +77,7 @@ public class HttpClientService {
   public HttpCheckResult performHealthCheck(String url) {
     log.debug("Performing health check for URL: {}", url);
 
-    long startTime = System.currentTimeMillis();
+    long startTime = System.nanoTime();
     HttpGet request = new HttpGet(url);
     request.setHeader("User-Agent", "StatusTacos-Monitor/1.0");
     request.setHeader("Accept", "*/*");
@@ -86,7 +86,7 @@ public class HttpClientService {
       return httpClient.execute(
           request,
           response -> {
-            long responseTime = System.currentTimeMillis() - startTime;
+            long responseTime = Math.max(1, (System.nanoTime() - startTime) / 1_000_000);
             int statusCode = response.getCode();
             boolean isUp = statusCode >= 200 && statusCode < 400;
 
@@ -163,7 +163,7 @@ public class HttpClientService {
           });
 
     } catch (IOException e) {
-      long responseTime = System.currentTimeMillis() - startTime;
+      long responseTime = Math.max(1, (System.nanoTime() - startTime) / 1_000_000);
       String errorMessage = "Network error: " + e.getMessage();
 
       // Log detailed exception information
@@ -203,7 +203,7 @@ public class HttpClientService {
           .build();
 
     } catch (Exception e) {
-      long responseTime = System.currentTimeMillis() - startTime;
+      long responseTime = Math.max(1, (System.nanoTime() - startTime) / 1_000_000);
       String errorMessage = "Unexpected error: " + e.getMessage();
 
       // Log detailed exception information
@@ -254,7 +254,7 @@ public class HttpClientService {
       Double prometheusMaxValue) {
     log.debug("Performing health check for URL: {} with custom criteria", url);
 
-    long startTime = System.currentTimeMillis();
+    long startTime = System.nanoTime();
     HttpGet request = new HttpGet(url);
     request.setHeader("User-Agent", "StatusTacos-Monitor/1.0");
     request.setHeader("Accept", "*/*");
@@ -269,7 +269,7 @@ public class HttpClientService {
       return httpClient.execute(
           request,
           response -> {
-            long responseTime = System.currentTimeMillis() - startTime;
+            long responseTime = Math.max(1, (System.nanoTime() - startTime) / 1_000_000);
             int statusCode = response.getCode();
 
             // Read response body and ensure connection is released
@@ -380,7 +380,7 @@ public class HttpClientService {
           });
 
     } catch (IOException e) {
-      long responseTime = System.currentTimeMillis() - startTime;
+      long responseTime = Math.max(1, (System.nanoTime() - startTime) / 1_000_000);
       String errorMessage = "Network error: " + e.getMessage();
 
       // Log detailed exception information
@@ -428,7 +428,7 @@ public class HttpClientService {
           .build();
 
     } catch (Exception e) {
-      long responseTime = System.currentTimeMillis() - startTime;
+      long responseTime = Math.max(1, (System.nanoTime() - startTime) / 1_000_000);
       String errorMessage = "Unexpected error: " + e.getMessage();
 
       // Log detailed exception information

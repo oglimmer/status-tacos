@@ -1,6 +1,10 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -euo pipefail
+
+# Define script metadata
+SCRIPT_NAME=$(basename "$0")
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Default configuration
 DEFAULT_REGISTRIES=("registry.oglimmer.com")
@@ -15,69 +19,79 @@ FRONTEND_DEPLOYMENT="$DEFAULT_FRONTEND_DEPLOYMENT"
 BACKEND_DEPLOYMENT="$DEFAULT_BACKEND_DEPLOYMENT"
 
 # Directories
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BACKEND_DIR="$ROOT_DIR/backend"
-FRONTEND_DIR="$ROOT_DIR/frontend"
+BACKEND_DIR="$SCRIPT_DIR/backend"
+FRONTEND_DIR="$SCRIPT_DIR/frontend"
 
-# Default options
-BUILD_FRONTEND=false
-BUILD_BACKEND=false
-VERBOSE=false
-RESTART=true
-PUSH=true
+# Default options (can be overridden by environment variables)
+BUILD_FRONTEND="${BUILD_FRONTEND:-false}"
+BUILD_BACKEND="${BUILD_BACKEND:-false}"
+VERBOSE="${VERBOSE:-false}"
+DRY_RUN="${DRY_RUN:-false}"
+RESTART="${RESTART:-true}"
+PUSH="${PUSH:-true}"
 HELP=false
-PLATFORM="multi"
+PLATFORM="${PLATFORM:-multi}"
 RELEASE_MODE=false
 SHOW_VERSIONS=false
 COPY_STAGE_DB=false
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Color output (only if terminal supports it)
+if [[ -t 1 ]] && command -v tput >/dev/null 2>&1; then
+  BOLD="$(tput bold)"
+  GREEN="$(tput setaf 2)"
+  YELLOW="$(tput setaf 3)"
+  RED="$(tput setaf 1)"
+  BLUE="$(tput setaf 4)"
+  RESET="$(tput sgr0)"
+else
+  BOLD="" GREEN="" YELLOW="" RED="" BLUE="" RESET=""
+fi
 
 # Logging functions
 log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
+    echo -e "${BLUE}[INFO]${RESET} $1"
 }
 
 log_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
+    echo -e "${GREEN}[SUCCESS]${RESET} $1"
 }
 
 log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
+    echo -e "${YELLOW}[WARNING]${RESET} $1"
 }
 
 log_error() {
-    echo -e "${RED}[ERROR]${NC} $1" >&2
+    echo -e "${RED}[ERROR]${RESET} $1" >&2
 }
 
 # Verbose logging
 log_verbose() {
     if [[ "$VERBOSE" == true ]]; then
-        echo -e "${BLUE}[VERBOSE]${NC} $1"
+        echo -e "${BLUE}[VERBOSE]${RESET} $1"
     fi
 }
 
-# Execute command with optional verbose output
+# Execute command with dry-run and verbose support
 execute_cmd() {
     local cmd="$1"
-    log_verbose "Executing: $cmd"
 
-    if [[ "$VERBOSE" == true ]]; then
-        eval "$cmd"
+    if [[ "$DRY_RUN" == true ]]; then
+        echo -e "${YELLOW}[DRY-RUN]${RESET} ${cmd}"
+        return 0
     else
-        eval "$cmd" >/dev/null 2>&1
+        log_verbose "Executing: $cmd"
+        if [[ "$VERBOSE" == true ]]; then
+            eval "$cmd"
+        else
+            eval "$cmd" >/dev/null 2>&1
+        fi
     fi
 }
 
 # Show usage information
 show_help() {
     cat << EOF
-Usage: $0 [OPTIONS] [COMMAND]
+Usage: ${SCRIPT_NAME} [OPTIONS] [COMMAND]
 
 Build, deploy, and release status-tacos application components.
 
@@ -94,6 +108,7 @@ BUILD OPTIONS:
     -v, --verbose           Enable verbose output
     -n, --no-restart        Skip Kubernetes deployment restart
     --no-push               Skip pushing images to registry
+    --dry-run               Show what would be done without executing
 
     # Registry configuration options
     --registries "REG1,REG2"    Comma-separated list of registries to push to (default: ${DEFAULT_REGISTRIES[0]})
@@ -111,22 +126,26 @@ BUILD OPTIONS:
     -h, --help              Show this help message
 
 EXAMPLES:
-    $0                                          # Build and deploy both components with defaults
-    $0 build -f                                 # Build and deploy frontend only
-    $0 build -b -v                              # Build and deploy backend with verbose output
-    $0 release                                  # Create a new release with version bump and build
-    $0 show                                     # Show current versions
-    $0 copy-stage-db                            # Copy database from stage server to local MariaDB
-    $0 build --registries my-registry.com                               # Use custom registry
-    $0 build --registries "reg1.com,reg2.com"                          # Push to multiple registries
-    $0 build --registries localhost:5000 --no-push                     # Use local registry without pushing
-    $0 build --platform amd64                  # Build for AMD64 only
+    ${SCRIPT_NAME}                                          # Build and deploy both components with defaults
+    ${SCRIPT_NAME} build -f                                 # Build and deploy frontend only
+    ${SCRIPT_NAME} build -b -v                              # Build and deploy backend with verbose output
+    ${SCRIPT_NAME} release                                  # Create a new release with version bump and build
+    ${SCRIPT_NAME} show                                     # Show current versions
+    ${SCRIPT_NAME} copy-stage-db                            # Copy database from stage server to local MariaDB
+    ${SCRIPT_NAME} build --registries my-registry.com                               # Use custom registry
+    ${SCRIPT_NAME} build --registries "reg1.com,reg2.com"                          # Push to multiple registries
+    ${SCRIPT_NAME} build --registries localhost:5000 --no-push                     # Use local registry without pushing
+    ${SCRIPT_NAME} build --platform amd64                  # Build for AMD64 only
 
 ENVIRONMENT VARIABLES:
     FRONTEND_DEPLOYMENT     Override default frontend deployment name
     BACKEND_DEPLOYMENT      Override default backend deployment name
-    DOCKER_PLATFORM         Override default platform (amd64|arm64|multi|auto)
+    PLATFORM                Override default platform (amd64|arm64|multi|auto)
     DEFAULT_REGISTRIES_ENV  Override default registries (comma-separated)
+    VERBOSE                 Enable verbose mode (true/false)
+    DRY_RUN                 Enable dry-run mode (true/false)
+    PUSH                    Enable/disable pushing to registry (true/false)
+    RESTART                 Enable/disable Kubernetes restart (true/false)
 
 EOF
 }
@@ -183,6 +202,10 @@ parse_args() {
                 ;;
             --no-push)
                 PUSH=false
+                shift
+                ;;
+            --dry-run)
+                DRY_RUN=true
                 shift
                 ;;
             --registries)
@@ -252,6 +275,11 @@ parse_args() {
         exit 1
     fi
 
+    # Validate conflicting options
+    if [[ "$PUSH" == false && "$RESTART" == true && "$RELEASE_MODE" == false ]]; then
+        log_warning "Cannot restart deployments without pushing images. Setting --no-restart."
+        RESTART=false
+    fi
 
     # If no component specified for build mode, build both
     if [[ "$RELEASE_MODE" == false && "$SHOW_VERSIONS" == false && "$BUILD_FRONTEND" == false && "$BUILD_BACKEND" == false ]]; then
@@ -263,6 +291,7 @@ parse_args() {
 # Check if required tools are available
 check_prerequisites() {
     local tools=("docker" "kubectl")
+    local missing_deps=()
 
     # Add additional tools for release mode
     if [[ "$RELEASE_MODE" == true ]]; then
@@ -275,11 +304,23 @@ check_prerequisites() {
     fi
 
     for tool in "${tools[@]}"; do
-        if ! command -v "$tool" &> /dev/null; then
-            log_error "$tool is required but not installed"
-            exit 1
+        if ! command -v "$tool" >/dev/null 2>&1; then
+            missing_deps+=("$tool")
         fi
     done
+
+    if [[ ${#missing_deps[@]} -gt 0 ]]; then
+        log_error "Missing required dependencies: ${missing_deps[*]}"
+        echo "Please install the missing dependencies and try again." >&2
+        exit 1
+    fi
+
+    # Check if Docker daemon is running (skip in dry-run mode)
+    if [[ "$DRY_RUN" != true ]] && ! docker info >/dev/null 2>&1; then
+        log_error "Docker daemon is not running"
+        echo "Please start Docker and try again." >&2
+        exit 1
+    fi
 
     # Check if buildx is available for multi-platform builds
     if [[ "$PLATFORM" == "multi" ]]; then
@@ -470,19 +511,26 @@ restart_deployment() {
 
 # Execute build process
 execute_build() {
+    # Display configuration
+    echo -e "${BOLD}=== Build Configuration ===${RESET}"
+    echo "Registries:        ${REGISTRIES[*]}"
+    echo "Platform:          ${PLATFORM:-auto}"
+    echo "Build Frontend:    $BUILD_FRONTEND"
+    echo "Build Backend:     $BUILD_BACKEND"
+    echo "Push to Registry:  $PUSH"
+    echo "Restart K8s:       $RESTART"
+    echo "Dry-run:           $DRY_RUN"
+    echo "Verbose:           $VERBOSE"
+    if [[ "$BUILD_FRONTEND" == true ]]; then
+        echo "Frontend Deploy:   $FRONTEND_DEPLOYMENT"
+    fi
+    if [[ "$BUILD_BACKEND" == true ]]; then
+        echo "Backend Deploy:    $BACKEND_DEPLOYMENT"
+    fi
+    echo -e "${BOLD}===========================${RESET}"
+    echo
+
     log_info "Starting build process..."
-    log_verbose "Configuration:"
-    log_verbose "  Registries (${#REGISTRIES[@]}): ${REGISTRIES[*]}"
-    log_verbose "  Frontend Images (${#FRONTEND_IMAGES[@]}): ${FRONTEND_IMAGES[*]}"
-    log_verbose "  Backend Images (${#BACKEND_IMAGES[@]}): ${BACKEND_IMAGES[*]}"
-    log_verbose "  Frontend Deployment: $FRONTEND_DEPLOYMENT"
-    log_verbose "  Backend Deployment: $BACKEND_DEPLOYMENT"
-    log_verbose "  Platform: ${PLATFORM:-auto}"
-    log_verbose "  Build Frontend: $BUILD_FRONTEND"
-    log_verbose "  Build Backend: $BUILD_BACKEND"
-    log_verbose "  Verbose: $VERBOSE"
-    log_verbose "  Restart: $RESTART"
-    log_verbose "  Push: $PUSH"
 
     # Build frontend
     if [[ "$BUILD_FRONTEND" == true ]]; then
@@ -516,7 +564,8 @@ execute_build() {
         log_info "Skipping deployment restarts (--no-restart specified)"
     fi
 
-    log_success "Build process completed successfully!"
+    echo
+    echo -e "${BOLD}${GREEN}✓ All operations completed successfully${RESET}"
 }
 
 # Copy database from stage server to local MariaDB
@@ -578,7 +627,9 @@ copy_stage_database() {
 
     # Clean up temporary file
     rm -f "$dump_file"
-    log_success "Stage database copied to local MariaDB successfully!"
+
+    echo
+    echo -e "${BOLD}${GREEN}✓ Stage database copied to local MariaDB successfully${RESET}"
 }
 
 # Execute release process
@@ -639,6 +690,12 @@ execute_release() {
 
 # Main execution function
 main() {
+    # Show help if no arguments provided
+    if [[ $# -eq 0 ]]; then
+        show_help
+        exit 0
+    fi
+
     parse_args "$@"
 
     if [[ "$HELP" == true ]]; then
