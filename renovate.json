@@ -2,82 +2,44 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended",
-    ":enableVulnerabilityAlerts",
-    ":dependencyDashboard"
+    ":enableVulnerabilityAlerts"
   ],
+
+  "timezone": "Europe/Berlin",
   "prHourlyLimit": 30,
   "prConcurrentLimit": 30,
-  "timezone": "Europe/Berlin",
-  "dependencyDashboard": true,
-  "rangeStrategy": "auto",
-  "schedule": [
-    "before 5am on monday"
-  ],
-  "automerge": false,
   "rebaseWhen": "behind-base-branch",
+
+  "schedule": ["before 5am on monday"],
+
   "automergeType": "branch",
-  "major": {
-    "automerge": false
-  },
-  "minor": {
-    "automerge": true
-  },
-  "patch": {
-    "automerge": true
-  },
+  "major": { "automerge": false },
+  "minor": { "automerge": true },
+  "patch": { "automerge": true },
+
   "lockFileMaintenance": {
     "enabled": true,
-    "schedule": [
-      "before 5am on monday"
-    ]
+    "automerge": true,
+    "schedule": ["before 5am on monday"]
   },
+
   "packageRules": [
     {
-      "matchDatasources": [
-        "maven"
-      ],
-      "matchFileNames": [
-        "backend/**"
-      ],
+      "matchDatasources": ["maven"],
       "groupName": "maven dependencies"
     },
     {
-      "matchManagers": [
-        "npm"
-      ],
-      "matchFileNames": [
-        "frontend/**"
-      ],
+      "matchManagers": ["npm"],
       "groupName": "npm dependencies"
     },
     {
-      "matchDepTypes": [
-        "devDependencies"
-      ],
-      "matchFileNames": [
-        "frontend/**"
-      ],
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["devDependencies"],
       "groupName": "frontend dev dependencies"
     },
     {
-      "matchUpdateTypes": [
-        "minor",
-        "patch"
-      ],
-      "matchCurrentVersion": "!/^0/",
-      "automerge": true
+      "matchCurrentVersion": "/^0\\./",
+      "automerge": false
     }
-  ],
-  "maven": {
-    "managerFilePatterns": [
-      "/pom.xml$/",
-      "/^backend/.+\\.xml$/"
-    ]
-  },
-  "npm": {
-    "managerFilePatterns": [
-      "/frontend/package.json/",
-      "/frontend/.+\\.json$/"
-    ]
-  }
+  ]
 }
