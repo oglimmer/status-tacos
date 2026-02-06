@@ -1,4 +1,4 @@
-FROM eclipse-temurin:25.0.1_8-jdk AS builder
+FROM eclipse-temurin:25.0.2_10-jdk AS builder
 
 WORKDIR /app/backend
 
@@ -17,7 +17,7 @@ COPY .git/ .git/
 WORKDIR /app/backend
 RUN --mount=type=cache,target=/root/.m2 ./mvnw package --batch-mode
 
-FROM eclipse-temurin:25.0.1_8-jre-alpine
+FROM eclipse-temurin:25.0.2_10-jre-alpine
 
 RUN apk add --no-cache curl
 
