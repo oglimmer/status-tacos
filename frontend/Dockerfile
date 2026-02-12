@@ -1,4 +1,4 @@
-FROM node:24.13.0-slim AS builder
+FROM node:24.13.1-slim AS builder
 
 WORKDIR /opt/status-tacos
 
