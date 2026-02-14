@@ -81,8 +81,8 @@ server:
     mime-types: "application/json,application/xml,text/html,text/xml,text/plain"
 monitor:
   http:
-    connect-timeout: "10s"
-    request-timeout: "30s"
+    connect-timeout: "5s"
+    request-timeout: "10s"
     max-connections: 100
     max-per-route: 20
   network:

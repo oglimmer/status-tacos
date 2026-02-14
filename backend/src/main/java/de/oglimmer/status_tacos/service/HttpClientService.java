@@ -9,6 +9,7 @@ import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
@@ -40,6 +41,15 @@ public class HttpClientService {
     this.connectionManager = new PoolingHttpClientConnectionManager();
     this.connectionManager.setMaxTotal(maxConnections);
     this.connectionManager.setDefaultMaxPerRoute(maxPerRoute);
+
+    // Set TCP connect timeout on the connection manager - without this,
+    // unreachable hosts block for the OS default timeout (60-120+ seconds)
+    ConnectionConfig connectionConfig =
+        ConnectionConfig.custom()
+            .setConnectTimeout(this.connectTimeout)
+            .setSocketTimeout(this.requestTimeout)
+            .build();
+    this.connectionManager.setDefaultConnectionConfig(connectionConfig);
 
     RequestConfig requestConfig =
         RequestConfig.custom()
