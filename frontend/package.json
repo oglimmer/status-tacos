@@ -19,7 +19,7 @@
     "oidc-client-ts": "^3.4.1",
     "pinia": "^3.0.4",
     "vue": "^3.5.28",
-    "vue-router": "^4.6.4"
+    "vue-router": "^5.0.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
@@ -32,11 +32,11 @@
     "@vue/eslint-config-typescript": "^14.7.0",
     "@vue/test-utils": "^2.4.6",
     "@vue/tsconfig": "^0.8.1",
-    "eslint": "^9.39.3",
+    "eslint": "^10.0.1",
     "eslint-plugin-playwright": "^2.7.0",
     "eslint-plugin-vue": "~10.8.0",
     "jiti": "^2.6.1",
-    "jsdom": "^27.4.0",
+    "jsdom": "^28.1.0",
     "npm-run-all2": "^8.0.4",
     "prettier": "3.8.1",
     "typescript": "~5.9.3",
