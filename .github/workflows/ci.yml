@@ -96,6 +96,12 @@ jobs:
     needs: changes
     if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-latest
+    # @playwright/test is pinned to 1.16.1, whose firefox/webkit builds need
+    # Ubuntu 20.04-era system libs (ICU 66, webp 6, libsoup 2.4, ...) that are
+    # absent from ubuntu-latest (Noble). Run inside the matching Playwright
+    # image, which has every browser dependency baked in.
+    container:
+      image: mcr.microsoft.com/playwright:v1.16.1-focal
     defaults:
       run:
         working-directory: frontend
@@ -111,8 +117,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Browsers + their system deps are already in the container image; just
+      # ensure the matching browser revision is present for the pinned version.
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps
+        run: npx playwright install
 
       # playwright.config.ts boots `npm run preview` on CI, which serves the
       # built dist/, so the app has to be built first.
