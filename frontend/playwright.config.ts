@@ -1,5 +1,6 @@
 import process from 'node:process'
-import { defineConfig, devices } from '@playwright/test'
+import type { PlaywrightTestConfig } from '@playwright/test'
+import { devices } from 'playwright-core'
 
 /**
  * Read environment variables from file.
@@ -10,7 +11,7 @@ import { defineConfig, devices } from '@playwright/test'
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
-export default defineConfig({
+const config: PlaywrightTestConfig = {
   testDir: './e2e',
   /* Maximum time one test can run for. */
   timeout: 30 * 1000,
@@ -107,4 +108,6 @@ export default defineConfig({
     port: process.env.CI ? 4173 : 5173,
     reuseExistingServer: !process.env.CI,
   },
-})
+}
+
+export default config
