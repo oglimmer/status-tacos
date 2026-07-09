@@ -2,11 +2,16 @@
 # This is a YAML-formatted file.
 
 global:
-  imageRegistry: registry.oglimmer.com
+  imageRegistry: ghcr.io/oglimmer
 
-# Image pull secrets
+# Image pull secrets. ghcr.io packages are private by default, so the cluster
+# needs a dockerconfigjson secret named `ghcr-oglimmer` in the target namespace
+# (or make the packages public and drop this list). Create it with:
+#   kubectl create secret docker-registry ghcr-oglimmer \
+#     --docker-server=ghcr.io --docker-username=<gh-user> \
+#     --docker-password=<PAT with read:packages> -n <namespace>
 imagePullSecrets:
-  - name: oglimmerregistrykey
+  - name: ghcr-oglimmer
 
 # Frontend configuration
 frontend:

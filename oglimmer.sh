@@ -7,7 +7,7 @@ SCRIPT_NAME=$(basename "$0")
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Default configuration
-DEFAULT_REGISTRIES=("registry.oglimmer.com")
+DEFAULT_REGISTRIES=("ghcr.io/oglimmer")
 DEFAULT_FRONTEND_DEPLOYMENT="status-tacos-frontend"
 DEFAULT_BACKEND_DEPLOYMENT="status-tacos-backend"
 
@@ -31,6 +31,10 @@ RESTART="${RESTART:-true}"
 PUSH="${PUSH:-true}"
 HELP=false
 PLATFORM="${PLATFORM:-multi}"
+# Restart hook — triggers an in-cluster rollout when kubectl is not available
+# (e.g. CI build runners with no cluster access). See restart_via_hook().
+RESTART_HOOK_URL="${RESTART_HOOK_URL:-https://restart.oglimmer.com/restart}"
+K8S_NAMESPACE="${K8S_NAMESPACE:-default}"
 RELEASE_MODE=false
 SHOW_VERSIONS=false
 COPY_STAGE_DB=false
@@ -146,6 +150,10 @@ ENVIRONMENT VARIABLES:
     DRY_RUN                 Enable dry-run mode (true/false)
     PUSH                    Enable/disable pushing to registry (true/false)
     RESTART                 Enable/disable Kubernetes restart (true/false)
+    RESTART_TOKEN           Bearer token for the restart hook. Used to restart
+                            deployments when kubectl is unavailable (e.g. CI).
+    RESTART_HOOK_URL        Restart hook base URL (default: https://restart.oglimmer.com/restart)
+    K8S_NAMESPACE           Namespace for restart-hook rollouts (default: default)
 
 EOF
 }
@@ -290,7 +298,7 @@ parse_args() {
 
 # Check if required tools are available
 check_prerequisites() {
-    local tools=("docker" "kubectl")
+    local tools=("docker")
     local missing_deps=()
 
     # Add additional tools for release mode
@@ -312,6 +320,16 @@ check_prerequisites() {
     if [[ ${#missing_deps[@]} -gt 0 ]]; then
         log_error "Missing required dependencies: ${missing_deps[*]}"
         echo "Please install the missing dependencies and try again." >&2
+        exit 1
+    fi
+
+    # Restarting a deployment needs EITHER kubectl (direct rollout) OR a
+    # RESTART_TOKEN (to call the restart hook). Local/dev has kubectl with
+    # cluster access; CI build runners have neither and set RESTART_TOKEN
+    # instead. Fail early when a restart is requested but neither path exists.
+    if [[ "$RESTART" == true ]] && ! command -v kubectl >/dev/null 2>&1 && [[ -z "${RESTART_TOKEN:-}" ]]; then
+        log_error "Restart requested but kubectl is not available and RESTART_TOKEN is not set"
+        echo "Install kubectl, set RESTART_TOKEN, or pass --no-restart." >&2
         exit 1
     fi
 
@@ -489,9 +507,38 @@ build_image() {
     fi
 }
 
-# Restart Kubernetes deployment
+# Restart a deployment via the in-cluster restart hook (POST authenticated
+# with RESTART_TOKEN). Used when kubectl is unavailable, e.g. CI runners that
+# can't reach the cluster directly. The token is never echoed, even in
+# dry-run/verbose mode.
+restart_via_hook() {
+    local deployment="$1"
+    local url="${RESTART_HOOK_URL}/${K8S_NAMESPACE}/${deployment}"
+
+    log_info "Restarting $deployment via hook: $url"
+
+    if [[ "$DRY_RUN" == true ]]; then
+        echo -e "${YELLOW}[DRY-RUN]${RESET} curl -fsS -X POST -H 'Authorization: Bearer ***' $url"
+        return 0
+    fi
+
+    if ! curl -fsS -X POST -H "Authorization: Bearer ${RESTART_TOKEN}" "$url" >/dev/null; then
+        log_error "Failed to trigger restart for $deployment via hook"
+        exit 1
+    fi
+    log_success "Deployment $deployment restart triggered via hook"
+}
+
+# Restart Kubernetes deployment. Prefer kubectl when present (local/dev with
+# cluster access); otherwise fall back to the restart hook using RESTART_TOKEN
+# (CI runners without cluster access).
 restart_deployment() {
     local deployment="$1"
+
+    if ! command -v kubectl >/dev/null 2>&1; then
+        restart_via_hook "$deployment"
+        return
+    fi
 
     log_info "Restarting deployment: $deployment"
 
