@@ -19,6 +19,9 @@ RUN --mount=type=cache,target=/root/.m2 ./mvnw package --batch-mode
 
 FROM eclipse-temurin:25.0.2_10-jre-alpine
 
+# Link this image to its GitHub repo (drives the repo Packages sidebar and auto-links GHCR)
+LABEL org.opencontainers.image.source="https://github.com/oglimmer/status-tacos"
+
 RUN apk add --no-cache curl
 
 WORKDIR /app

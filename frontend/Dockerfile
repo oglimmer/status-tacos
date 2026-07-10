@@ -21,6 +21,9 @@ RUN echo '{ "version": "'$VITE_APP_VERSION'", "git": "'$VITE_GIT_VERSION'" }' > 
 
 FROM nginx:alpine
 
+# Link this image to its GitHub repo (drives the repo Packages sidebar and auto-links GHCR)
+LABEL org.opencontainers.image.source="https://github.com/oglimmer/status-tacos"
+
 # Create a non-root user
 RUN addgroup -g 1001 -S nginx-user && \
     adduser -S -D -H -u 1001 -h /var/cache/nginx -s /sbin/nologin -G nginx-user -g nginx-user nginx-user
