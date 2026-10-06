@@ -160,6 +160,10 @@ public class AlertContactController {
       if (request.getHttpMethod() != null && !request.getHttpMethod().matches("(?i)^(GET|POST)$")) {
         throw new IllegalArgumentException("HTTP method must be GET or POST");
       }
+    } else if (request.getType() == AlertContact.AlertContactType.TEAMS) {
+      if (!request.isValidHttpsUrl()) {
+        throw new IllegalArgumentException("TEAMS contact needs an https:// workflow URL");
+      }
     }
   }
 }

@@ -2,8 +2,10 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { apiService } from '../services/api'
 
+export type AlertContactType = 'EMAIL' | 'HTTP' | 'TEAMS'
+
 export interface AlertContactRequest {
-  type: 'EMAIL' | 'HTTP'
+  type: AlertContactType
   value: string
   name?: string
   isActive: boolean
@@ -11,11 +13,14 @@ export interface AlertContactRequest {
   httpHeaders?: Record<string, string>
   httpBody?: string
   httpContentType?: 'application/json' | 'text/plain'
+  // false: the contact is alerted only for the monitors in monitorIds
+  allMonitors: boolean
+  monitorIds?: number[]
 }
 
 export interface AlertContactResponse {
   id: number
-  type: 'EMAIL' | 'HTTP'
+  type: AlertContactType
   value: string
   name?: string
   isActive: boolean
@@ -34,6 +39,8 @@ export interface AlertContactResponse {
   httpHeaders?: Record<string, string>
   httpBody?: string
   httpContentType?: 'application/json' | 'text/plain'
+  allMonitors: boolean
+  monitors?: Array<{ id: number; name: string }>
 }
 
 export const useAlertContactsStore = defineStore('alertContacts', () => {

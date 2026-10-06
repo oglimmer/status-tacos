@@ -5,9 +5,13 @@ import de.oglimmer.status_tacos.dto.AlertContactRequestDto;
 import de.oglimmer.status_tacos.dto.AlertContactResponseDto;
 import de.oglimmer.status_tacos.dto.TenantResponseDto;
 import de.oglimmer.status_tacos.persistence.AlertContact;
+import de.oglimmer.status_tacos.persistence.Monitor;
 import de.oglimmer.status_tacos.persistence.Tenant;
 import de.oglimmer.status_tacos.repository.AlertContactRepository;
+import de.oglimmer.status_tacos.repository.MonitorRepository;
 import de.oglimmer.status_tacos.repository.TenantRepository;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -23,6 +27,7 @@ public class AlertContactService {
 
   private final AlertContactRepository alertContactRepository;
   private final TenantRepository tenantRepository;
+  private final MonitorRepository monitorRepository;
   private final AlertService alertService;
 
   @Transactional
@@ -59,6 +64,7 @@ public class AlertContactService {
       alertContact.setHttpHeadersFromMap(request.getHttpHeaders());
     }
 
+    applyMonitorScope(alertContact, request, tenantId);
     alertContact.validateValue();
     AlertContact saved = alertContactRepository.save(alertContact);
 
@@ -131,6 +137,7 @@ public class AlertContactService {
       alertContact.setHttpHeaders(null);
     }
 
+    applyMonitorScope(alertContact, request, alertContact.getTenantId());
     alertContact.validateValue();
     AlertContact saved = alertContactRepository.save(alertContact);
 
@@ -190,6 +197,36 @@ public class AlertContactService {
         alertContact.getTenantId());
   }
 
+  /**
+   * Sets which monitors the contact is alerted for. Selected monitors must belong to the tenant of
+   * the contact, so a contact never gets alerts of another tenant.
+   */
+  private void applyMonitorScope(
+      AlertContact alertContact, AlertContactRequestDto request, Integer tenantId) {
+    alertContact.setAllMonitors(request.isAllMonitors());
+    if (request.isAllMonitors()) {
+      alertContact.getMonitors().clear();
+      return;
+    }
+
+    Set<Integer> monitorIds = request.getMonitorIds() == null ? Set.of() : request.getMonitorIds();
+    if (monitorIds.isEmpty()) {
+      throw new IllegalArgumentException(
+          "Select at least one monitor or send alerts for all monitors");
+    }
+
+    List<Monitor> monitors = monitorRepository.findAllById(monitorIds);
+    boolean allInTenant =
+        monitors.size() == monitorIds.size()
+            && monitors.stream().allMatch(monitor -> tenantId.equals(monitor.getTenantId()));
+    if (!allInTenant) {
+      throw new IllegalArgumentException("All selected monitors must belong to the tenant");
+    }
+
+    alertContact.getMonitors().clear();
+    alertContact.getMonitors().addAll(new HashSet<>(monitors));
+  }
+
   private void validateTenantAccess(Integer tenantId, Set<Integer> allowedTenantIds) {
     if (!allowedTenantIds.contains(tenantId)) {
       throw new IllegalArgumentException("Access denied to tenant");
@@ -210,6 +247,15 @@ public class AlertContactService {
         .httpHeaders(alertContact.getHttpHeadersMap())
         .httpBody(alertContact.getHttpBody())
         .httpContentType(alertContact.getHttpContentType())
+        .allMonitors(alertContact.isAllMonitors())
+        .monitors(
+            alertContact.getMonitors().stream()
+                .sorted(Comparator.comparing(Monitor::getName, String.CASE_INSENSITIVE_ORDER))
+                .map(
+                    monitor ->
+                        new AlertContactResponseDto.MonitorReference(
+                            monitor.getId(), monitor.getName()))
+                .toList())
         .build();
   }
 

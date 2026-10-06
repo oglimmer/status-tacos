@@ -70,6 +70,8 @@ spec:
               value: {{ .Values.backend.email.from | quote }}
             - name: MONITOR_EMAIL_SUBJECT_PREFIX
               value: {{ .Values.backend.email.subjectPrefix | quote }}
+            - name: MONITOR_APP_URL
+              value: {{ .Values.backend.appUrl | default (printf "https://%s" (index .Values.ingress.hosts 0).host) | quote }}
           {{- if .Values.backend.livenessProbe }}
           livenessProbe:
             {{- toYaml .Values.backend.livenessProbe | nindent 12 }}

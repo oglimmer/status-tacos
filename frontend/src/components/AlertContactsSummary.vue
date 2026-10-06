@@ -12,6 +12,7 @@ interface SummaryData {
   inactive: number
   email: number
   webhook: number
+  teams: number
 }
 
 defineProps<{
@@ -47,6 +48,10 @@ defineEmits<{
       <div class="summary-card">
         <div class="summary-number">{{ summary.webhook }}</div>
         <div class="summary-label">Webhook</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-number">{{ summary.teams }}</div>
+        <div class="summary-label">Teams</div>
       </div>
     </div>
 

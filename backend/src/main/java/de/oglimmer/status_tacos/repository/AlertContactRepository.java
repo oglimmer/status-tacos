@@ -22,6 +22,14 @@ public interface AlertContactRepository extends JpaRepository<AlertContact, Inte
 
   List<AlertContact> findByTenantIdAndIsActiveTrue(Integer tenantId);
 
+  /** Active contacts of the tenant that are alerted for every monitor or for this monitor. */
+  @Query(
+      "SELECT DISTINCT ac FROM AlertContact ac LEFT JOIN ac.monitors m"
+          + " WHERE ac.tenantId = :tenantId AND ac.isActive = true"
+          + " AND (ac.allMonitors = true OR m.id = :monitorId)")
+  List<AlertContact> findActiveByTenantIdForMonitor(
+      @Param("tenantId") Integer tenantId, @Param("monitorId") Integer monitorId);
+
   Optional<AlertContact> findByIdAndTenantIdIn(Integer id, Set<Integer> tenantIds);
 
   @Modifying

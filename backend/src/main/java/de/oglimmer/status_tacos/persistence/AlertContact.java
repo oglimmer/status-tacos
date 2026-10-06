@@ -7,11 +7,15 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 @Entity
 @Table(name = "alert_contacts")
@@ -37,8 +41,8 @@ public class AlertContact {
   private AlertContactType type;
 
   @NotBlank
-  @Size(max = 320)
-  @Column(name = "`value`", nullable = false, length = 320)
+  @Size(max = 2048)
+  @Column(name = "`value`", nullable = false, length = 2048)
   private String value;
 
   @Size(max = 100)
@@ -61,6 +65,21 @@ public class AlertContact {
   @Column(name = "http_content_type", length = 50)
   private String httpContentType;
 
+  /** true: alerted for every monitor of the tenant. false: only for {@link #monitors}. */
+  @Column(name = "all_monitors", nullable = false)
+  @Builder.Default
+  private boolean allMonitors = true;
+
+  @ManyToMany(fetch = FetchType.LAZY)
+  @JoinTable(
+      name = "alert_contact_monitors",
+      joinColumns = @JoinColumn(name = "alert_contact_id"),
+      inverseJoinColumns = @JoinColumn(name = "monitor_id"))
+  @Builder.Default
+  @ToString.Exclude
+  @EqualsAndHashCode.Exclude
+  private Set<Monitor> monitors = new HashSet<>();
+
   @Column(name = "created_at", nullable = false)
   private LocalDateTime createdAt;
 
@@ -81,7 +100,8 @@ public class AlertContact {
 
   public enum AlertContactType {
     EMAIL,
-    HTTP
+    HTTP,
+    TEAMS
   }
 
   public void validateValue() {
@@ -90,6 +110,9 @@ public class AlertContact {
     }
     if (type == AlertContactType.HTTP && !isValidUrl(value)) {
       throw new IllegalArgumentException("Invalid URL format for HTTP type contact");
+    }
+    if (type == AlertContactType.TEAMS && !isValidHttpsUrl(value)) {
+      throw new IllegalArgumentException("TEAMS contact needs an https:// workflow URL");
     }
     if (type == AlertContactType.HTTP
         && httpMethod != null
@@ -104,6 +127,10 @@ public class AlertContact {
 
   private boolean isValidUrl(String url) {
     return url != null && url.matches("^https?://.*");
+  }
+
+  private boolean isValidHttpsUrl(String url) {
+    return url != null && url.matches("^https://.*");
   }
 
   public Map<String, String> getHttpHeadersMap() {

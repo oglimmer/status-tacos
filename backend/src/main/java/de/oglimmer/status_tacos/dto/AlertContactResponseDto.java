@@ -4,6 +4,7 @@ package de.oglimmer.status_tacos.dto;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import de.oglimmer.status_tacos.persistence.AlertContact;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -33,4 +34,11 @@ public class AlertContactResponseDto {
   private Map<String, String> httpHeaders;
   private String httpBody;
   private String httpContentType;
+
+  private boolean allMonitors;
+
+  /** The monitors this contact is limited to. Empty when allMonitors is true. */
+  private List<MonitorReference> monitors;
+
+  public record MonitorReference(Integer id, String name) {}
 }

@@ -35,7 +35,8 @@ const summaryData = computed(() => {
     active: contacts.filter(c => c.isActive).length,
     inactive: contacts.filter(c => !c.isActive).length,
     email: contacts.filter(c => c.type === 'EMAIL').length,
-    webhook: contacts.filter(c => c.type === 'HTTP').length
+    webhook: contacts.filter(c => c.type === 'HTTP').length,
+    teams: contacts.filter(c => c.type === 'TEAMS').length
   }
 })
 

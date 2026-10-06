@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useAlertContactsStore, type AlertContactRequest, type AlertContactResponse } from '../stores/alertContacts'
 import { useAuthStore } from '../stores/auth'
-import type { CurrentUser } from '../services/api'
+import type { MonitorResponse } from '../stores/monitors'
+import { apiService, type CurrentUser } from '../services/api'
 
 const props = defineProps<{
   contact?: AlertContactResponse | null
@@ -25,7 +26,9 @@ const form = ref<AlertContactRequest>({
   httpMethod: 'GET',
   httpHeaders: {},
   httpBody: '',
-  httpContentType: 'application/json'
+  httpContentType: 'application/json',
+  allMonitors: true,
+  monitorIds: []
 })
 
 // Manage headers as an array with stable IDs for proper reactivity
@@ -35,6 +38,35 @@ const selectedTenantId = ref<number>(0)
 const isSubmitting = ref(false)
 const error = ref<string | null>(null)
 const currentUser = ref<CurrentUser | null>(null)
+const monitors = ref<MonitorResponse[]>([])
+const monitorsLoading = ref(false)
+
+// Only monitors of the contact's tenant can be selected
+const tenantMonitors = computed(() =>
+  monitors.value
+    .filter(monitor => monitor.tenantId === selectedTenantId.value)
+    .sort((a, b) => a.name.localeCompare(b.name))
+)
+
+watch(selectedTenantId, () => {
+  // Monitors not loaded yet: keep the selection of the edited contact
+  if (monitors.value.length === 0) {
+    return
+  }
+  const allowed = new Set(tenantMonitors.value.map(monitor => monitor.id))
+  form.value.monitorIds = (form.value.monitorIds || []).filter(id => allowed.has(id))
+})
+
+const loadMonitors = async () => {
+  monitorsLoading.value = true
+  try {
+    monitors.value = await apiService.getMonitors()
+  } catch (err) {
+    console.error('Failed to load monitors:', err)
+  } finally {
+    monitorsLoading.value = false
+  }
+}
 
 onMounted(async () => {
   try {
@@ -51,7 +83,9 @@ onMounted(async () => {
         httpMethod: props.contact.httpMethod || 'GET',
         httpHeaders: props.contact.httpHeaders || {},
         httpBody: props.contact.httpBody || '',
-        httpContentType: props.contact.httpContentType || 'application/json'
+        httpContentType: props.contact.httpContentType || 'application/json',
+        allMonitors: props.contact.allMonitors ?? true,
+        monitorIds: (props.contact.monitors || []).map(monitor => monitor.id)
       }
       selectedTenantId.value = props.contact.tenant.id
     } else {
@@ -62,6 +96,8 @@ onMounted(async () => {
 
     // Initialize headers
     initializeHeaders()
+
+    await loadMonitors()
   } catch (err) {
     error.value = 'Failed to load user data'
     console.error('Failed to load user data:', err)
@@ -93,6 +129,16 @@ const validateForm = (): boolean => {
       error.value = 'Please enter a valid HTTP/HTTPS URL'
       return false
     }
+  } else if (form.value.type === 'TEAMS') {
+    if (!/^https:\/\/.+/.test(form.value.value)) {
+      error.value = 'Please enter the https:// URL of the Teams workflow'
+      return false
+    }
+  }
+
+  if (!form.value.allMonitors && !form.value.monitorIds?.length) {
+    error.value = 'Please select at least one monitor, or send alerts for all monitors'
+    return false
   }
 
   return true
@@ -107,13 +153,18 @@ const handleSubmit = async () => {
 
   isSubmitting.value = true
 
+  const request: AlertContactRequest = {
+    ...form.value,
+    monitorIds: form.value.allMonitors ? [] : form.value.monitorIds
+  }
+
   try {
     if (props.contact) {
       // Update existing contact
-      await alertContactsStore.updateAlertContact(props.contact.id, form.value)
+      await alertContactsStore.updateAlertContact(props.contact.id, request)
     } else {
       // Create new contact
-      await alertContactsStore.createAlertContact(selectedTenantId.value, form.value)
+      await alertContactsStore.createAlertContact(selectedTenantId.value, request)
     }
     emit('success')
     emit('close')
@@ -205,6 +256,7 @@ const handleClose = () => {
           <select id="type" v-model="form.type" required>
             <option value="EMAIL">Email</option>
             <option value="HTTP">HTTP Webhook</option>
+            <option value="TEAMS">Microsoft Teams</option>
           </select>
         </div>
 
@@ -240,6 +292,23 @@ const handleClose = () => {
           />
           <small class="form-help-text">
             Supports variables: &#123;&#123;MONITOR_NAME&#125;&#125;, &#123;&#123;MONITOR_URL&#125;&#125;, &#123;&#123;TENANT_NAME&#125;&#125;, &#123;&#123;STATUS_CODE&#125;&#125;, &#123;&#123;RESPONSE_BODY&#125;&#125;,&#123;&#123;ALERT_TYPE&#125;&#125;, &#123;&#123;TIMESTAMP&#125;&#125;
+          </small>
+        </div>
+
+        <div v-if="form.type === 'TEAMS'" class="form-group">
+          <label for="teamsUrl">Teams Workflow URL *</label>
+          <input
+            id="teamsUrl"
+            v-model="form.value"
+            type="url"
+            placeholder="https://….powerplatform.com/…/triggers/manual/paths/invoke?…"
+            required
+          />
+          <small class="form-help-text">
+            In Teams, open the channel, select "…" → Workflows → "Send webhook alerts to a channel",
+            and copy the URL here. Keep the URL secret: everybody with it can post to the channel.
+            Each alert is a card with the monitor, URL, reason, status code, response time,
+            down since / downtime and links to the monitored URL and Status Tacos.
           </small>
         </div>
 
@@ -313,6 +382,38 @@ const handleClose = () => {
           </select>
           <small v-if="props.contact" class="form-help-text">
             Tenant cannot be changed when editing
+          </small>
+        </div>
+
+        <div class="form-group">
+          <label>Send Alerts For</label>
+          <label class="checkbox-label">
+            <input v-model="form.allMonitors" type="radio" :value="true" name="scope" />
+            All monitors of the tenant
+          </label>
+          <label class="checkbox-label">
+            <input v-model="form.allMonitors" type="radio" :value="false" name="scope" />
+            Only selected monitors
+          </label>
+          <div v-if="!form.allMonitors" class="monitor-list">
+            <div v-if="monitorsLoading" class="monitor-list-empty">Loading monitors…</div>
+            <div v-else-if="tenantMonitors.length === 0" class="monitor-list-empty">
+              This tenant has no monitors yet.
+            </div>
+            <label
+              v-for="monitor in tenantMonitors"
+              :key="monitor.id"
+              class="checkbox-label monitor-option"
+            >
+              <input v-model="form.monitorIds" type="checkbox" :value="monitor.id" />
+              <span class="monitor-option-text">
+                <span>{{ monitor.name }}</span>
+                <small>{{ monitor.url }}</small>
+              </span>
+            </label>
+          </div>
+          <small v-if="!form.allMonitors" class="form-help-text">
+            New monitors are not added to this contact automatically.
           </small>
         </div>
 
@@ -576,5 +677,42 @@ const handleClose = () => {
 .form-group textarea {
   resize: vertical;
   min-height: 100px;
+}
+
+.monitor-list {
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+  margin-top: 0.5rem;
+  background: #f8f9fa;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.monitor-list-empty {
+  color: #6c757d;
+  font-size: 0.875rem;
+}
+
+.monitor-option {
+  align-items: flex-start !important;
+  margin-bottom: 0.4rem;
+}
+
+.monitor-option input[type="checkbox"] {
+  margin-top: 0.2rem;
+}
+
+.monitor-option-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.monitor-option-text small {
+  color: #6c757d;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

@@ -4,16 +4,19 @@ package de.oglimmer.status_tacos.service;
 import de.oglimmer.status_tacos.config.EmailConfig;
 import de.oglimmer.status_tacos.persistence.AlertContact;
 import de.oglimmer.status_tacos.persistence.AlertHistory;
+import de.oglimmer.status_tacos.persistence.CheckResult;
 import de.oglimmer.status_tacos.persistence.Monitor;
 import de.oglimmer.status_tacos.persistence.MonitorState;
 import de.oglimmer.status_tacos.repository.AlertContactRepository;
 import de.oglimmer.status_tacos.repository.AlertHistoryRepository;
+import de.oglimmer.status_tacos.repository.CheckResultRepository;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Limit;
 import org.springframework.http.*;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -27,129 +30,151 @@ import org.springframework.web.client.RestTemplate;
 @RequiredArgsConstructor
 public class AlertService {
 
+  /** Length of alert_history.email_sent_to. */
+  private static final int MAX_SENT_TO_LENGTH = 320;
+
   private final AlertHistoryRepository alertHistoryRepository;
   private final AlertContactRepository alertContactRepository;
+  private final CheckResultRepository checkResultRepository;
   private final EmailConfig emailConfig;
   private final Optional<JavaMailSender> javaMailSender;
+  private final TeamsNotificationService teamsNotificationService;
   private final RestTemplate restTemplate = new RestTemplate();
 
   @Transactional
-  public void handleMonitorDown(Monitor monitor, int statusCode) {
-    List<AlertContact> allContacts =
-        alertContactRepository.findByTenantIdAndIsActiveTrue(monitor.getTenantId());
-
-    List<AlertContact> emailContacts =
-        allContacts.stream()
-            .filter(contact -> contact.getType() == AlertContact.AlertContactType.EMAIL)
-            .toList();
-
-    List<AlertContact> httpContacts =
-        allContacts.stream()
-            .filter(contact -> contact.getType() == AlertContact.AlertContactType.HTTP)
-            .toList();
-
-    boolean hasEmailConfig = emailConfig.isEnabled() && javaMailSender.isPresent();
-
-    if (!hasEmailConfig && httpContacts.isEmpty()) {
-      log.debug("No alert methods configured for monitor {}", monitor.getId());
+  public void handleMonitorDown(Monitor monitor, CheckResult checkResult) {
+    List<AlertContact> contacts = findDeliverableContacts(monitor);
+    if (contacts.isEmpty()) {
       return;
     }
 
-    if (emailContacts.isEmpty() && httpContacts.isEmpty()) {
-      log.debug("No active alert contacts configured for tenant {}", monitor.getTenantId());
+    if (isDownAlertUnresolved(monitor)) {
+      log.debug(
+          "DOWN alert already sent for monitor {} and no UP alert since then", monitor.getId());
       return;
     }
 
-    // Check if we already sent a DOWN alert that hasn't been resolved
-    Optional<AlertHistory> lastDownAlert =
-        alertHistoryRepository.findTopByMonitorIdAndTenantIdAndAlertTypeOrderBySentAtDesc(
-            monitor.getId(), monitor.getTenantId(), AlertHistory.AlertType.down);
+    int statusCode = checkResult.getStatusCode() != null ? checkResult.getStatusCode() : 0;
+    TeamsAlert teamsAlert =
+        monitorAlert(TeamsAlert.Kind.DOWN, monitor, checkResult, findOutageStart(checkResult));
 
-    if (lastDownAlert.isPresent()) {
-      // Check if there's been an UP alert since the last DOWN alert
-      Optional<AlertHistory> lastUpAlert =
-          alertHistoryRepository.findTopByMonitorIdAndTenantIdAndAlertTypeOrderBySentAtDesc(
-              monitor.getId(), monitor.getTenantId(), AlertHistory.AlertType.up);
-
-      boolean hasUpAlertSinceDown =
-          lastUpAlert
-              .map(up -> up.getSentAt().isAfter(lastDownAlert.get().getSentAt()))
-              .orElse(false);
-
-      if (!hasUpAlertSinceDown) {
-        log.debug(
-            "DOWN alert already sent for monitor {} and no UP alert since then", monitor.getId());
-        return;
-      }
-    }
-
-    // Send DOWN alert to all active contacts
-    if (hasEmailConfig) {
-      for (AlertContact contact : emailContacts) {
-        sendEmailAlert(monitor, contact, "down", statusCode, false);
-      }
-    }
-
-    for (AlertContact contact : httpContacts) {
-      sendHttpAlert(monitor, contact, "down", statusCode, null, false);
+    // Send DOWN alert to all active contacts of this monitor
+    for (AlertContact contact : contacts) {
+      sendAlert(monitor, contact, "down", statusCode, teamsAlert);
     }
   }
 
   @Transactional
-  public void handleMonitorUp(Monitor monitor) {
-    List<AlertContact> allContacts =
-        alertContactRepository.findByTenantIdAndIsActiveTrue(monitor.getTenantId());
+  public void handleMonitorUp(Monitor monitor, CheckResult checkResult) {
+    List<AlertContact> contacts = findDeliverableContacts(monitor);
+    if (contacts.isEmpty()) {
+      return;
+    }
 
-    List<AlertContact> emailContacts =
-        allContacts.stream()
-            .filter(contact -> contact.getType() == AlertContact.AlertContactType.EMAIL)
-            .toList();
+    // Only a DOWN alert without an UP alert after it needs an UP notification
+    if (!isDownAlertUnresolved(monitor)) {
+      return;
+    }
 
-    List<AlertContact> httpContacts =
-        allContacts.stream()
-            .filter(contact -> contact.getType() == AlertContact.AlertContactType.HTTP)
-            .toList();
+    int statusCode = checkResult.getStatusCode() != null ? checkResult.getStatusCode() : 200;
+    TeamsAlert teamsAlert =
+        monitorAlert(TeamsAlert.Kind.UP, monitor, checkResult, findOutageStart(checkResult));
 
+    for (AlertContact contact : contacts) {
+      sendAlert(monitor, contact, "up", statusCode, teamsAlert);
+    }
+  }
+
+  /**
+   * Active contacts that are alerted for this monitor (all monitors of the tenant, or this monitor
+   * selected) and that can be reached with the current configuration.
+   */
+  private List<AlertContact> findDeliverableContacts(Monitor monitor) {
     boolean hasEmailConfig = emailConfig.isEnabled() && javaMailSender.isPresent();
 
-    if (!hasEmailConfig && httpContacts.isEmpty()) {
-      log.debug("No alert methods configured for monitor {}", monitor.getId());
-      return;
-    }
+    List<AlertContact> contacts =
+        alertContactRepository
+            .findActiveByTenantIdForMonitor(monitor.getTenantId(), monitor.getId())
+            .stream()
+            .filter(
+                contact ->
+                    hasEmailConfig || contact.getType() != AlertContact.AlertContactType.EMAIL)
+            .toList();
 
-    if (emailContacts.isEmpty() && httpContacts.isEmpty()) {
-      log.debug("No active alert contacts configured for tenant {}", monitor.getTenantId());
-      return;
+    if (contacts.isEmpty()) {
+      log.debug(
+          "No deliverable alert contacts for monitor {} of tenant {}",
+          monitor.getId(),
+          monitor.getTenantId());
     }
+    return contacts;
+  }
 
-    // Check if there was a previous DOWN alert that needs an UP notification
+  /** true if the last DOWN alert of the monitor has no UP alert after it. */
+  private boolean isDownAlertUnresolved(Monitor monitor) {
     Optional<AlertHistory> lastDownAlert =
         alertHistoryRepository.findTopByMonitorIdAndTenantIdAndAlertTypeOrderBySentAtDesc(
             monitor.getId(), monitor.getTenantId(), AlertHistory.AlertType.down);
+    if (lastDownAlert.isEmpty()) {
+      return false;
+    }
 
-    if (lastDownAlert.isPresent()) {
-      // Check if we already sent an UP alert after the last DOWN alert
-      Optional<AlertHistory> lastUpAlert =
-          alertHistoryRepository.findTopByMonitorIdAndTenantIdAndAlertTypeOrderBySentAtDesc(
-              monitor.getId(), monitor.getTenantId(), AlertHistory.AlertType.up);
+    Optional<AlertHistory> lastUpAlert =
+        alertHistoryRepository.findTopByMonitorIdAndTenantIdAndAlertTypeOrderBySentAtDesc(
+            monitor.getId(), monitor.getTenantId(), AlertHistory.AlertType.up);
 
-      boolean hasUpAlertSinceDown =
-          lastUpAlert
-              .map(up -> up.getSentAt().isAfter(lastDownAlert.get().getSentAt()))
-              .orElse(false);
+    return lastUpAlert
+        .map(up -> !up.getSentAt().isAfter(lastDownAlert.get().getSentAt()))
+        .orElse(true);
+  }
 
-      if (!hasUpAlertSinceDown) {
-        // Send UP alert to all active contacts
-        if (hasEmailConfig) {
-          for (AlertContact contact : emailContacts) {
-            sendEmailAlert(monitor, contact, "up", 200, false);
-          }
-        }
+  /**
+   * The first failed check after the last successful check before the given check, i.e. when the
+   * current (or, for an UP check, the just ended) outage started. null if there is none.
+   */
+  public LocalDateTime findOutageStart(CheckResult checkResult) {
+    Integer monitorId = checkResult.getMonitor().getId();
+    Integer tenantId = checkResult.getTenantId();
+    List<CheckResult> lastUp =
+        checkResultRepository.findLastUpBefore(
+            monitorId, tenantId, checkResult.getCheckedAt(), checkResult.getId(), Limit.of(1));
+    List<CheckResult> firstDown =
+        checkResultRepository.findFirstDownAfter(
+            monitorId,
+            tenantId,
+            lastUp.isEmpty() ? LocalDateTime.of(1970, 1, 1, 0, 0) : lastUp.get(0).getCheckedAt(),
+            lastUp.isEmpty() ? 0L : lastUp.get(0).getId(),
+            Limit.of(1));
+    return firstDown.isEmpty() ? null : firstDown.get(0).getCheckedAt();
+  }
 
-        for (AlertContact contact : httpContacts) {
-          sendHttpAlert(monitor, contact, "up", 200, null, false);
-        }
-      }
+  private TeamsAlert monitorAlert(
+      TeamsAlert.Kind kind, Monitor monitor, CheckResult checkResult, LocalDateTime downSince) {
+    return new TeamsAlert(
+        kind,
+        monitor.getName(),
+        monitor.getUrl(),
+        tenantName(monitor),
+        checkResult.getStatusCode(),
+        checkResult.getErrorMessage(),
+        checkResult.getResponseTimeMs(),
+        checkResult.getCheckedAt(),
+        downSince,
+        monitor.getAlertingThreshold(),
+        null,
+        null);
+  }
+
+  private void sendAlert(
+      Monitor monitor,
+      AlertContact contact,
+      String alertType,
+      int statusCode,
+      TeamsAlert teamsAlert) {
+    switch (contact.getType()) {
+      case EMAIL -> sendEmailAlert(monitor, contact, alertType, statusCode, false);
+      case HTTP -> sendHttpAlert(monitor, contact, alertType, statusCode, null, false);
+      case TEAMS -> sendTeamsAlert(monitor, contact, alertType, teamsAlert, false);
     }
   }
 
@@ -307,6 +332,51 @@ public class AlertService {
     }
   }
 
+  private void sendTeamsAlert(
+      Monitor monitor,
+      AlertContact contact,
+      String alertType,
+      TeamsAlert teamsAlert,
+      boolean test) {
+    try {
+      teamsNotificationService.send(contact.getValue(), teamsAlert);
+
+      // Don't record test alerts in alert history
+      if (!test) {
+        recordAlert(monitor, contact, alertType, "TEAMS: " + contactLabel(contact));
+      }
+
+      log.info(
+          "Sent {} Teams alert for monitor {} to {}",
+          alertType,
+          monitor.getId(),
+          contactLabel(contact));
+
+    } catch (RuntimeException e) {
+      log.error(
+          "Failed to send {} Teams alert for monitor {} to {}: {}",
+          alertType,
+          monitor.getId(),
+          contactLabel(contact),
+          e.getMessage(),
+          e);
+      // A test must tell the user that Teams did not accept the card
+      if (test) {
+        throw new IllegalStateException("Teams did not accept the notification: " + e.getMessage());
+      }
+    }
+  }
+
+  private String contactLabel(AlertContact contact) {
+    return contact.getName() != null && !contact.getName().isBlank()
+        ? contact.getName()
+        : "unnamed contact #" + contact.getId();
+  }
+
+  private String tenantName(Monitor monitor) {
+    return monitor.getTenant() != null ? monitor.getTenant().getName() : null;
+  }
+
   private String substituteVariables(
       String template, Monitor monitor, String alertType, int statusCode, String responseBody) {
     if (template == null) {
@@ -333,7 +403,8 @@ public class AlertService {
     alertHistory.setTenantId(monitor.getTenantId());
     alertHistory.setAlertType(
         "down".equals(alertType) ? AlertHistory.AlertType.down : AlertHistory.AlertType.up);
-    alertHistory.setEmailSentTo(sentTo);
+    alertHistory.setEmailSentTo(
+        sentTo.length() <= MAX_SENT_TO_LENGTH ? sentTo : sentTo.substring(0, MAX_SENT_TO_LENGTH));
     alertHistory.setSentAt(LocalDateTime.now());
     alertHistoryRepository.save(alertHistory);
   }
@@ -360,6 +431,8 @@ public class AlertService {
           200,
           "Test notification response body",
           true);
+    } else if (contact.getType() == AlertContact.AlertContactType.TEAMS) {
+      sendTeamsAlert(testMonitor, contact, "test", testTeamsAlert(contact), true);
     } else {
       throw new IllegalArgumentException("Unsupported contact type: " + contact.getType());
     }
@@ -368,6 +441,32 @@ public class AlertService {
         "Sent test notification using production alert methods to {} ({})",
         contact.getValue(),
         contact.getName() != null ? contact.getName() : "unnamed contact");
+  }
+
+  private TeamsAlert testTeamsAlert(AlertContact contact) {
+    String scope;
+    if (contact.isAllMonitors()) {
+      scope = "All monitors of the tenant";
+    } else {
+      List<String> names = contact.getMonitors().stream().map(Monitor::getName).sorted().toList();
+      scope =
+          names.isEmpty()
+              ? "No monitor selected - this contact gets no alerts"
+              : names.size() + " selected: " + String.join(", ", names);
+    }
+    return new TeamsAlert(
+        TeamsAlert.Kind.TEST,
+        null,
+        null,
+        contact.getTenant().getName(),
+        null,
+        null,
+        null,
+        LocalDateTime.now(),
+        null,
+        null,
+        contactLabel(contact),
+        scope);
   }
 
   private Monitor createTestMonitor(AlertContact contact) {

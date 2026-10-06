@@ -72,6 +72,9 @@ backend:
   env:
     springProfilesActive: prod
 
+  # Link to the UI on Teams alert cards. Empty: https://<first ingress host>
+  appUrl: ""
+
   # Email configuration
   email:
     enabled: false

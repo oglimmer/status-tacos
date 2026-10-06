@@ -12,6 +12,17 @@ defineEmits<{
   'test-notification': [id: number]
 }>()
 
+const typeLabel = (type: AlertContactResponse['type']) => {
+  switch (type) {
+    case 'EMAIL':
+      return 'Email'
+    case 'HTTP':
+      return 'HTTP'
+    case 'TEAMS':
+      return 'Teams'
+  }
+}
+
 const formatDate = (dateString: string) => {
   return new Date(dateString).toLocaleDateString()
 }
@@ -25,7 +36,7 @@ const formatDate = (dateString: string) => {
     <div class="contact-header">
       <h3>{{ contact.name || 'Unnamed Contact' }}</h3>
       <div class="contact-status">
-        <span class="contact-type" :data-type="contact.type">{{ contact.type }}</span>
+        <span class="contact-type" :data-type="contact.type">{{ typeLabel(contact.type) }}</span>
       </div>
     </div>
 
@@ -33,9 +44,9 @@ const formatDate = (dateString: string) => {
       <div class="detail-item">
         <strong>{{ contact.type === 'EMAIL' ? 'Email:' : 'URL:' }}</strong>
         <span
-          :title="contact.type === 'HTTP' && contact.value.length > 25 ? contact.value : undefined"
+          :title="contact.type !== 'EMAIL' && contact.value.length > 25 ? contact.value : undefined"
           class="contact-value"
-          :class="{ 'truncated': contact.type === 'HTTP' && contact.value.length > 25 }"
+          :class="{ 'truncated': contact.type !== 'EMAIL' && contact.value.length > 25 }"
         >
           {{ contact.value }}
         </span>
@@ -55,6 +66,14 @@ const formatDate = (dateString: string) => {
       <div v-if="contact.type === 'HTTP' && contact.httpBody" class="detail-item">
         <strong>Body:</strong>
         <span class="body-preview">{{ contact.httpBody.substring(0, 50) }}{{ contact.httpBody.length > 50 ? '...' : '' }}</span>
+      </div>
+      <div class="detail-item">
+        <strong>Alerts for:</strong>
+        <span v-if="contact.allMonitors">All monitors</span>
+        <span v-else-if="!contact.monitors?.length" class="inactive">No monitor selected</span>
+        <span v-else class="monitor-scope" :title="contact.monitors.map(m => m.name).join(', ')">
+          {{ contact.monitors.map(m => m.name).join(', ') }}
+        </span>
       </div>
       <div class="detail-item">
         <strong>Tenant:</strong>
@@ -150,6 +169,11 @@ const formatDate = (dateString: string) => {
   color: #1e40af;
 }
 
+.contact-status .contact-type[data-type="TEAMS"] {
+  background: #e8e7f8;
+  color: #4b4a9e;
+}
+
 .contact-status .contact-type[data-type="EMAIL"] {
   background: #dcfce7;
   color: #166534;
@@ -184,6 +208,14 @@ const formatDate = (dateString: string) => {
 
 .contact-details {
   margin-bottom: 1rem;
+}
+
+.monitor-scope {
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 55ch;
 }
 
 .detail-item {

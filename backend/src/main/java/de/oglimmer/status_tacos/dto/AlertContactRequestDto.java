@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.util.Map;
+import java.util.Set;
 import lombok.Data;
 
 @Data
@@ -14,7 +15,7 @@ public class AlertContactRequestDto {
   @NotNull private AlertContact.AlertContactType type;
 
   @NotBlank
-  @Size(max = 320)
+  @Size(max = 2048)
   private String value;
 
   @Size(max = 100)
@@ -28,11 +29,19 @@ public class AlertContactRequestDto {
   private String httpBody;
   private String httpContentType;
 
+  // Scope: all monitors of the tenant, or only the listed monitors
+  private boolean allMonitors = true;
+  private Set<Integer> monitorIds;
+
   public boolean isValidEmail() {
     return value != null && value.matches("^[A-Za-z0-9+_.-]+@([A-Za-z0-9.-]+\\.[A-Za-z]{2,})$");
   }
 
   public boolean isValidUrl() {
     return value != null && value.matches("^https?://.*");
+  }
+
+  public boolean isValidHttpsUrl() {
+    return value != null && value.matches("^https://.*");
   }
 }

@@ -108,16 +108,14 @@ public class MonitorExecutionService {
     // Save check result and update status in a single transaction
     CheckResult checkResult =
         checkResultService.saveCheckResult(monitor.getTenantId(), monitor, httpResult);
-    MonitorStatus updatedStatus =
-        monitorStatusService.updateMonitorStatus(monitor.getTenantId(), monitor, checkResult);
+    monitorStatusService.updateMonitorStatus(monitor.getTenantId(), monitor, checkResult);
 
     // Handle alerts based on status - only send alerts if monitor is ACTIVE
     if (monitor.getState() == MonitorState.ACTIVE) {
       if (!httpResult.getIsUp()) {
         // Monitor is down - check if it has been down for at least the alerting threshold
-        if (shouldSendDownAlert(monitor, updatedStatus)) {
-          alertService.handleMonitorDown(
-              monitor, httpResult.getStatusCode() != null ? httpResult.getStatusCode() : 0);
+        if (shouldSendDownAlert(monitor, checkResult)) {
+          alertService.handleMonitorDown(monitor, checkResult);
         } else {
           log.debug(
               "Monitor {} is down but hasn't exceeded alerting threshold of {}s yet",
@@ -126,7 +124,7 @@ public class MonitorExecutionService {
         }
       } else {
         // Monitor is up, send recovery alert if needed
-        alertService.handleMonitorUp(monitor);
+        alertService.handleMonitorUp(monitor, checkResult);
       }
     } else {
       log.debug(
@@ -285,18 +283,18 @@ public class MonitorExecutionService {
 
   /**
    * Determines if a down alert should be sent for a monitor based on the alerting threshold. Only
-   * sends alert if the monitor has been down for at least alertingThreshold seconds.
+   * sends alert if the monitor has been down for at least alertingThreshold seconds, measured from
+   * the first failed check of the outage. (MonitorStatus.lastDownAt is the latest failed check, so
+   * it can not be used: it is always about 0 seconds old.)
    */
-  private boolean shouldSendDownAlert(Monitor monitor, MonitorStatus status) {
-    // If monitor just went down (lastDownAt is null or very recent), don't send alert yet
-    if (status.getLastDownAt() == null) {
-      log.debug("Monitor {} lastDownAt is null, skipping alert", monitor.getName());
+  private boolean shouldSendDownAlert(Monitor monitor, CheckResult checkResult) {
+    LocalDateTime outageStart = alertService.findOutageStart(checkResult);
+    if (outageStart == null) {
+      log.debug("Monitor {} has no failed check, skipping alert", monitor.getName());
       return false;
     }
 
-    // Calculate how long the monitor has been down
-    LocalDateTime now = LocalDateTime.now();
-    long secondsDown = ChronoUnit.SECONDS.between(status.getLastDownAt(), now);
+    long secondsDown = ChronoUnit.SECONDS.between(outageStart, checkResult.getCheckedAt());
 
     // Only send alert if monitor has been down for at least the alerting threshold
     boolean shouldAlert = secondsDown >= monitor.getAlertingThreshold();

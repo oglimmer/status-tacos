@@ -122,3 +122,4 @@ monitor:
     template:
       monitor-down: "Monitor '%s' is DOWN - Status: %d"
       monitor-up: "Monitor '%s' is UP again"
+  app-url: ""
