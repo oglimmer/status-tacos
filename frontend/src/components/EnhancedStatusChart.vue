@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { TimeframeType } from './TimeframeSwitcher.vue'
-import { formatUptime, getTimeframeLabel, parseUtc, timeWindow, uptimeLevel } from '../utils/uptime'
+import { downFractionColumns, formatUptime, getTimeframeLabel, parseUtc, timeWindow, uptimeLevel } from '../utils/uptime'
 
 interface StatusDownPeriod {
   start: string
@@ -77,29 +77,34 @@ onBeforeUnmount(() => {
   }
 })
 
-const CHART_WIDTH = 300
+// Real width of the chart in CSS pixels. Each pixel column shows one time slot.
+const svgEl = ref<SVGSVGElement | null>(null)
+const chartWidth = ref(300)
+let resizeObserver: ResizeObserver | null = null
+
+onMounted(() => {
+  if (!svgEl.value) return
+  chartWidth.value = Math.max(1, Math.round(svgEl.value.clientWidth)) || 300
+  if (typeof ResizeObserver === 'undefined') return
+  resizeObserver = new ResizeObserver(entries => {
+    const width = Math.round(entries[0]?.contentRect.width ?? 0)
+    if (width > 0) chartWidth.value = width
+  })
+  resizeObserver.observe(svgEl.value)
+})
+
+onBeforeUnmount(() => resizeObserver?.disconnect())
 
 const chartWindow = computed(() => timeWindow(props.timeframe, props.windowStart, props.windowEnd))
 
-// Down period markers, positioned by time inside the window
-const downPeriodMarkers = computed((): { x: number, width: number }[] => {
+// Down share per pixel column: light yellow = a short part of the slot, dark red = the full slot
+const downColumns = computed(() =>
+  downFractionColumns(props.statusDownPeriods, chartWindow.value, chartWidth.value)
+)
+
+const slotDuration = computed(() => {
   const { startMs, endMs } = chartWindow.value
-  const totalDuration = endMs - startMs
-  if (totalDuration <= 0) return []
-
-  const markers: { x: number, width: number }[] = []
-  for (const downPeriod of props.statusDownPeriods) {
-    const startOffset = Math.max(0, parseUtc(downPeriod.start).getTime() - startMs)
-    const endOffset = Math.min(totalDuration, parseUtc(downPeriod.end).getTime() - startMs)
-
-    if (startOffset < totalDuration && endOffset > 0) {
-      markers.push({
-        x: (startOffset / totalDuration) * CHART_WIDTH,
-        width: Math.max(2, ((endOffset - startOffset) / totalDuration) * CHART_WIDTH) // min 2px
-      })
-    }
-  }
-  return markers
+  return (endMs - startMs) / chartWidth.value
 })
 
 // Labels at 0%, 25%, 50%, 75% and 100% (now) of the window
@@ -184,17 +189,19 @@ const formatDuration = (ms: number): string => {
       </div>
       <div class="chart-main">
         <div class="chart-svg-container">
-          <svg class="chart-svg" viewBox="0 0 300 30" preserveAspectRatio="none">
-            <!-- Down period markers (dark red bars) -->
+          <svg ref="svgEl" class="chart-svg" :viewBox="`0 0 ${chartWidth} 30`" preserveAspectRatio="none" shape-rendering="crispEdges">
+            <!-- One column per pixel, colored by the share of its time slot that was down -->
             <rect
-              v-for="(period, index) in downPeriodMarkers"
-              :key="`down-${index}`"
-              :x="period.x"
+              v-for="column in downColumns"
+              :key="column.x"
+              :x="column.x"
               :y="0"
-              :width="period.width"
+              :width="column.width"
               :height="30"
-              fill="#dc2626"
-            />
+              :fill="column.color"
+            >
+              <title>{{ Math.round(column.fraction * 1000) / 10 }}% down (≈{{ formatDuration(column.fraction * slotDuration) }} of {{ formatDuration(slotDuration) }})</title>
+            </rect>
           </svg>
 
           <!-- X-axis labels -->

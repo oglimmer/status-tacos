@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatUptime, parseUtc, timeWindow, timeframeToPeriod, uptimeLevel } from './uptime'
+import { downFractionColor, downFractionColumns, formatUptime, parseUtc, timeWindow, timeframeToPeriod, uptimeLevel } from './uptime'
 
 describe('formatUptime', () => {
   it('rounds down', () => {
@@ -58,5 +58,52 @@ describe('helpers', () => {
     expect(timeframeToPeriod('7d')).toBe('seven_days')
     expect(timeframeToPeriod('90d')).toBe('ninety_days')
     expect(timeframeToPeriod('24h')).toBeNull()
+  })
+})
+
+describe('downFractionColumns', () => {
+  // 10 columns of 1 hour each
+  const window = { startMs: Date.UTC(2026, 0, 1, 0), endMs: Date.UTC(2026, 0, 1, 10) }
+  const at = (hour: number, minute = 0) => new Date(Date.UTC(2026, 0, 1, hour, minute)).toISOString().replace('Z', '')
+
+  it('gives the down share of each column', () => {
+    const columns = downFractionColumns([{ start: at(2, 0), end: at(2, 6) }], window, 10)
+    expect(columns).toHaveLength(1)
+    expect(columns[0]?.x).toBe(2)
+    expect(columns[0]?.fraction).toBeCloseTo(0.1)
+  })
+
+  it('splits a period over columns and merges equal neighbours', () => {
+    const columns = downFractionColumns([{ start: at(3, 30), end: at(7, 0) }], window, 10)
+    expect(columns.map(c => [c.x, c.width, c.fraction])).toEqual([
+      [3, 1, 0.5],
+      [4, 3, 1]
+    ])
+    expect(columns[1]?.color).toBe('#7f1d1d')
+  })
+
+  it('does not count overlapping periods twice and clips to the window', () => {
+    const columns = downFractionColumns(
+      [
+        { start: at(0, 0), end: at(0, 30) },
+        { start: at(0, 15), end: at(0, 45) },
+        { start: at(9, 30), end: '2026-01-02T00:00:00' }
+      ],
+      window,
+      10
+    )
+    expect(columns.map(c => [c.x, c.fraction])).toEqual([
+      [0, 0.75],
+      [9, 0.5]
+    ])
+  })
+})
+
+describe('downFractionColor', () => {
+  it('goes from light yellow to dark red', () => {
+    expect(downFractionColor(0)).toBe('#fef9c3')
+    expect(downFractionColor(0.5)).toBe('#f97316')
+    expect(downFractionColor(1)).toBe('#7f1d1d')
+    expect(downFractionColor(0.01)).not.toBe(downFractionColor(0.02))
   })
 })

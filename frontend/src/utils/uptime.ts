@@ -72,3 +72,87 @@ export const uptimeLevel = (percentage: number | null | undefined): UptimeLevel 
   if (percentage >= 90) return 'warning'
   return 'poor'
 }
+
+export interface DownColumn {
+  /** Index of the first pixel column. */
+  x: number
+  /** Number of pixel columns (adjacent columns with the same color are merged). */
+  width: number
+  /** Share of the column time that was down, 0 < fraction <= 1. */
+  fraction: number
+  color: string
+}
+
+/**
+ * Splits the window into `columns` equal time slots (one per pixel) and gives the share of each
+ * slot that was down. Slots without downtime are left out.
+ */
+export const downFractionColumns = (
+  periods: Array<{ start: string; end: string }>,
+  window: TimeWindow,
+  columns: number
+): DownColumn[] => {
+  const { startMs, endMs } = window
+  const total = endMs - startMs
+  if (total <= 0 || columns <= 0) return []
+  const slotMs = total / columns
+
+  const downMs = new Array<number>(columns).fill(0)
+  // Merge overlaps first, so a time is never counted twice.
+  const intervals = periods
+    .map((p): [number, number] => [
+      Math.max(startMs, parseUtc(p.start).getTime()),
+      Math.min(endMs, parseUtc(p.end).getTime())
+    ])
+    .filter(([s, e]) => e > s)
+    .sort((a, b) => a[0] - b[0])
+  const merged: Array<[number, number]> = []
+  for (const [s, e] of intervals) {
+    const last = merged[merged.length - 1]
+    if (last && s <= last[1]) last[1] = Math.max(last[1], e)
+    else merged.push([s, e])
+  }
+
+  for (const [s, e] of merged) {
+    const first = Math.min(columns - 1, Math.floor((s - startMs) / slotMs))
+    const lastSlot = Math.min(columns - 1, Math.floor((e - startMs) / slotMs))
+    for (let i = first; i <= lastSlot; i++) {
+      const slotStart = startMs + i * slotMs
+      const overlap = Math.min(e, slotStart + slotMs) - Math.max(s, slotStart)
+      if (overlap > 0) downMs[i] = (downMs[i] ?? 0) + overlap
+    }
+  }
+
+  const result: DownColumn[] = []
+  downMs.forEach((ms, i) => {
+    if (ms <= 0) return
+    const fraction = Math.min(1, ms / slotMs)
+    const color = downFractionColor(fraction)
+    const previous = result[result.length - 1]
+    if (previous && previous.x + previous.width === i && previous.color === color) {
+      previous.width += 1
+    } else {
+      result.push({ x: i, width: 1, fraction, color })
+    }
+  })
+  return result
+}
+
+// Light yellow (a short part of the slot was down) to dark red (all of the slot was down).
+const DOWN_COLOR_STOPS: Array<[number, [number, number, number]]> = [
+  [0, [254, 249, 195]], // #fef9c3
+  [0.25, [250, 204, 21]], // #facc15
+  [0.5, [249, 115, 22]], // #f97316
+  [0.75, [220, 38, 38]], // #dc2626
+  [1, [127, 29, 29]] // #7f1d1d
+]
+
+export const downFractionColor = (fraction: number): string => {
+  const f = Math.min(1, Math.max(0, fraction))
+  const upper = Math.max(1, DOWN_COLOR_STOPS.findIndex(([position]) => f <= position))
+  const [p0, c0] = DOWN_COLOR_STOPS[upper - 1]!
+  const [p1, c1] = DOWN_COLOR_STOPS[upper]!
+  const t = (f - p0) / (p1 - p0)
+  const channel = (k: 0 | 1 | 2) => Math.round(c0[k] + (c1[k] - c0[k]) * t).toString(16).padStart(2, '0')
+  return `#${channel(0)}${channel(1)}${channel(2)}`
+}
