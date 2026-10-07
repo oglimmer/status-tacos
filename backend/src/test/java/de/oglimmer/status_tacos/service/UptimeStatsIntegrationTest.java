@@ -121,7 +121,6 @@ class UptimeStatsIntegrationTest {
             "check_rollup_hourly_histogram",
             "check_rollup_daily_histogram",
             "monitor_outage",
-            "uptime_stats",
             "monitor_status",
             "monitors")) {
       jdbc.update("DELETE FROM " + table);
