@@ -91,17 +91,16 @@ public class Monitor {
   @Column(name = "updated_at", nullable = false)
   private LocalDateTime updatedAt;
 
-  @OneToMany(mappedBy = "monitor", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+  // No JPA cascade on these relations. The database removes the child rows with ON DELETE CASCADE.
+  // A JPA cascade loads every child row into memory on delete, which is too slow for check results.
+  @OneToMany(mappedBy = "monitor", fetch = FetchType.LAZY)
   private List<CheckResult> checkResults;
 
-  @OneToOne(mappedBy = "monitor", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+  @OneToOne(mappedBy = "monitor", fetch = FetchType.LAZY)
   private MonitorStatus monitorStatus;
 
-  @OneToMany(mappedBy = "monitor", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+  @OneToMany(mappedBy = "monitor", fetch = FetchType.LAZY)
   private List<AlertHistory> alertHistories;
-
-  @OneToMany(mappedBy = "monitor", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-  private List<UptimeStats> uptimeStats;
 
   @PrePersist
   protected void onCreate() {

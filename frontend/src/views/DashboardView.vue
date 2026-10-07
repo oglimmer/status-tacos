@@ -16,6 +16,7 @@ import ErrorState from '../components/ErrorState.vue'
 import EmptyState from '../components/EmptyState.vue'
 import type { CurrentUser } from '../services/api'
 import { userConfigService } from '../services/userConfig'
+import { timeframeToPeriod } from '../utils/uptime'
 
 const authStore = useAuthStore()
 const monitorsStore = useMonitorsStore()
@@ -32,6 +33,9 @@ const selectedTimeframe = ref<TimeframeType>('24h')
 const selectedViewMode = ref<ViewModeType>('default')
 const loadingUptimeStats = ref(new Set<number>())
 let refreshInterval: ReturnType<typeof setInterval> | null = null
+// The 7d/90d stats change slowly, so they refresh less often than the 5-second monitor data.
+const UPTIME_STATS_REFRESH_MS = 60_000
+let lastUptimeStatsFetch = 0
 
 const filteredMonitors = computed(() => {
   let monitors = selectedTenantId.value
@@ -66,50 +70,29 @@ const toggleMonitorExpanded = async (monitorId: number) => {
     expandedMonitors.value.delete(monitorId)
   } else {
     expandedMonitors.value.add(monitorId)
-    // Fetch uptime stats when expanding, based on current timeframe
-    if (selectedTimeframe.value !== '24h') {
-      const periodType = selectedTimeframe.value === '7d' ? 'seven_days' :
-                        selectedTimeframe.value === '90d' ? 'ninety_days' :
-                        'three_sixty_five_days'
-
-      const existing = monitorsStore.getUptimeStatsById(monitorId, periodType)
-      if (!existing) {
-        loadingUptimeStats.value.add(monitorId)
-        try {
-          await monitorsStore.fetchUptimeStats(monitorId, periodType)
-        } catch (error) {
-          console.error('Failed to fetch uptime stats for monitor', monitorId, error)
-        } finally {
-          loadingUptimeStats.value.delete(monitorId)
-        }
-      }
-    }
+    await fetchUptimeStatsForTimeframe(selectedTimeframe.value)
   }
 }
 
+/**
+ * Loads the stats of all monitors for the timeframe in one request. Without force, it only loads
+ * when a visible monitor has no stats yet.
+ */
+const fetchUptimeStatsForTimeframe = async (timeframe: TimeframeType, force = false) => {
+  const periodType = timeframeToPeriod(timeframe)
+  if (!periodType) return
 
-const fetchUptimeStatsForTimeframe = async (timeframe: TimeframeType) => {
-  if (timeframe === '24h') return
+  const missing = filteredMonitors.value
+    .map(m => m.id)
+    .filter(id => !monitorsStore.getUptimeStatsById(id, periodType))
+  if (!force && missing.length === 0) return
 
-  const periodType = timeframe === '7d' ? 'seven_days' :
-                    timeframe === '90d' ? 'ninety_days' :
-                    'three_sixty_five_days'
-
-  // Fetch for all visible monitors since charts are always shown
-  const visibleMonitorIds = filteredMonitors.value.map(m => m.id)
-
-  for (const monitorId of visibleMonitorIds) {
-    const existing = monitorsStore.getUptimeStatsById(monitorId, periodType)
-    if (!existing) {
-      loadingUptimeStats.value.add(monitorId)
-      try {
-        await monitorsStore.fetchUptimeStats(monitorId, periodType)
-      } catch (error) {
-        console.error('Failed to fetch uptime stats for timeframe', timeframe, 'monitor', monitorId, error)
-      } finally {
-        loadingUptimeStats.value.delete(monitorId)
-      }
-    }
+  missing.forEach(id => loadingUptimeStats.value.add(id))
+  try {
+    await monitorsStore.fetchUptimeStatsOfAllMonitors(periodType)
+    lastUptimeStatsFetch = Date.now()
+  } finally {
+    missing.forEach(id => loadingUptimeStats.value.delete(id))
   }
 }
 
@@ -192,6 +175,10 @@ const refreshMonitorData = async () => {
     await Promise.all(
       monitorIds.map(id => monitorsStore.fetchResponseTimeHistory(id))
     )
+
+    if (Date.now() - lastUptimeStatsFetch >= UPTIME_STATS_REFRESH_MS) {
+      await fetchUptimeStatsForTimeframe(selectedTimeframe.value, true)
+    }
   } catch (error) {
     console.error('Error refreshing monitor data:', error)
   }
@@ -305,7 +292,6 @@ onUnmounted(() => {
             :response-time-history="monitorsStore.getResponseTimeHistoryById(monitor.id) || null"
             :uptime-stats7d="monitorsStore.getUptimeStatsById(monitor.id, 'seven_days') || null"
             :uptime-stats90d="monitorsStore.getUptimeStatsById(monitor.id, 'ninety_days') || null"
-            :uptime-stats365d="monitorsStore.getUptimeStatsById(monitor.id, 'three_sixty_five_days') || null"
             :selected-timeframe="selectedTimeframe"
             :selected-view-mode="selectedViewMode"
             :is-expanded="isMonitorExpanded(monitor.id)"

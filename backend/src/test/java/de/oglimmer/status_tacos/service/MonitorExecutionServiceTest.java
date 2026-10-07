@@ -261,6 +261,34 @@ class MonitorExecutionServiceTest {
   }
 
   @Test
+  void executeMonitorCheck_whenSavingFails_doesNotStoreADownResult() {
+    when(httpClientService.performHealthCheck(
+            eq(testMonitor.getUrl()),
+            eq(null),
+            eq("^[23]\\d{2}$"),
+            eq(null),
+            eq(null),
+            eq(null),
+            eq(null)))
+        .thenReturn(successfulHttpResult);
+    // For example no free database connection
+    when(checkResultService.saveCheckResult(eq(TEST_TENANT_ID), eq(testMonitor), any()))
+        .thenThrow(new RuntimeException("Could not open JPA EntityManager for transaction"));
+
+    CheckResult result = monitorExecutionService.executeMonitorCheck(testMonitor);
+
+    assertThat(result).isNull();
+    // Only the one attempt with the real (UP) result, no second attempt with a DOWN result
+    verify(checkResultService, times(1))
+        .saveCheckResult(
+            eq(TEST_TENANT_ID),
+            eq(testMonitor),
+            argThat(HttpClientService.HttpCheckResult::getIsUp));
+    verify(checkResultService, times(1)).saveCheckResult(any(), any(), any());
+    verifyNoInteractions(monitorStatusService, alertService);
+  }
+
+  @Test
   void executeAllActiveMonitors_withNoActiveMonitors_shouldReturnEarly() {
     when(tenantService.getAllActiveTenants()).thenReturn(List.of(testTenant));
     when(monitorService.getMonitorsByState(Set.of(TEST_TENANT_ID), MonitorState.ACTIVE))

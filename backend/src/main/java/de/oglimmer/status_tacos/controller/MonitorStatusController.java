@@ -6,8 +6,8 @@ import de.oglimmer.status_tacos.dto.ResponseTimeHistoryResponseDto;
 import de.oglimmer.status_tacos.dto.StatusType;
 import de.oglimmer.status_tacos.mapper.EntityMapper;
 import de.oglimmer.status_tacos.persistence.MonitorStatus;
-import de.oglimmer.status_tacos.service.CheckResultService;
 import de.oglimmer.status_tacos.service.MonitorStatusService;
+import de.oglimmer.status_tacos.service.UptimeStatsService;
 import de.oglimmer.status_tacos.service.UserTenantResolver;
 import java.util.List;
 import java.util.Set;
@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.*;
 public class MonitorStatusController {
 
   private final MonitorStatusService monitorStatusService;
-  private final CheckResultService checkResultService;
+  private final UptimeStatsService uptimeStatsService;
   private final UserTenantResolver userTenantResolver;
   private final EntityMapper entityMapper;
 
@@ -52,22 +52,7 @@ public class MonitorStatusController {
         "Getting 24h response time history for monitor: {} across tenants: {}",
         monitorId,
         tenantIds);
-
-    // Find the tenant that owns this monitor
-    for (Integer tenantId : tenantIds) {
-      ResponseTimeHistoryResponseDto history =
-          checkResultService.getResponseTimeHistory24h(tenantId, monitorId);
-      if (!history.getDataPoints().isEmpty()
-          || history.getMonitorName() != null && !history.getMonitorName().equals("Unknown")) {
-        return ResponseEntity.ok(history);
-      }
-    }
-
-    // If no data found in any tenant, return empty response for the first tenant
-    Integer tenantId = tenantIds.iterator().next();
-    ResponseTimeHistoryResponseDto emptyHistory =
-        checkResultService.getResponseTimeHistory24h(tenantId, monitorId);
-    return ResponseEntity.ok(emptyHistory);
+    return ResponseEntity.of(uptimeStatsService.getResponseTimeHistory24h(tenantIds, monitorId));
   }
 
   private MonitorStatusResponseDto convertToDto(MonitorStatus status) {

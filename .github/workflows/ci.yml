@@ -53,8 +53,10 @@ jobs:
           java-version: 21
           cache: maven
 
-      # Tests run against in-memory H2 (src/test/resources/application-test.yml),
-      # so no database service is needed here.
+      # Most tests run against in-memory H2
+      # (src/test/resources/application-test.yml).
+      # UptimeStatsIntegrationTest starts MariaDB with Testcontainers (Docker is
+      # available on ubuntu-latest), so no database service is needed here.
       - name: Build & test
         run: ./mvnw -B --no-transfer-progress verify
 

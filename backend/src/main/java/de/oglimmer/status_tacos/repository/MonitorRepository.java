@@ -3,10 +3,13 @@ package de.oglimmer.status_tacos.repository;
 
 import de.oglimmer.status_tacos.persistence.Monitor;
 import de.oglimmer.status_tacos.persistence.MonitorState;
+import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -51,6 +54,8 @@ public interface MonitorRepository extends JpaRepository<Monitor, Integer> {
   @Query("SELECT m FROM Monitor m JOIN FETCH m.tenant WHERE m.tenantId IN :tenantIds")
   List<Monitor> findByTenantIdIn(@Param("tenantIds") Set<Integer> tenantIds);
 
+  Optional<Monitor> findByIdAndTenantIdIn(Integer id, Set<Integer> tenantIds);
+
   @Query(
       "SELECT m FROM Monitor m JOIN FETCH m.tenant WHERE m.tenantId IN :tenantIds AND m.state = :state")
   List<Monitor> findByTenantIdInAndState(
@@ -74,4 +79,21 @@ public interface MonitorRepository extends JpaRepository<Monitor, Integer> {
   @Query(
       "SELECT m FROM Monitor m JOIN FETCH m.tenant LEFT JOIN FETCH m.monitorStatus WHERE m.tenantId IN :tenantIds")
   List<Monitor> findByTenantIdInWithStatusAndTenant(@Param("tenantIds") Set<Integer> tenantIds);
+
+  // Bulk delete. It does not load the monitor's check results etc. into memory. The ON DELETE
+  // CASCADE foreign keys in the database remove the child rows.
+  @Modifying
+  @Query("DELETE FROM Monitor m WHERE m.id = :id AND m.tenantId = :tenantId")
+  int deleteByIdAndTenantId(@Param("id") Integer id, @Param("tenantId") Integer tenantId);
+
+  /** Shared-lock read of the tenant. See {@code MonitorService.lockTenantId}. */
+  @Query(
+      value = "SELECT tenant_id FROM monitors WHERE id = :id LOCK IN SHARE MODE",
+      nativeQuery = true)
+  Optional<Integer> findTenantIdForShare(@Param("id") Integer id);
+
+  /** Exclusive lock on the monitor row for a tenant move. */
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query("SELECT m FROM Monitor m WHERE m.id = :id")
+  Optional<Monitor> findByIdForUpdate(@Param("id") Integer id);
 }

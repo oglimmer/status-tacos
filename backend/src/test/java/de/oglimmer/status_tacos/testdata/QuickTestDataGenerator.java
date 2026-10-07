@@ -3,7 +3,7 @@ package de.oglimmer.status_tacos.testdata;
 
 import de.oglimmer.status_tacos.persistence.*;
 import de.oglimmer.status_tacos.repository.*;
-import de.oglimmer.status_tacos.service.UptimeStatsService;
+import de.oglimmer.status_tacos.service.CheckRollupService;
 import java.time.LocalDateTime;
 import java.util.Random;
 import org.junit.jupiter.api.Disabled;
@@ -36,7 +36,7 @@ public class QuickTestDataGenerator {
 
   @Autowired private CheckResultRepository checkResultRepository;
 
-  @Autowired private UptimeStatsService uptimeStatsService;
+  @Autowired private CheckRollupService checkRollupService;
 
   private final Random random = new Random(123);
 
@@ -63,8 +63,10 @@ public class QuickTestDataGenerator {
     generateSimpleCheckResults(unstableMonitor, sevenDaysAgo, now, 0.85);
     generateSimpleCheckResults(flakyMonitor, sevenDaysAgo, now, 0.75);
 
-    // Calculate uptime statistics
-    uptimeStatsService.calculateAndSaveUptimeStats(tenant.getId());
+    // Roll up the check results (one call has a time budget)
+    while (checkRollupService.rollUp() > 0) {
+      System.out.println("Rolled up a part of the check results");
+    }
 
     System.out.println("✅ Quick test data generation completed!");
     System.out.println("📊 Created 3 monitors with 7 days of data");

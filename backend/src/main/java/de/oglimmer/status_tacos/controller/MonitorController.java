@@ -6,6 +6,7 @@ import de.oglimmer.status_tacos.dto.MonitorResponseDto;
 import de.oglimmer.status_tacos.mapper.EntityMapper;
 import de.oglimmer.status_tacos.persistence.Monitor;
 import de.oglimmer.status_tacos.persistence.MonitorState;
+import de.oglimmer.status_tacos.service.MonitorMoveService;
 import de.oglimmer.status_tacos.service.MonitorService;
 import de.oglimmer.status_tacos.service.UserTenantResolver;
 import jakarta.validation.Valid;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.*;
 public class MonitorController {
 
   private final MonitorService monitorService;
+  private final MonitorMoveService monitorMoveService;
   private final UserTenantResolver userTenantResolver;
   private final EntityMapper entityMapper;
 
@@ -132,6 +134,31 @@ public class MonitorController {
     } else {
       log.warn("Failed to delete monitor: {} - not found in any accessible tenant", id);
       return ResponseEntity.notFound().build();
+    }
+  }
+
+  /**
+   * Moves the monitor with all its history to another tenant. The user needs access to both
+   * tenants. Alert contacts that are limited to selected monitors lose this monitor.
+   */
+  @PatchMapping("/{id}/tenant")
+  public ResponseEntity<MonitorResponseDto> moveMonitorToTenant(
+      @PathVariable Integer id, @RequestParam Integer tenantId) {
+    if (!userTenantResolver.hasAccessToTenant(tenantId)) {
+      log.warn("User attempted to move monitor {} to unauthorized tenant: {}", id, tenantId);
+      return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+    }
+
+    Set<Integer> tenantIds = userTenantResolver.getCurrentUserTenantIds();
+    try {
+      Monitor monitor = monitorMoveService.moveMonitorToTenant(tenantIds, id, tenantId);
+      return ResponseEntity.ok(entityMapper.toDto(monitor));
+    } catch (IllegalArgumentException e) {
+      log.warn("Failed to move monitor: {} - not found in any accessible tenant", id);
+      return ResponseEntity.notFound().build();
+    } catch (IllegalStateException e) {
+      log.warn("Failed to move monitor {}: {}", id, e.getMessage());
+      return ResponseEntity.status(HttpStatus.CONFLICT).build();
     }
   }
 

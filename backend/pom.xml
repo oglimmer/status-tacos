@@ -28,6 +28,7 @@
   </scm>
   <properties>
     <java.version>21</java.version>
+    <shedlock.version>6.6.0</shedlock.version>
   </properties>
   <dependencies>
     <dependency>
@@ -40,6 +41,16 @@
       <artifactId>mockwebserver</artifactId>
       <version>5.3.2</version>
       <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>net.javacrumbs.shedlock</groupId>
+      <artifactId>shedlock-provider-jdbc-template</artifactId>
+      <version>${shedlock.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>net.javacrumbs.shedlock</groupId>
+      <artifactId>shedlock-spring</artifactId>
+      <version>${shedlock.version}</version>
     </dependency>
     <dependency>
       <groupId>org.apache.httpcomponents.client5</groupId>
@@ -120,8 +131,23 @@
       <artifactId>spring-boot-starter-web</artifactId>
     </dependency>
     <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-testcontainers</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
       <groupId>org.springframework.security</groupId>
       <artifactId>spring-security-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>mariadb</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>
@@ -215,6 +241,14 @@
               <version>1.6.3</version>
             </path>
           </annotationProcessorPaths>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <!-- Same time zone as production, check times and stats windows are UTC. -->
+          <argLine>-Duser.timezone=UTC</argLine>
         </configuration>
       </plugin>
       <plugin>

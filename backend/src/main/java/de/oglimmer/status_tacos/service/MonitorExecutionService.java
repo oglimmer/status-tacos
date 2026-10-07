@@ -61,6 +61,15 @@ public class MonitorExecutionService {
     return self;
   }
 
+  /**
+   * Checks the monitor and saves the result.
+   *
+   * <p>An error of the HTTP check counts as DOWN: the monitored service did not answer correctly.
+   * An error while saving the result (for example no free database connection) is our own problem,
+   * not the monitored service's. It is only logged, so it never shows as downtime.
+   *
+   * @return the saved result, or null if it could not be saved
+   */
   public CheckResult executeMonitorCheck(Monitor monitor) {
     log.debug(
         "Executing check for monitor: {} ({}) for tenant: {}",
@@ -68,9 +77,10 @@ public class MonitorExecutionService {
         monitor.getUrl(),
         monitor.getTenantId());
 
+    // Perform HTTP check WITHOUT holding a database transaction
+    HttpClientService.HttpCheckResult httpResult;
     try {
-      // Perform HTTP check WITHOUT holding a database transaction
-      HttpClientService.HttpCheckResult httpResult =
+      httpResult =
           httpClientService.performHealthCheck(
               monitor.getUrl(),
               monitor.getHttpHeaders(),
@@ -79,32 +89,37 @@ public class MonitorExecutionService {
               monitor.getPrometheusKey(),
               monitor.getPrometheusMinValue(),
               monitor.getPrometheusMaxValue());
+    } catch (Exception e) {
+      log.error("Error executing monitor check for {}: {}", monitor.getName(), e.getMessage(), e);
+      httpResult = createErrorHttpResult(monitor.getUrl(), e.getMessage());
+    }
 
+    try {
       // Save results in a separate transaction (using self-reference for proxy)
       CheckResult checkResult = getSelf().saveCheckResultAndUpdateStatus(monitor, httpResult);
-
       log.info(
           "Monitor check completed for {}: status={}, responseTime={}ms",
           monitor.getName(),
           httpResult.getIsUp() ? "UP" : "DOWN",
           httpResult.getResponseTimeMs());
-
       return checkResult;
-
     } catch (Exception e) {
-      log.error("Error executing monitor check for {}: {}", monitor.getName(), e.getMessage(), e);
-
-      HttpClientService.HttpCheckResult errorHttpResult =
-          createErrorHttpResult(monitor.getUrl(), e.getMessage());
-      CheckResult savedResult = getSelf().saveCheckResultAndUpdateStatus(monitor, errorHttpResult);
-
-      return savedResult;
+      log.error(
+          "Could not save check result for monitor {}, result dropped: {}",
+          monitor.getName(),
+          e.getMessage(),
+          e);
+      return null;
     }
   }
 
   @Transactional
   protected CheckResult saveCheckResultAndUpdateStatus(
       Monitor monitor, HttpClientService.HttpCheckResult httpResult) {
+    // The monitor was loaded before the HTTP check. Its tenant can have changed (tenant move), so
+    // read the current tenant. The shared lock waits for a running move to commit.
+    monitorService.lockTenantId(monitor.getId()).ifPresent(monitor::setTenantId);
+
     // Save check result and update status in a single transaction
     CheckResult checkResult =
         checkResultService.saveCheckResult(monitor.getTenantId(), monitor, httpResult);
@@ -204,16 +219,14 @@ public class MonitorExecutionService {
     return CompletableFuture.supplyAsync(() -> executeMonitorCheck(monitor), taskExecutor)
         .exceptionally(
             throwable -> {
+              // Not a DOWN result: executeMonitorCheck already stores HTTP errors as DOWN, so this
+              // is an error of our own (for example the executor).
               log.error(
                   "Async monitor check failed for {}: {}",
                   monitor.getName(),
                   throwable.getMessage(),
                   throwable);
-
-              return checkResultService.saveCheckResult(
-                  monitor.getTenantId(),
-                  monitor,
-                  createErrorHttpResult(monitor.getUrl(), throwable.getMessage()));
+              return null;
             });
   }
 

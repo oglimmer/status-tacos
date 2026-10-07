@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import type { TimeframeType } from './TimeframeSwitcher.vue'
+import { formatUptime, getTimeframeLabel, parseUtc, timeWindow, uptimeLevel } from '../utils/uptime'
 
 interface StatusDownPeriod {
   start: string
@@ -10,10 +11,15 @@ interface StatusDownPeriod {
 interface StatusChartProps {
   statusDownPeriods: StatusDownPeriod[]
   timeframe: TimeframeType
+  // Uptime from the backend. Missing when there are no checks.
+  uptimePercentage?: number
+  // Window of the data (UTC, from the backend). Default: the timeframe until now.
+  windowStart?: string
+  windowEnd?: string
   title?: string
 }
 
-defineProps<StatusChartProps>()
+const props = defineProps<StatusChartProps>()
 
 const showModal = ref(false)
 const hasLockedBody = ref(false)
@@ -71,279 +77,54 @@ onBeforeUnmount(() => {
   }
 })
 
-// Generate status line data (1 for up, 0 for down)
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const generateStatusLineData = (statusDownPeriods: StatusDownPeriod[], timeframe: TimeframeType): string => {
-  const chartWidth = 300
-  const chartHeight = 30
-  let totalDuration: number
-  const now = new Date()
+const CHART_WIDTH = 300
 
-  // Calculate total duration based on timeframe
-  switch (timeframe) {
-    case '24h':
-      totalDuration = 24 * 60 * 60 * 1000 // 24 hours
-      break
-    case '7d':
-      totalDuration = 7 * 24 * 60 * 60 * 1000 // 7 days
-      break
-    case '90d':
-      totalDuration = 90 * 24 * 60 * 60 * 1000 // 90 days
-      break
-    case '365d':
-      totalDuration = 365 * 24 * 60 * 60 * 1000 // 365 days
-      break
-    default:
-      totalDuration = 24 * 60 * 60 * 1000
-  }
+const chartWindow = computed(() => timeWindow(props.timeframe, props.windowStart, props.windowEnd))
 
-  // Use UTC time for consistent comparison with backend data
-  const startTime = new Date(Date.UTC(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    now.getUTCDate(),
-    now.getUTCHours(),
-    now.getUTCMinutes(),
-    now.getUTCSeconds(),
-    now.getUTCMilliseconds()
-  ) - totalDuration)
+// Down period markers, positioned by time inside the window
+const downPeriodMarkers = computed((): { x: number, width: number }[] => {
+  const { startMs, endMs } = chartWindow.value
+  const totalDuration = endMs - startMs
+  if (totalDuration <= 0) return []
 
-  // Create status timeline with sample rate
-  const sampleCount = 100 // Sample points across the timeline
-  const statusPoints: { x: number, y: number }[] = []
+  const markers: { x: number, width: number }[] = []
+  for (const downPeriod of props.statusDownPeriods) {
+    const startOffset = Math.max(0, parseUtc(downPeriod.start).getTime() - startMs)
+    const endOffset = Math.min(totalDuration, parseUtc(downPeriod.end).getTime() - startMs)
 
-  for (let i = 0; i < sampleCount; i++) {
-    const timePoint = startTime.getTime() + (i / (sampleCount - 1)) * totalDuration
-    let isUp = true
-
-    // Check if this time point falls within any down period
-    for (const downPeriod of statusDownPeriods) {
-      // Backend timestamps are in UTC, parse them as UTC
-      const downStart = new Date(downPeriod.start + 'Z').getTime()
-      const downEnd = new Date(downPeriod.end + 'Z').getTime()
-
-      if (timePoint >= downStart && timePoint <= downEnd) {
-        isUp = false
-        break
-      }
+    if (startOffset < totalDuration && endOffset > 0) {
+      markers.push({
+        x: (startOffset / totalDuration) * CHART_WIDTH,
+        width: Math.max(2, ((endOffset - startOffset) / totalDuration) * CHART_WIDTH) // min 2px
+      })
     }
-
-    const x = (i / (sampleCount - 1)) * chartWidth
-    const y = isUp ? 0 : chartHeight // 0 for up (top), chartHeight for down (bottom)
-
-    statusPoints.push({ x, y })
   }
+  return markers
+})
 
-  if (statusPoints.length === 0) return ''
-
-  const pathCommands = statusPoints.map((point, index) => {
-    return index === 0 ? `M ${point.x},${point.y}` : `L ${point.x},${point.y}`
+// Labels at 0%, 25%, 50%, 75% and 100% (now) of the window
+const timeLabels = computed((): string[] => {
+  const { startMs, endMs } = chartWindow.value
+  return [0, 0.25, 0.5, 0.75, 1].map(position => {
+    if (position === 1) return 'now'
+    const time = new Date(startMs + position * (endMs - startMs))
+    switch (props.timeframe) {
+      case '24h':
+        return time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      case '7d':
+        return time.toLocaleDateString([], { weekday: 'short' })
+      case '90d':
+        return time.toLocaleDateString([], { month: 'short', day: 'numeric' })
+    }
   })
+})
 
-  return pathCommands.join(' ')
-}
-
-// Generate down period markers for overlay
-const generateDownPeriodMarkers = (statusDownPeriods: StatusDownPeriod[], timeframe: TimeframeType): { x: number, width: number }[] => {
-  if (statusDownPeriods.length === 0) return []
-
-  const chartWidth = 300
-  let totalDuration: number
-  const now = new Date()
-
-  // Calculate total duration based on timeframe
-  switch (timeframe) {
-    case '24h':
-      totalDuration = 24 * 60 * 60 * 1000 // 24 hours
-      break
-    case '7d':
-      totalDuration = 7 * 24 * 60 * 60 * 1000 // 7 days
-      break
-    case '90d':
-      totalDuration = 90 * 24 * 60 * 60 * 1000 // 90 days
-      break
-    case '365d':
-      totalDuration = 365 * 24 * 60 * 60 * 1000 // 365 days
-      break
-    default:
-      totalDuration = 24 * 60 * 60 * 1000
-  }
-
-  // Use UTC time for consistent comparison with backend data
-  const startTime = new Date(Date.UTC(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    now.getUTCDate(),
-    now.getUTCHours(),
-    now.getUTCMinutes(),
-    now.getUTCSeconds(),
-    now.getUTCMilliseconds()
-  ) - totalDuration)
-  const periods: { x: number, width: number }[] = []
-
-  for (const downPeriod of statusDownPeriods) {
-    // Backend timestamps are in UTC, parse them as UTC
-    const startTime_period = new Date(downPeriod.start + 'Z')
-    const endTime_period = new Date(downPeriod.end + 'Z')
-
-    // Calculate position and width as percentage of total period
-    const startOffset = Math.max(0, startTime_period.getTime() - startTime.getTime())
-    const endOffset = Math.min(totalDuration, endTime_period.getTime() - startTime.getTime())
-
-    if (startOffset < totalDuration && endOffset > 0) {
-      const x = (startOffset / totalDuration) * chartWidth
-      const width = Math.max(2, ((endOffset - startOffset) / totalDuration) * chartWidth) // Minimum 2px width
-
-      if (width > 0) {
-        periods.push({ x, width })
-      }
-    }
-  }
-
-  return periods
-}
-
-// Format timeframe for display
-const getTimeframeLabel = (timeframe: TimeframeType): string => {
-  switch (timeframe) {
-    case '24h': return '24 Hours'
-    case '7d': return '7 Days'
-    case '90d': return '90 Days'
-    case '365d': return '1 Year'
-    default: return timeframe
-  }
-}
-
-// Generate time labels for x-axis
-const getTimeLabels = (timeframe: TimeframeType): string[] => {
-  const now = new Date()
-  let totalDuration: number
-
-  switch (timeframe) {
-    case '24h':
-      totalDuration = 24 * 60 * 60 * 1000
-      break
-    case '7d':
-      totalDuration = 7 * 24 * 60 * 60 * 1000
-      break
-    case '90d':
-      totalDuration = 90 * 24 * 60 * 60 * 1000
-      break
-    case '365d':
-      totalDuration = 365 * 24 * 60 * 60 * 1000
-      break
-    default:
-      totalDuration = 24 * 60 * 60 * 1000
-  }
-
-  // Calculate startTime in local timezone for display labels
-  const startTime = new Date(now.getTime() - totalDuration)
-  const labels: string[] = []
-
-  // Generate labels for 0%, 25%, 50%, 75%, and 100% (now)
-  const positions = [0, 0.25, 0.5, 0.75, 1]
-
-  for (let i = 0; i < positions.length; i++) {
-    const position = positions[i]
-
-    if (position === 1) {
-      // Far right shows "now"
-      labels.push('now')
-    } else {
-      // Calculate time at this position
-      const timeAtPosition = new Date(startTime.getTime() + (position || 0) * totalDuration)
-
-      switch (timeframe) {
-        case '24h':
-          labels.push(timeAtPosition.toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit'
-          }))
-          break
-        case '7d':
-          labels.push(timeAtPosition.toLocaleDateString([], {
-            weekday: 'short'
-          }))
-          break
-        case '90d':
-        case '365d':
-          labels.push(timeAtPosition.toLocaleDateString([], {
-            month: 'short',
-            day: 'numeric'
-          }))
-          break
-        default:
-          labels.push(timeAtPosition.toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit'
-          }))
-      }
-    }
-  }
-
-  return labels
-}
-
-// Calculate uptime percentage
-const calculateUptimePercentage = (statusDownPeriods: StatusDownPeriod[], timeframe: TimeframeType): number => {
-  if (statusDownPeriods.length === 0) return 100
-
-  let totalDuration: number
-  const now = new Date()
-
-  switch (timeframe) {
-    case '24h':
-      totalDuration = 24 * 60 * 60 * 1000
-      break
-    case '7d':
-      totalDuration = 7 * 24 * 60 * 60 * 1000
-      break
-    case '90d':
-      totalDuration = 90 * 24 * 60 * 60 * 1000
-      break
-    case '365d':
-      totalDuration = 365 * 24 * 60 * 60 * 1000
-      break
-    default:
-      totalDuration = 24 * 60 * 60 * 1000
-  }
-
-  // Use UTC time for consistent comparison with backend data
-  const startTime = new Date(Date.UTC(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    now.getUTCDate(),
-    now.getUTCHours(),
-    now.getUTCMinutes(),
-    now.getUTCSeconds(),
-    now.getUTCMilliseconds()
-  ) - totalDuration)
-
-  let downTime = 0
-
-  for (const downPeriod of statusDownPeriods) {
-    // Backend timestamps are in UTC, parse them as UTC
-    const startTime_period = new Date(downPeriod.start + 'Z')
-    const endTime_period = new Date(downPeriod.end + 'Z')
-
-    const startOffset = Math.max(0, startTime_period.getTime() - startTime.getTime())
-    const endOffset = Math.min(totalDuration, endTime_period.getTime() - startTime.getTime())
-
-    if (startOffset < totalDuration && endOffset > 0) {
-      downTime += endOffset - startOffset
-    }
-  }
-
-  return Math.max(0, ((totalDuration - downTime) / totalDuration) * 100)
-}
-
-// Format downtime periods for display
+// Format downtime periods for display. The backend sends them sorted by start.
 const formatDowntimePeriods = (statusDownPeriods: StatusDownPeriod[]): { start: string, end: string, duration: string }[] => {
   return statusDownPeriods
     .map(period => {
-      // Backend timestamps are in UTC, parse them as UTC then convert to local for display
-      const startDate = new Date(period.start + 'Z')
-      const endDate = new Date(period.end + 'Z')
+      const startDate = parseUtc(period.start)
+      const endDate = parseUtc(period.end)
 
       return {
         start: startDate.toLocaleString([], {
@@ -367,7 +148,6 @@ const formatDowntimePeriods = (statusDownPeriods: StatusDownPeriod[]): { start: 
         duration: formatDuration(endDate.getTime() - startDate.getTime())
       }
     })
-    .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
 }
 
 // Format duration in human readable format
@@ -391,15 +171,10 @@ const formatDuration = (ms: number): string => {
         <span class="chart-title">{{ title || `Status (${getTimeframeLabel(timeframe)})` }}</span>
         <span
           class="uptime-badge clickable"
-          :class="{
-            'excellent': calculateUptimePercentage(statusDownPeriods, timeframe) >= 99,
-            'good': calculateUptimePercentage(statusDownPeriods, timeframe) >= 95 && calculateUptimePercentage(statusDownPeriods, timeframe) < 99,
-            'warning': calculateUptimePercentage(statusDownPeriods, timeframe) >= 90 && calculateUptimePercentage(statusDownPeriods, timeframe) < 95,
-            'poor': calculateUptimePercentage(statusDownPeriods, timeframe) < 90
-          }"
+          :class="uptimeLevel(uptimePercentage)"
           @click="openModal"
         >
-          {{ calculateUptimePercentage(statusDownPeriods, timeframe).toFixed(2) }}% uptime
+          {{ formatUptime(uptimePercentage) }} uptime
         </span>
       </div>
     </div>
@@ -412,7 +187,7 @@ const formatDuration = (ms: number): string => {
           <svg class="chart-svg" viewBox="0 0 300 30" preserveAspectRatio="none">
             <!-- Down period markers (dark red bars) -->
             <rect
-              v-for="(period, index) in generateDownPeriodMarkers(statusDownPeriods, timeframe)"
+              v-for="(period, index) in downPeriodMarkers"
               :key="`down-${index}`"
               :x="period.x"
               :y="0"
@@ -425,10 +200,10 @@ const formatDuration = (ms: number): string => {
           <!-- X-axis labels -->
           <div class="x-axis-labels">
             <span
-              v-for="(label, index) in getTimeLabels(timeframe)"
+              v-for="(label, index) in timeLabels"
               :key="index"
               class="x-axis-label"
-              :style="{ left: `${(index / (getTimeLabels(timeframe).length - 1)) * 100}%` }"
+              :style="{ left: `${(index / (timeLabels.length - 1)) * 100}%` }"
             >
               {{ label }}
             </span>
@@ -517,6 +292,11 @@ const formatDuration = (ms: number): string => {
 .uptime-badge.warning {
   background: #ffeaa7;
   color: #856404;
+}
+
+.uptime-badge.no-data {
+  background: #e9ecef;
+  color: #6c757d;
 }
 
 .uptime-badge.poor {

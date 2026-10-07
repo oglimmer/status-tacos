@@ -45,6 +45,10 @@ const isInitializing = ref(true)
 
 const isEditMode = computed(() => !!props.monitor)
 
+const isTenantChanged = computed(
+  () => isEditMode.value && !!props.monitor && form.value.tenantId !== props.monitor.tenant.id
+)
+
 // Success criteria data for the component
 const successCriteriaData = computed({
   get: () => ({
@@ -205,6 +209,17 @@ const handleSubmit = async () => {
     }
 
     if (isEditMode.value && props.monitor) {
+      if (isTenantChanged.value) {
+        try {
+          await monitorsStore.moveMonitorToTenant(props.monitor.id, submitData.tenantId)
+        } catch (err) {
+          error.value = err instanceof Error && err.message.includes('409')
+            ? 'Failed to move monitor. The target tenant already has a monitor with this URL.'
+            : 'Failed to move monitor. Please try again.'
+          console.error('Move monitor error:', err)
+          return
+        }
+      }
       await monitorsStore.updateMonitor(props.monitor.id, submitData)
     } else {
       await monitorsStore.createMonitor(submitData)
@@ -250,7 +265,7 @@ const handleClose = () => {
         />
       </div>
 
-      <div v-if="isEditMode && monitor" class="form-group">
+      <div v-if="isEditMode && monitor && !(currentUser && currentUser.tenants.length > 1)" class="form-group">
         <label for="monitor-tenant">Tenant</label>
         <input
           id="monitor-tenant"
@@ -259,7 +274,23 @@ const handleClose = () => {
           disabled
           class="disabled-field"
         />
-        <small class="field-note">Tenant cannot be changed</small>
+      </div>
+
+      <div v-else-if="isEditMode && monitor && currentUser" class="form-group">
+        <label for="monitor-tenant-move">Tenant</label>
+        <select
+          id="monitor-tenant-move"
+          v-model="form.tenantId"
+          required
+        >
+          <option v-for="tenant in currentUser.tenants" :key="tenant.id" :value="tenant.id">
+            {{ tenant.name }}
+          </option>
+        </select>
+        <small v-if="isTenantChanged" class="field-note tenant-move-note">
+          The monitor moves with all its history. Alert contacts of the old tenant that are
+          limited to selected monitors lose this monitor.
+        </small>
       </div>
 
       <div v-else-if="currentUser && currentUser.tenants.length > 1" class="form-group">
@@ -371,6 +402,10 @@ const handleClose = () => {
   background-color: #f8f9fa !important;
   color: #6c757d !important;
   cursor: not-allowed !important;
+}
+
+.field-note.tenant-move-note {
+  color: #b45309;
 }
 
 .field-note {

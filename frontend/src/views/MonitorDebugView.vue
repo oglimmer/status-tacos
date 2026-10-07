@@ -2,12 +2,12 @@
 import { ref, onMounted, computed } from 'vue'
 import { useMonitorsStore } from '../stores/monitors'
 import EnhancedMonitorCard from '../components/EnhancedMonitorCard.vue'
-import type { ResponseTimeHistory, ParsedUptimeStats } from '../stores/monitors'
+import type { ResponseTimeHistory, UptimeStats } from '../stores/monitors'
 
 const monitorsStore = useMonitorsStore()
 const selectedMonitorId = ref<number | null>(null)
 const isRefreshing = ref(false)
-const selectedTimeframe = ref<'24h' | '7d' | '90d' | '365d'>('24h')
+const selectedTimeframe = ref<'24h' | '7d' | '90d'>('24h')
 
 // Get all data from store
 const monitors = computed(() => monitorsStore.monitors)
@@ -27,9 +27,8 @@ const selectedMonitorStatus = computed(() => {
 })
 
 const selectedMonitorHistory = ref<ResponseTimeHistory | null>(null)
-const selectedMonitorStats7d = ref<ParsedUptimeStats | null>(null)
-const selectedMonitorStats90d = ref<ParsedUptimeStats | null>(null)
-const selectedMonitorStats365d = ref<ParsedUptimeStats | null>(null)
+const selectedMonitorStats7d = ref<UptimeStats | null>(null)
+const selectedMonitorStats90d = ref<UptimeStats | null>(null)
 
 // Load initial data
 const loadInitialData = async () => {
@@ -44,7 +43,6 @@ const loadMonitorData = async (monitorId: number) => {
   selectedMonitorHistory.value = null
   selectedMonitorStats7d.value = null
   selectedMonitorStats90d.value = null
-  selectedMonitorStats365d.value = null
 
   const [history, stats] = await Promise.all([
     monitorsStore.fetchResponseTimeHistory(monitorId),
@@ -52,9 +50,8 @@ const loadMonitorData = async (monitorId: number) => {
   ])
 
   selectedMonitorHistory.value = history
-  selectedMonitorStats7d.value = stats?.['7d'] ?? null
-  selectedMonitorStats90d.value = stats?.['90d'] ?? null
-  selectedMonitorStats365d.value = stats?.['365d'] ?? null
+  selectedMonitorStats7d.value = stats['7d']
+  selectedMonitorStats90d.value = stats['90d']
 }
 
 // Handle monitor selection
@@ -89,8 +86,7 @@ const rawMonitorData = computed(() => {
     status: selectedMonitorStatus.value,
     responseTimeHistory: selectedMonitorHistory.value,
     uptimeStats7d: selectedMonitorStats7d.value,
-    uptimeStats90d: selectedMonitorStats90d.value,
-    uptimeStats365d: selectedMonitorStats365d.value
+    uptimeStats90d: selectedMonitorStats90d.value
   }
 })
 
@@ -147,7 +143,7 @@ onMounted(() => {
         <h3>Timeframe</h3>
         <div class="timeframe-buttons">
           <button
-            v-for="timeframe in (['24h', '7d', '90d', '365d'] as const)"
+            v-for="timeframe in (['24h', '7d', '90d'] as const)"
             :key="timeframe"
             class="timeframe-btn"
             :class="{ active: selectedTimeframe === timeframe }"
@@ -164,7 +160,6 @@ onMounted(() => {
         :response-time-history="selectedMonitorHistory"
         :uptime-stats7d="selectedMonitorStats7d"
         :uptime-stats90d="selectedMonitorStats90d"
-        :uptime-stats365d="selectedMonitorStats365d"
         :selected-timeframe="selectedTimeframe"
         :selected-view-mode="'full'"
         :is-expanded="true"
@@ -203,11 +198,6 @@ onMounted(() => {
         <div class="data-table" v-if="rawMonitorData.uptimeStats90d">
           <h3>Uptime Stats (90 days)</h3>
           <pre class="code-block">{{ formatJson(rawMonitorData.uptimeStats90d) }}</pre>
-        </div>
-
-        <div class="data-table" v-if="rawMonitorData.uptimeStats365d">
-          <h3>Uptime Stats (365 days)</h3>
-          <pre class="code-block">{{ formatJson(rawMonitorData.uptimeStats365d) }}</pre>
         </div>
       </div>
     </div>

@@ -1,245 +1,351 @@
 /* Copyright (c) 2025 by oglimmer.com / Oliver Zimpasser. All rights reserved. */
 package de.oglimmer.status_tacos.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import de.oglimmer.status_tacos.dto.ResponseTimeDataPointDto;
+import de.oglimmer.status_tacos.dto.ResponseTimeHistoryResponseDto;
+import de.oglimmer.status_tacos.dto.StatsPeriod;
 import de.oglimmer.status_tacos.dto.StatusDownPeriodsDto;
+import de.oglimmer.status_tacos.dto.UptimeStatsResponseDto;
 import de.oglimmer.status_tacos.persistence.Monitor;
-import de.oglimmer.status_tacos.persistence.UptimeStats;
-import de.oglimmer.status_tacos.repository.UptimeStatsRepository;
+import de.oglimmer.status_tacos.repository.CheckPoint;
+import de.oglimmer.status_tacos.repository.CheckResultRepository;
+import de.oglimmer.status_tacos.repository.CheckRollupRepository;
+import de.oglimmer.status_tacos.repository.CheckRollupRepository.HistogramRow;
+import de.oglimmer.status_tacos.repository.CheckRollupRepository.HourRow;
+import de.oglimmer.status_tacos.repository.CheckRollupRepository.OutageRow;
+import de.oglimmer.status_tacos.repository.CheckRollupRepository.Transition;
+import de.oglimmer.status_tacos.repository.MonitorRepository;
+import de.oglimmer.status_tacos.service.OutageTracker.Outage;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.annotation.Lazy;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Computes uptime stats on request.
+ *
+ * <p>A window is read from the roll-ups up to the watermark of the roll-up job, plus the raw check
+ * results after the watermark. All reads run in one read-only transaction, so they see one
+ * consistent snapshot: no check is missing or counted twice, and the numbers have no lag.
+ *
+ * <p>Uptime = successful checks / all checks, rounded down to 2 decimals. Response-time values
+ * count successful checks only.
+ */
 @Service
-@Slf4j
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class UptimeStatsService {
 
-  private final UptimeStatsRepository uptimeStatsRepository;
-  private final CheckResultService checkResultService;
-  private final MonitorService monitorService;
-  private final ObjectMapper objectMapper;
-  private final UptimeStatsService self;
+  static final int HISTORY_24H_INTERVAL_MINUTES = 3;
+  static final int HISTORY_24H_DATA_POINTS = 480;
 
-  public UptimeStatsService(
-      UptimeStatsRepository uptimeStatsRepository,
-      CheckResultService checkResultService,
-      MonitorService monitorService,
-      ObjectMapper objectMapper,
-      @Lazy UptimeStatsService self) {
-    this.uptimeStatsRepository = uptimeStatsRepository;
-    this.checkResultService = checkResultService;
-    this.monitorService = monitorService;
-    this.objectMapper = objectMapper;
-    this.self = self;
+  private final CheckRollupRepository rollupRepository;
+  private final CheckResultRepository checkResultRepository;
+  private final MonitorRepository monitorRepository;
+  private final Clock clock;
+
+  /**
+   * @return empty if the monitor is not in one of the tenants
+   */
+  public Optional<UptimeStatsResponseDto> getStats(
+      Set<Integer> tenantIds, Integer monitorId, StatsPeriod period) {
+    return monitorRepository
+        .findByIdAndTenantIdIn(monitorId, tenantIds)
+        .map(monitor -> computeStats(List.of(monitor), period).getFirst());
   }
 
-  public void calculateAndSaveUptimeStats(Integer tenantId) {
-    log.info("Starting uptime statistics calculation for all monitors");
+  /** Stats of all monitors of the tenants. */
+  public List<UptimeStatsResponseDto> getStatsOfAllMonitors(
+      Set<Integer> tenantIds, StatsPeriod period) {
+    List<Monitor> monitors = monitorRepository.findByTenantIdIn(tenantIds);
+    return monitors.isEmpty() ? List.of() : computeStats(monitors, period);
+  }
 
-    List<Monitor> activeMonitors =
-        monitorService.getActiveMonitors(tenantId).stream()
-            .map(
-                dto ->
-                    Monitor.builder()
-                        .id(dto.getId())
-                        .name(dto.getName())
-                        .url(dto.getUrl())
-                        .state(dto.getState())
-                        .build())
-            .toList();
+  /**
+   * The last 24 hours of one monitor, from raw check results, in 3-minute buckets.
+   *
+   * @return empty if the monitor is not in one of the tenants
+   */
+  public Optional<ResponseTimeHistoryResponseDto> getResponseTimeHistory24h(
+      Set<Integer> tenantIds, Integer monitorId) {
+    return monitorRepository
+        .findByIdAndTenantIdIn(monitorId, tenantIds)
+        .map(this::computeHistory24h);
+  }
 
-    if (activeMonitors.isEmpty()) {
-      log.info("No active monitors found for uptime calculation");
-      return;
-    }
+  private List<UptimeStatsResponseDto> computeStats(List<Monitor> monitors, StatsPeriod period) {
+    LocalDateTime now = LocalDateTime.now(clock);
+    LocalDateTime start = period.windowStart(now);
+    List<Integer> ids = monitors.stream().map(Monitor::getId).toList();
+    Watermarks marks = readWatermarks(start, now);
 
-    LocalDateTime now = LocalDateTime.now();
+    // Counts and chart: hourly roll-ups, then raw check results after the watermark.
+    List<HourRow> hours = new ArrayList<>(rollupRepository.findHourly(ids, start, marks.hourly()));
+    hours.addAll(rollupRepository.aggregateRawByHour(ids, marks.hourly(), now));
+    Map<Integer, List<HourRow>> hoursByMonitor = groupBy(hours, HourRow::monitorId);
 
-    for (Monitor monitor : activeMonitors) {
-      try {
-        self.calculate7DayStats(tenantId, monitor, now);
-        self.calculate90DayStats(tenantId, monitor, now);
-        self.calculate365DayStats(tenantId, monitor, now);
-      } catch (Exception e) {
-        log.error(
-            "Failed to calculate uptime stats for monitor {}: {}",
-            monitor.getId(),
-            e.getMessage(),
-            e);
+    Map<Integer, ResponseTimeHistogram> histograms = readHistograms(ids, period, start, now, marks);
+    Map<Integer, List<StatusDownPeriodsDto>> downPeriods = readDownPeriods(ids, start, now, marks);
+
+    return monitors.stream()
+        .map(
+            monitor -> {
+              Totals totals = new Totals();
+              List<HourRow> monitorHours = hoursByMonitor.getOrDefault(monitor.getId(), List.of());
+              monitorHours.forEach(totals::add);
+              ResponseTimeHistogram histogram =
+                  histograms.getOrDefault(monitor.getId(), new ResponseTimeHistogram());
+              return UptimeStatsResponseDto.builder()
+                  .monitorId(monitor.getId())
+                  .monitorName(monitor.getName())
+                  .periodType(period)
+                  .periodStart(start)
+                  .periodEnd(now)
+                  .intervalMinutes(period.getChartIntervalMinutes())
+                  .totalChecks(totals.total)
+                  .successfulChecks(totals.up)
+                  .uptimePercentage(uptimePercentage(totals.up, totals.total))
+                  .minResponseTimeMs(totals.rtMin)
+                  .maxResponseTimeMs(totals.rtMax)
+                  .avgResponseTimeMs(totals.avg())
+                  .p99ResponseTimeMs(histogram.percentile(99, totals.rtMin, totals.rtMax))
+                  .responseTimeDataPoints(
+                      chart(monitorHours, start, period.getChartIntervalMinutes()))
+                  .statusDownPeriods(downPeriods.getOrDefault(monitor.getId(), List.of()))
+                  .build();
+            })
+        .toList();
+  }
+
+  private ResponseTimeHistoryResponseDto computeHistory24h(Monitor monitor) {
+    LocalDateTime now = LocalDateTime.now(clock);
+    // 480 aligned 3-minute buckets, the last one holds now.
+    LocalDateTime start =
+        floorToMinutes(now, HISTORY_24H_INTERVAL_MINUTES)
+            .minusMinutes((long) (HISTORY_24H_DATA_POINTS - 1) * HISTORY_24H_INTERVAL_MINUTES);
+    List<CheckPoint> checks = checkResultRepository.findCheckPoints(monitor.getId(), start, now);
+
+    long up = checks.stream().filter(CheckPoint::isUp).count();
+    TreeMap<LocalDateTime, Integer> maxByBucket = new TreeMap<>();
+    for (CheckPoint check : checks) {
+      if (check.isUp() && check.responseTimeMs() != null) {
+        maxByBucket.merge(
+            bucketStart(start, check.checkedAt(), HISTORY_24H_INTERVAL_MINUTES),
+            check.responseTimeMs(),
+            Math::max);
       }
     }
 
-    log.info("Completed uptime statistics calculation for {} monitors", activeMonitors.size());
+    Watermarks marks = readWatermarks(start, now);
+    return ResponseTimeHistoryResponseDto.builder()
+        .monitorId(monitor.getId())
+        .monitorName(monitor.getName())
+        .intervalMinutes(HISTORY_24H_INTERVAL_MINUTES)
+        .totalDataPoints(HISTORY_24H_DATA_POINTS)
+        .uptimePercentage24h(uptimePercentage(up, checks.size()))
+        .totalChecks24h(checks.size())
+        .successfulChecks24h((int) up)
+        .dataPoints(toDataPoints(maxByBucket))
+        .statusDownPeriods(
+            readDownPeriods(List.of(monitor.getId()), start, now, marks)
+                .getOrDefault(monitor.getId(), List.of()))
+        .build();
   }
 
-  public void calculate7DayStats(Integer tenantId, Monitor monitor, LocalDateTime now) {
-    LocalDateTime start = now.minusDays(7);
-    UptimeStats stats =
-        calculateStats(tenantId, monitor, UptimeStats.PeriodType.SEVEN_DAYS, start, now);
-    if (stats != null) {
-      self.saveStats(stats);
-    }
+  /**
+   * @param hourly end of the hourly roll-ups in the window, in [start, now]
+   * @param daily end of the daily roll-ups in the window, in [start, hourly]
+   * @param outagesUntil the outage table is complete until here; null if nothing is rolled up
+   */
+  private record Watermarks(
+      LocalDateTime hourly, LocalDateTime daily, LocalDateTime outagesUntil) {}
+
+  private Watermarks readWatermarks(LocalDateTime start, LocalDateTime now) {
+    LocalDateTime hourlyDone = rollupRepository.findWatermark(CheckRollupRepository.HOURLY);
+    LocalDateTime dailyDone = rollupRepository.findWatermark(CheckRollupRepository.DAILY);
+    LocalDateTime hourly = clamp(hourlyDone, start, now);
+    return new Watermarks(hourly, clamp(dailyDone, start, hourly), hourlyDone);
   }
 
-  public void calculate90DayStats(Integer tenantId, Monitor monitor, LocalDateTime now) {
-    LocalDateTime start = now.minusDays(90);
-    UptimeStats stats =
-        calculateStats(tenantId, monitor, UptimeStats.PeriodType.NINETY_DAYS, start, now);
-    if (stats != null) {
-      self.saveStats(stats);
-    }
-  }
-
-  public void calculate365DayStats(Integer tenantId, Monitor monitor, LocalDateTime now) {
-    LocalDateTime start = now.minusDays(365);
-    UptimeStats stats =
-        calculateStats(tenantId, monitor, UptimeStats.PeriodType.THREE_SIXTY_FIVE_DAYS, start, now);
-    if (stats != null) {
-      self.saveStats(stats);
-    }
-  }
-
-  private UptimeStats calculateStats(
-      Integer tenantId,
-      Monitor monitor,
-      UptimeStats.PeriodType periodType,
+  private Map<Integer, ResponseTimeHistogram> readHistograms(
+      Collection<Integer> ids,
+      StatsPeriod period,
       LocalDateTime start,
-      LocalDateTime end) {
+      LocalDateTime now,
+      Watermarks marks) {
+    List<HistogramRow> rows = new ArrayList<>();
+    // Daily histograms only fit a window that starts at midnight.
+    LocalDateTime hourlyFrom = start;
+    if (period.getAlignment() == ChronoUnit.DAYS) {
+      rows.addAll(rollupRepository.sumDailyHistogram(ids, start, marks.daily()));
+      hourlyFrom = marks.daily();
+    }
+    rows.addAll(rollupRepository.sumHourlyHistogram(ids, hourlyFrom, marks.hourly()));
+    rows.addAll(rollupRepository.rawHistogram(ids, marks.hourly(), now));
 
-    log.debug(
-        "Calculating {} stats for monitor {} from {} to {}",
-        periodType,
-        monitor.getId(),
-        start,
-        end);
+    Map<Integer, ResponseTimeHistogram> histograms = new HashMap<>();
+    for (HistogramRow row : rows) {
+      histograms
+          .computeIfAbsent(row.monitorId(), id -> new ResponseTimeHistogram())
+          .add(row.bucket(), row.count());
+    }
+    return histograms;
+  }
 
-    long totalChecks = checkResultService.getCheckCount(tenantId, monitor.getId(), start, end);
-    if (totalChecks == 0) {
-      log.debug("No checks found for monitor {} in period {}", monitor.getId(), periodType);
+  /**
+   * Outages from the outage table, updated with the raw checks after the watermark, clipped to the
+   * window.
+   *
+   * <p>Raw checks are never read before the window start. When the roll-up job is behind the window
+   * start (backfill, or the job was stopped), the outage table does not know the state at the
+   * start. Then the last check before the start decides if an outage was open at the start.
+   */
+  private Map<Integer, List<StatusDownPeriodsDto>> readDownPeriods(
+      Collection<Integer> ids, LocalDateTime start, LocalDateTime now, Watermarks marks) {
+    LocalDateTime outagesUntil = marks.outagesUntil();
+    boolean tableCoversStart = outagesUntil != null && !outagesUntil.isBefore(start);
+    LocalDateTime tailFrom = tableCoversStart ? outagesUntil : start;
+
+    Map<Integer, List<OutageRow>> stored =
+        tableCoversStart
+            ? groupBy(rollupRepository.findOutages(ids, start, now), OutageRow::monitorId)
+            : Map.of();
+    Set<Integer> downAtStart =
+        tableCoversStart ? Set.of() : rollupRepository.findDownBefore(ids, start);
+    Map<Integer, List<Transition>> tail =
+        tailFrom.isBefore(now)
+            ? groupBy(rollupRepository.findTransitions(ids, tailFrom, now), Transition::monitorId)
+            : Map.of();
+
+    Map<Integer, List<StatusDownPeriodsDto>> result = new HashMap<>();
+    for (Integer id : ids) {
+      List<Outage> outages = new ArrayList<>();
+      // Started before the window, so clip() moves its start to the window start.
+      Outage open = downAtStart.contains(id) ? new Outage(null, start, null) : null;
+      for (OutageRow row : stored.getOrDefault(id, List.of())) {
+        if (row.end() == null) {
+          open = new Outage(row.id(), row.start(), null);
+        } else {
+          outages.add(new Outage(row.id(), row.start(), row.end()));
+        }
+      }
+      OutageTracker tracker = new OutageTracker(open);
+      tail.getOrDefault(id, List.of()).forEach(t -> tracker.accept(t.checkedAt(), t.up()));
+      outages.addAll(tracker.result());
+
+      result.put(
+          id,
+          outages.stream()
+              .map(o -> clip(o, start, now))
+              .flatMap(Optional::stream)
+              .sorted(Comparator.comparing(StatusDownPeriodsDto::getStart))
+              .toList());
+    }
+    return result;
+  }
+
+  private static Optional<StatusDownPeriodsDto> clip(
+      Outage outage, LocalDateTime start, LocalDateTime now) {
+    LocalDateTime from = outage.start().isAfter(start) ? outage.start() : start;
+    LocalDateTime to = outage.isOpen() || outage.end().isAfter(now) ? now : outage.end();
+    return from.isBefore(to)
+        ? Optional.of(StatusDownPeriodsDto.builder().start(from).end(to).build())
+        : Optional.empty();
+  }
+
+  /** Max response time per chart bucket. Buckets start at the window start. */
+  private static List<ResponseTimeDataPointDto> chart(
+      List<HourRow> hours, LocalDateTime start, int intervalMinutes) {
+    TreeMap<LocalDateTime, Integer> maxByBucket = new TreeMap<>();
+    for (HourRow hour : hours) {
+      if (hour.rtMax() != null) {
+        maxByBucket.merge(
+            bucketStart(start, hour.bucketStart(), intervalMinutes), hour.rtMax(), Math::max);
+      }
+    }
+    return toDataPoints(maxByBucket);
+  }
+
+  private static List<ResponseTimeDataPointDto> toDataPoints(Map<LocalDateTime, Integer> values) {
+    return values.entrySet().stream()
+        .map(
+            e ->
+                ResponseTimeDataPointDto.builder()
+                    .timestamp(e.getKey())
+                    .maxResponseTimeMs(e.getValue())
+                    .build())
+        .toList();
+  }
+
+  static BigDecimal uptimePercentage(long up, long total) {
+    if (total == 0) {
       return null;
     }
+    // Rounded down: 99.996 % is shown as 99.99 %, never as 100 %.
+    return BigDecimal.valueOf(up * 100).divide(BigDecimal.valueOf(total), 2, RoundingMode.DOWN);
+  }
 
-    long successfulChecks =
-        checkResultService.getSuccessfulCheckCount(tenantId, monitor.getId(), start, end);
-    Double avgResponseTime =
-        checkResultService.getAverageResponseTime(tenantId, monitor.getId(), start, end);
-    Integer minResponseTime =
-        checkResultService.getMinResponseTime(tenantId, monitor.getId(), start, end);
-    Integer maxResponseTime =
-        checkResultService.getMaxResponseTime(tenantId, monitor.getId(), start, end);
-    Integer p99ResponseTime =
-        checkResultService.getPercentileResponseTime(tenantId, monitor.getId(), start, end, 99);
+  private static LocalDateTime bucketStart(
+      LocalDateTime start, LocalDateTime time, int intervalMinutes) {
+    long index = Duration.between(start, time).toMinutes() / intervalMinutes;
+    return start.plusMinutes(index * intervalMinutes);
+  }
 
-    int intervalMinutes = getIntervalMinutes(periodType);
-    List<ResponseTimeDataPointDto> responseTimeData =
-        checkResultService.getResponseTimeDataPoints(
-            tenantId, monitor.getId(), start, end, intervalMinutes);
-    List<StatusDownPeriodsDto> statusDownPeriods =
-        checkResultService.getStatusDownPeriods(tenantId, monitor.getId(), start, end);
+  private static LocalDateTime floorToMinutes(LocalDateTime time, int minutes) {
+    LocalDateTime hour = time.truncatedTo(ChronoUnit.HOURS);
+    return hour.plusMinutes(time.getMinute() / minutes * minutes);
+  }
 
-    double uptimePercentage = (double) successfulChecks / totalChecks * 100.0;
-    BigDecimal uptimeDecimal =
-        BigDecimal.valueOf(uptimePercentage).setScale(2, RoundingMode.HALF_UP);
+  private static LocalDateTime clamp(LocalDateTime value, LocalDateTime min, LocalDateTime max) {
+    if (value == null || value.isBefore(min)) {
+      return min;
+    }
+    return value.isAfter(max) ? max : value;
+  }
 
-    LocalDateTime periodStart = getPeriodStart(start, periodType);
+  private static <T> Map<Integer, List<T>> groupBy(List<T> rows, Function<T, Integer> key) {
+    return rows.stream().collect(Collectors.groupingBy(key));
+  }
 
-    String responseTimeDataJson = null;
-    String statusDownPeriodsJson = null;
+  private static final class Totals {
+    long total;
+    long up;
+    long rtCount;
+    long rtSum;
+    Integer rtMin;
+    Integer rtMax;
 
-    try {
-      responseTimeDataJson = objectMapper.writeValueAsString(responseTimeData);
-      statusDownPeriodsJson = objectMapper.writeValueAsString(statusDownPeriods);
-    } catch (Exception e) {
-      log.error(
-          "Failed to serialize data for monitor {} period {}: {}",
-          monitor.getId(),
-          periodType,
-          e.getMessage());
+    void add(HourRow row) {
+      total += row.totalChecks();
+      up += row.upChecks();
+      rtCount += row.rtCount();
+      rtSum += row.rtSum();
+      if (row.rtMin() != null && (rtMin == null || row.rtMin() < rtMin)) {
+        rtMin = row.rtMin();
+      }
+      if (row.rtMax() != null && (rtMax == null || row.rtMax() > rtMax)) {
+        rtMax = row.rtMax();
+      }
     }
 
-    // Create or update the stats object, but don't save yet
-    UptimeStats existingStats =
-        uptimeStatsRepository
-            .findByMonitorIdAndTenantIdAndPeriodTypeAndPeriodStart(
-                monitor.getId(), tenantId, periodType, periodStart)
-            .orElse(null);
-
-    if (existingStats != null) {
-      existingStats.setPeriodEnd(end);
-      existingStats.setTotalChecks((int) totalChecks);
-      existingStats.setSuccessfulChecks((int) successfulChecks);
-      existingStats.setUptimePercentage(uptimeDecimal);
-      existingStats.setMinResponseTimeMs(minResponseTime);
-      existingStats.setMaxResponseTimeMs(maxResponseTime);
-      existingStats.setAvgResponseTimeMs(
-          avgResponseTime != null ? avgResponseTime.intValue() : null);
-      existingStats.setP99ResponseTimeMs(p99ResponseTime);
-      existingStats.setResponseTimeData(responseTimeDataJson);
-      existingStats.setStatusChangeData(statusDownPeriodsJson);
-      existingStats.setCalculatedAt(LocalDateTime.now());
-
-      log.debug(
-          "Prepared update for {} stats for monitor {}: {:.2f}% uptime",
-          periodType, monitor.getId(), uptimePercentage);
-      return existingStats;
-    } else {
-      UptimeStats newStats =
-          UptimeStats.builder()
-              .monitor(monitor)
-              .tenantId(tenantId)
-              .periodType(periodType)
-              .periodStart(periodStart)
-              .periodEnd(end)
-              .totalChecks((int) totalChecks)
-              .successfulChecks((int) successfulChecks)
-              .uptimePercentage(uptimeDecimal)
-              .minResponseTimeMs(minResponseTime)
-              .maxResponseTimeMs(maxResponseTime)
-              .avgResponseTimeMs(avgResponseTime != null ? avgResponseTime.intValue() : null)
-              .p99ResponseTimeMs(p99ResponseTime)
-              .responseTimeData(responseTimeDataJson)
-              .statusChangeData(statusDownPeriodsJson)
-              .build();
-
-      log.debug(
-          "Prepared new {} stats for monitor {}: {:.2f}% uptime",
-          periodType, monitor.getId(), uptimePercentage);
-      return newStats;
+    Integer avg() {
+      return rtCount == 0 ? null : (int) Math.round((double) rtSum / rtCount);
     }
-  }
-
-  @Transactional
-  public void saveStats(UptimeStats stats) {
-    uptimeStatsRepository.save(stats);
-    log.debug("Saved {} stats for monitor {}", stats.getPeriodType(), stats.getMonitor().getId());
-  }
-
-  private LocalDateTime getPeriodStart(LocalDateTime start, UptimeStats.PeriodType periodType) {
-    return switch (periodType) {
-      case SEVEN_DAYS -> start.withHour(0).withMinute(0).withSecond(0).withNano(0);
-      case NINETY_DAYS -> start.withHour(0).withMinute(0).withSecond(0).withNano(0);
-      case THREE_SIXTY_FIVE_DAYS -> start.withHour(0).withMinute(0).withSecond(0).withNano(0);
-    };
-  }
-
-  private int getIntervalMinutes(UptimeStats.PeriodType periodType) {
-    return switch (periodType) {
-      case SEVEN_DAYS -> 60; // 1 hour intervals for 7 days
-      case NINETY_DAYS -> 360; // 6 hour intervals for 90 days
-      case THREE_SIXTY_FIVE_DAYS -> 1440; // 1 day intervals for 365 days
-    };
-  }
-
-  @Transactional
-  public void cleanupOldUptimeStats(Integer tenantId, LocalDateTime cutoffDate) {
-    log.info("Cleaning up uptime stats older than {}", cutoffDate);
-    uptimeStatsRepository.deleteByTenantIdAndCalculatedAtBefore(tenantId, cutoffDate);
-    log.info("Cleanup of old uptime stats completed");
   }
 }

@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { TimeframeType } from './TimeframeSwitcher.vue'
+import { getTimeframeLabel, parseUtc, timeWindow } from '../utils/uptime'
 
 interface ResponseTimeDataPoint {
   timestamp: string
@@ -9,107 +11,54 @@ interface ResponseTimeDataPoint {
 interface ChartProps {
   data: ResponseTimeDataPoint[]
   timeframe: TimeframeType
+  // Window of the data (UTC, from the backend). Default: the timeframe until now.
+  windowStart?: string
+  windowEnd?: string
   title?: string
 }
 
-defineProps<ChartProps>()
+const props = defineProps<ChartProps>()
 
-// Generate SVG path for response time chart
-const generateResponseTimeChart = (data: ResponseTimeDataPoint[]): string => {
-  if (data.length === 0) return ''
+const WIDTH = 300
+const HEIGHT = 30
 
-  const width = 300
-  const height = 30
-  const maxValue = Math.max(...data.map(d => d.maxResponseTimeMs))
-  const minValue = Math.min(...data.map(d => d.maxResponseTimeMs))
-  const range = maxValue - minValue || 1
+const chartWindow = computed(() => timeWindow(props.timeframe, props.windowStart, props.windowEnd))
 
-  const points = data.map((dataPoint, index) => {
-    const x = (index / (data.length - 1)) * width
-    const y = height - ((dataPoint.maxResponseTimeMs - minValue) / range) * height
+const maxResponseTime = computed(() =>
+  props.data.length > 0 ? Math.max(...props.data.map(d => d.maxResponseTimeMs)) : 0
+)
+
+// SVG path. Each point sits at the position of its time in the window, so gaps in the data
+// (for example a new monitor) do not stretch the line.
+const responseTimePath = computed((): string => {
+  if (props.data.length === 0) return ''
+
+  const { startMs, endMs } = chartWindow.value
+  const duration = endMs - startMs || 1
+  const minValue = Math.min(...props.data.map(d => d.maxResponseTimeMs))
+  const range = maxResponseTime.value - minValue || 1
+
+  const points = props.data.map(point => {
+    const offset = parseUtc(point.timestamp).getTime() - startMs
+    const x = Math.min(WIDTH, Math.max(0, (offset / duration) * WIDTH))
+    const y = HEIGHT - ((point.maxResponseTimeMs - minValue) / range) * HEIGHT
     return `${x},${y}`
   })
 
   return `M ${points.join(' L ')}`
-}
+})
 
-// Get max response time for y-axis label
-const getMaxResponseTime = (data: ResponseTimeDataPoint[]): number => {
-  return data.length > 0 ? Math.max(...data.map(d => d.maxResponseTimeMs)) : 0
-}
-
-
-// Format timeframe for display
-const getTimeframeLabel = (timeframe: TimeframeType): string => {
-  switch (timeframe) {
-    case '24h': return '24 Hours'
-    case '7d': return '7 Days'
-    case '90d': return '90 Days'
-    case '365d': return '1 Year'
-    default: return timeframe
-  }
-}
-
-// Generate time labels for x-axis
-const getTimeLabels = (data: ResponseTimeDataPoint[], timeframe: TimeframeType): string[] => {
-  if (data.length === 0) return []
-
-  const labels: string[] = []
-  const now = new Date()
-  let totalDuration: number
-
-  // Calculate total duration based on timeframe
-  switch (timeframe) {
-    case '24h':
-      totalDuration = 24 * 60 * 60 * 1000 // 24 hours
-      break
-    case '7d':
-      totalDuration = 7 * 24 * 60 * 60 * 1000 // 7 days
-      break
-    case '90d':
-      totalDuration = 90 * 24 * 60 * 60 * 1000 // 90 days
-      break
-    case '365d':
-      totalDuration = 365 * 24 * 60 * 60 * 1000 // 365 days
-      break
-    default:
-      totalDuration = 24 * 60 * 60 * 1000
-  }
-
-  const startTime = new Date(now.getTime() - totalDuration)
-
-  // Generate labels for 0%, 25%, 50%, 75%, and 100% (now)
-  const positions = [0, 0.25, 0.5, 0.75, 1]
-
-  for (let i = 0; i < positions.length; i++) {
-    const position = positions[i]
-
-    if (position === 1) {
-      // Far right shows "now"
-      labels.push('now')
-    } else {
-      // Calculate time at this position
-      const timeAtPosition = new Date(startTime.getTime() + (position || 0) * totalDuration)
-
-      switch (timeframe) {
-        case '24h':
-          labels.push(timeAtPosition.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))
-          break
-        case '7d':
-          labels.push(timeAtPosition.toLocaleDateString([], { month: 'short', day: 'numeric' }))
-          break
-        case '90d':
-        case '365d':
-          labels.push(timeAtPosition.toLocaleDateString([], { month: 'short', day: 'numeric' }))
-          break
-        default:
-          labels.push(timeAtPosition.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))
-      }
-    }
-  }
-
-  return labels
-}
+// Labels at 0%, 25%, 50%, 75% and 100% (now) of the window
+const timeLabels = computed((): string[] => {
+  const { startMs, endMs } = chartWindow.value
+  return [0, 0.25, 0.5, 0.75, 1].map(position => {
+    if (position === 1) return 'now'
+    const time = new Date(startMs + position * (endMs - startMs))
+    return props.timeframe === '24h'
+      ? time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : time.toLocaleDateString([], { month: 'short', day: 'numeric' })
+  })
+})
 </script>
 
 <template>
@@ -119,7 +68,7 @@ const getTimeLabels = (data: ResponseTimeDataPoint[], timeframe: TimeframeType):
     </div>
     <div class="chart-container">
       <div class="chart-y-axis">
-        <span class="y-axis-label" v-if="data.length > 0">{{ getMaxResponseTime(data) }}ms</span>
+        <span class="y-axis-label" v-if="data.length > 0">{{ maxResponseTime }}ms</span>
       </div>
       <div class="chart-main">
         <div v-if="data.length === 0" class="chart-placeholder">
@@ -128,7 +77,7 @@ const getTimeLabels = (data: ResponseTimeDataPoint[], timeframe: TimeframeType):
         <div v-else class="chart-svg-container">
           <svg class="chart-svg" viewBox="0 0 300 30" preserveAspectRatio="none">
             <path
-              :d="generateResponseTimeChart(data)"
+              :d="responseTimePath"
               fill="none"
               stroke="#007bff"
               stroke-width="2"
@@ -139,10 +88,10 @@ const getTimeLabels = (data: ResponseTimeDataPoint[], timeframe: TimeframeType):
           <!-- X-axis labels -->
           <div class="x-axis-labels">
             <span
-              v-for="(label, index) in getTimeLabels(data, timeframe)"
+              v-for="(label, index) in timeLabels"
               :key="index"
               class="x-axis-label"
-              :style="{ left: `${(index / (getTimeLabels(data, timeframe).length - 1)) * 100}%` }"
+              :style="{ left: `${(index / (timeLabels.length - 1)) * 100}%` }"
             >
               {{ label }}
             </span>

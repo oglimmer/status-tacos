@@ -2,6 +2,7 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { useAuthStore } from './auth'
 import { apiService } from '../services/api'
+import type { StatsPeriodParam } from '../utils/uptime'
 
 export type MonitorState = 'ACTIVE' | 'SILENT' | 'INACTIVE'
 
@@ -79,31 +80,35 @@ export interface ResponseTimeHistory {
   monitorName: string
   intervalMinutes: number
   totalDataPoints: number
-  uptimePercentage24h: number
+  // Rounded down by the backend. Missing when there are no checks.
+  uptimePercentage24h?: number
   totalChecks24h: number
   successfulChecks24h: number
   dataPoints: ResponseTimeDataPoint[]
   statusDownPeriods: StatusDownPeriod[]
 }
 
+/**
+ * Uptime stats of one monitor for the window [periodStart, periodEnd) (UTC).
+ * Response times count successful checks only.
+ */
 export interface UptimeStats {
-  id: number
   monitorId: number
   monitorName: string
-  tenantId: number
-  periodType: 'SEVEN_DAYS' | 'NINETY_DAYS' | 'THREE_SIXTY_FIVE_DAYS'
+  periodType: 'SEVEN_DAYS' | 'NINETY_DAYS'
   periodStart: string
   periodEnd: string
+  intervalMinutes: number
   totalChecks: number
   successfulChecks: number
-  uptimePercentage: number
+  // Rounded down by the backend. Missing when there are no checks.
+  uptimePercentage?: number
   minResponseTimeMs?: number
   maxResponseTimeMs?: number
   avgResponseTimeMs?: number
   p99ResponseTimeMs?: number
-  responseTimeData?: string
-  statusChangeData?: string
-  calculatedAt: string
+  responseTimeDataPoints: ResponseTimeDataPoint[]
+  statusDownPeriods: StatusDownPeriod[]
 }
 
 export interface StatusDownPeriod {
@@ -111,17 +116,11 @@ export interface StatusDownPeriod {
   end: string
 }
 
-export interface ParsedUptimeStats extends Omit<UptimeStats, 'responseTimeData' | 'statusChangeData'> {
-  responseTimeDataPoints: ResponseTimeDataPoint[]
-  statusDownPeriods: StatusDownPeriod[]
-}
-
-
 export const useMonitorsStore = defineStore('monitors', () => {
   const monitors = ref<MonitorResponse[]>([])
   const monitorStatuses = ref<MonitorStatus[]>([])
   const responseTimeHistories = ref<Map<number, ResponseTimeHistory>>(new Map())
-  const uptimeStats = ref<Map<string, ParsedUptimeStats>>(new Map())
+  const uptimeStats = ref<Map<string, UptimeStats>>(new Map())
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
@@ -187,38 +186,35 @@ export const useMonitorsStore = defineStore('monitors', () => {
     }
   }
 
-  const fetchUptimeStats = async (monitorId: number, periodType: 'seven_days' | 'ninety_days' | 'three_sixty_five_days'): Promise<ParsedUptimeStats | null> => {
+  const fetchUptimeStats = async (monitorId: number, periodType: StatsPeriodParam): Promise<UptimeStats | null> => {
     try {
       const data = await apiService.get<UptimeStats>(`/uptime-stats/${monitorId}/${periodType}`, authStore.user)
-
-      // Parse JSON data
-      const parsed: ParsedUptimeStats = {
-        ...data,
-        responseTimeDataPoints: data.responseTimeData ? JSON.parse(data.responseTimeData) : [],
-        statusDownPeriods: data.statusChangeData ? JSON.parse(data.statusChangeData) : []
-      }
-
-      const key = `${monitorId}-${periodType}`
-      uptimeStats.value.set(key, parsed)
-      return parsed
+      uptimeStats.value.set(`${monitorId}-${periodType}`, data)
+      return data
     } catch (err) {
       console.error('Fetch uptime stats error:', err)
       return null
     }
   }
 
-  const fetchAllUptimeStats = async (monitorId: number): Promise<Record<string, ParsedUptimeStats | null>> => {
-    const results = await Promise.allSettled([
-      fetchUptimeStats(monitorId, 'seven_days'),
-      fetchUptimeStats(monitorId, 'ninety_days'),
-      fetchUptimeStats(monitorId, 'three_sixty_five_days')
-    ])
-
-    return {
-      '7d': results[0].status === 'fulfilled' ? results[0].value : null,
-      '90d': results[1].status === 'fulfilled' ? results[1].value : null,
-      '365d': results[2].status === 'fulfilled' ? results[2].value : null
+  /** Stats of all monitors of the user in one request. */
+  const fetchUptimeStatsOfAllMonitors = async (periodType: StatsPeriodParam): Promise<void> => {
+    try {
+      const data = await apiService.get<UptimeStats[]>(`/uptime-stats?period=${periodType}`, authStore.user)
+      for (const stats of data) {
+        uptimeStats.value.set(`${stats.monitorId}-${periodType}`, stats)
+      }
+    } catch (err) {
+      console.error('Fetch uptime stats of all monitors error:', err)
     }
+  }
+
+  const fetchAllUptimeStats = async (monitorId: number): Promise<Record<'7d' | '90d', UptimeStats | null>> => {
+    const [sevenDays, ninetyDays] = await Promise.all([
+      fetchUptimeStats(monitorId, 'seven_days'),
+      fetchUptimeStats(monitorId, 'ninety_days')
+    ])
+    return { '7d': sevenDays, '90d': ninetyDays }
   }
 
   const createMonitor = async (monitorData: MonitorRequest): Promise<MonitorResponse> => {
@@ -295,6 +291,28 @@ export const useMonitorsStore = defineStore('monitors', () => {
     }
   }
 
+  // Moves the monitor with all its history to another tenant. Alert contacts that are limited to
+  // selected monitors lose this monitor.
+  const moveMonitorToTenant = async (id: number, tenantId: number): Promise<MonitorResponse> => {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      const movedMonitor = await apiService.patch<MonitorResponse>(`/monitors/${id}/tenant?tenantId=${tenantId}`, authStore.user)
+      const index = monitors.value.findIndex(m => m.id === id)
+      if (index !== -1) {
+        monitors.value[index] = movedMonitor
+      }
+      return movedMonitor
+    } catch (err) {
+      error.value = 'Failed to move monitor'
+      console.error('Move monitor error:', err)
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
   // Legacy method for backward compatibility
   const toggleMonitorStatus = async (id: number): Promise<MonitorResponse> => {
     isLoading.value = true
@@ -329,7 +347,7 @@ export const useMonitorsStore = defineStore('monitors', () => {
   })
 
   const getUptimeStatsById = computed(() => {
-    return (monitorId: number, periodType: 'seven_days' | 'ninety_days' | 'three_sixty_five_days') => {
+    return (monitorId: number, periodType: StatsPeriodParam) => {
       const key = `${monitorId}-${periodType}`
       return uptimeStats.value.get(key)
     }
@@ -363,11 +381,13 @@ export const useMonitorsStore = defineStore('monitors', () => {
     fetchMonitorStatusesSilently,
     fetchResponseTimeHistory,
     fetchUptimeStats,
+    fetchUptimeStatsOfAllMonitors,
     fetchAllUptimeStats,
     createMonitor,
     updateMonitor,
     deleteMonitor,
     updateMonitorState,
+    moveMonitorToTenant,
     toggleMonitorStatus,
     getMonitorById,
     getMonitorStatusById,

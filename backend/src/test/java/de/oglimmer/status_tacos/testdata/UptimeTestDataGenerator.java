@@ -3,7 +3,7 @@ package de.oglimmer.status_tacos.testdata;
 
 import de.oglimmer.status_tacos.persistence.*;
 import de.oglimmer.status_tacos.repository.*;
-import de.oglimmer.status_tacos.service.UptimeStatsService;
+import de.oglimmer.status_tacos.service.CheckRollupService;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,7 +18,7 @@ import org.springframework.test.context.ActiveProfiles;
  * Test data generator for manual UI testing.
  *
  * <p>This class generates realistic test data for monitors, check results, and uptime statistics
- * covering different timeframes (24h, 7d, 90d, 365d).
+ * covering different timeframes (24h, 7d, 90d).
  *
  * <p>To run this test: 1. Remove @Disabled annotation 2. Run the generateTestData() method 3.
  * Re-add @Disabled annotation to prevent accidental execution
@@ -36,7 +36,7 @@ public class UptimeTestDataGenerator {
 
   @Autowired private CheckResultRepository checkResultRepository;
 
-  @Autowired private UptimeStatsService uptimeStatsService;
+  @Autowired private CheckRollupService checkRollupService;
 
   private final Random random = new Random(42); // Fixed seed for reproducible results
 
@@ -57,16 +57,18 @@ public class UptimeTestDataGenerator {
     for (Monitor monitor : monitors) {
       System.out.println("📊 Generating data for monitor: " + monitor.getName());
 
-      // Generate 365 days of data (includes all timeframes)
-      generateCheckResults(monitor, now.minusDays(365), now);
+      // Generate 90 days of data (includes all timeframes)
+      generateCheckResults(monitor, now.minusDays(90), now);
+    }
 
-      // Calculate uptime statistics for all periods
-      uptimeStatsService.calculateAndSaveUptimeStats(testTenant.getId());
+    // Roll up the check results (one call has a time budget)
+    while (checkRollupService.rollUp() > 0) {
+      System.out.println("Rolled up a part of the check results");
     }
 
     System.out.println("✅ Test data generation completed!");
     System.out.println("📈 Generated data for " + monitors.size() + " monitors");
-    System.out.println("⏰ Timeframes covered: 24h, 7d, 90d, 365d");
+    System.out.println("⏰ Timeframes covered: 24h, 7d, 90d");
     System.out.println("🎯 Ready for manual UI testing!");
   }
 

@@ -5,6 +5,7 @@ import de.oglimmer.status_tacos.persistence.MonitorStatus;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -50,4 +51,10 @@ public interface MonitorStatusRepository extends JpaRepository<MonitorStatus, In
           + "AND ms.lastResponseTimeMs > :threshold")
   List<MonitorStatus> findSlowResponseMonitorsByTenantId(
       @Param("tenantId") Integer tenantId, @Param("threshold") Integer threshold);
+
+  /** Bulk update. Moves all rows of the monitor to another tenant (monitor move). */
+  @Modifying
+  @Query("UPDATE MonitorStatus ms SET ms.tenantId = :tenantId WHERE ms.monitorId = :monitorId")
+  int updateTenantIdByMonitorId(
+      @Param("monitorId") Integer monitorId, @Param("tenantId") Integer tenantId);
 }

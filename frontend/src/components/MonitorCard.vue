@@ -57,7 +57,7 @@ const formatDate = (dateString: string) => {
 // Get uptime percentage from API data
 const getUptimePercentage = (history: ResponseTimeHistory | null): number => {
   if (history && history.uptimePercentage24h !== undefined) {
-    return Math.round(history.uptimePercentage24h * 100) / 100
+    return Math.floor(history.uptimePercentage24h * 100) / 100 // rounded down, like the backend
   }
   return 0
 }

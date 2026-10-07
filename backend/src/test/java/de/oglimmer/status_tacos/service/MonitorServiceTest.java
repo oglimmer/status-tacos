@@ -186,25 +186,23 @@ class MonitorServiceTest {
 
   @Test
   void deleteMonitor_withExistingId_shouldDeleteMonitor() {
-    when(monitorRepository.findByIdAndTenantId(1, TEST_TENANT_ID))
-        .thenReturn(Optional.of(testMonitor));
+    when(monitorRepository.deleteByIdAndTenantId(1, TEST_TENANT_ID)).thenReturn(1);
 
     monitorService.deleteMonitor(TEST_TENANT_ID, 1);
 
-    verify(monitorRepository).findByIdAndTenantId(1, TEST_TENANT_ID);
-    verify(monitorRepository).delete(testMonitor);
+    verify(monitorRepository).deleteByIdAndTenantId(1, TEST_TENANT_ID);
+    verify(monitorRepository, never()).delete(any(Monitor.class));
   }
 
   @Test
   void deleteMonitor_withNonExistingId_shouldThrowException() {
-    when(monitorRepository.findByIdAndTenantId(999, TEST_TENANT_ID)).thenReturn(Optional.empty());
+    when(monitorRepository.deleteByIdAndTenantId(999, TEST_TENANT_ID)).thenReturn(0);
 
     assertThatThrownBy(() -> monitorService.deleteMonitor(TEST_TENANT_ID, 999))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Monitor not found with ID: 999");
 
-    verify(monitorRepository).findByIdAndTenantId(999, TEST_TENANT_ID);
-    verify(monitorRepository, never()).delete(any(Monitor.class));
+    verify(monitorRepository).deleteByIdAndTenantId(999, TEST_TENANT_ID);
   }
 
   @Test

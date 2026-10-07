@@ -45,4 +45,10 @@ public interface AlertContactRepository extends JpaRepository<AlertContact, Inte
 
   boolean existsByTenantIdAndValueAndType(
       Integer tenantId, String value, AlertContact.AlertContactType type);
+
+  /** Contacts that are alerted only for selected monitors, and this monitor is one of them. */
+  @Query(
+      "SELECT ac FROM AlertContact ac JOIN ac.monitors m"
+          + " WHERE ac.allMonitors = false AND m.id = :monitorId")
+  List<AlertContact> findScopedToMonitor(@Param("monitorId") Integer monitorId);
 }

@@ -93,9 +93,9 @@ monitor:
     enabled: true
     check-interval: 15000
     retry-interval: 4800
-    uptime-stats-cron: "0 */15 * * * *"
     cleanup-cron: "0 0 2 * * *"
     health-check-interval: 30000
+    rollup-interval: 60000
   threading:
     core-pool-size: 10
     max-pool-size: 50

@@ -1,25 +1,7 @@
 <script setup lang="ts">
 import type { TimeframeType } from './TimeframeSwitcher.vue'
-
-interface UptimeStats {
-  id: number
-  monitorId: number
-  monitorName: string
-  tenantId: number
-  periodType: 'SEVEN_DAYS' | 'NINETY_DAYS' | 'THREE_SIXTY_FIVE_DAYS'
-  periodStart: string
-  periodEnd: string
-  totalChecks: number
-  successfulChecks: number
-  uptimePercentage: number
-  minResponseTimeMs?: number
-  maxResponseTimeMs?: number
-  avgResponseTimeMs?: number
-  p99ResponseTimeMs?: number
-  responseTimeData?: string
-  statusChangeData?: string
-  calculatedAt: string
-}
+import type { UptimeStats } from '../stores/monitors'
+import { formatUptime, getTimeframeLabel, uptimeLevel } from '../utils/uptime'
 
 interface UptimeMetricsProps {
   stats: UptimeStats | null
@@ -34,28 +16,9 @@ const formatResponseTime = (ms: number | undefined): string => {
   return `${ms}ms`
 }
 
-const formatUptime = (percentage: number | undefined): string => {
-  if (percentage === undefined || percentage === null) return 'N/A'
-  return `${percentage.toFixed(2)}%`
-}
-
 const getUptimeClass = (percentage: number | undefined): string => {
-  if (percentage === undefined || percentage === null) return 'metric-value no-data'
-
-  if (percentage >= 99) return 'metric-value uptime-excellent'
-  if (percentage >= 95) return 'metric-value uptime-good'
-  if (percentage >= 90) return 'metric-value uptime-warning'
-  return 'metric-value uptime-poor'
-}
-
-const getTimeframeLabel = (timeframe: TimeframeType): string => {
-  switch (timeframe) {
-    case '24h': return '24 Hours'
-    case '7d': return '7 Days'
-    case '90d': return '90 Days'
-    case '365d': return '1 Year'
-    default: return timeframe
-  }
+  const level = uptimeLevel(percentage)
+  return level === 'no-data' ? 'metric-value no-data' : `metric-value uptime-${level}`
 }
 </script>
 

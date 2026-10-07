@@ -41,4 +41,4 @@ EXPOSE 8080
 
 USER ${APP_USER}
 
-ENTRYPOINT ["java", "-jar", "status-tacos.jar"]
+ENTRYPOINT ["java", "-Duser.timezone=UTC", "-jar", "status-tacos.jar"]

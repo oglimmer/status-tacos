@@ -1,5 +1,5 @@
 <script setup lang="ts">
-export type TimeframeType = '24h' | '7d' | '90d' | '365d'
+export type TimeframeType = '24h' | '7d' | '90d'
 
 interface TimeframeSwitcherProps {
   modelValue: TimeframeType
@@ -15,8 +15,7 @@ defineEmits<TimeframeSwitcherEmits>()
 const timeframes = [
   { value: '24h' as TimeframeType, label: '24 Hours' },
   { value: '7d' as TimeframeType, label: '7 Days' },
-  { value: '90d' as TimeframeType, label: '90 Days' },
-  { value: '365d' as TimeframeType, label: '1 Year' }
+  { value: '90d' as TimeframeType, label: '90 Days' }
 ]
 </script>
 

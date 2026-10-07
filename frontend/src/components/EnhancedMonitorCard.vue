@@ -6,7 +6,7 @@ import UptimeMetrics from './UptimeMetrics.vue'
 import EnhancedResponseTimeChart from './EnhancedResponseTimeChart.vue'
 import EnhancedStatusChart from './EnhancedStatusChart.vue'
 import ResponseTimeChart from './ResponseTimeChart.vue'
-import type { MonitorResponse, ParsedUptimeStats, MonitorState } from '../stores/monitors'
+import type { MonitorResponse, UptimeStats, MonitorState } from '../stores/monitors'
 import MonitorStateButton from './MonitorStateButton.vue'
 
 interface MonitorStatus {
@@ -28,9 +28,8 @@ interface EnhancedMonitorCardProps {
   monitor: MonitorResponse
   status: MonitorStatus | null
   responseTimeHistory: ResponseTimeHistory | null
-  uptimeStats7d: ParsedUptimeStats | null
-  uptimeStats90d: ParsedUptimeStats | null
-  uptimeStats365d: ParsedUptimeStats | null
+  uptimeStats7d: UptimeStats | null
+  uptimeStats90d: UptimeStats | null
   selectedTimeframe: TimeframeType
   selectedViewMode: ViewModeType
   isExpanded: boolean
@@ -74,21 +73,10 @@ const currentStats = computed(() => {
       return props.uptimeStats7d
     case '90d':
       return props.uptimeStats90d
-    case '365d':
-      return props.uptimeStats365d
     default:
       return null
   }
 })
-
-// Get 24h data for 24h timeframe
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const get24hUptimePercentage = (history: ResponseTimeHistory | null): number => {
-  if (history && history.uptimePercentage24h !== undefined) {
-    return Math.round(history.uptimePercentage24h * 100) / 100
-  }
-  return 0
-}
 
 const get24hResponseTimeData = (history: ResponseTimeHistory | null): number[] => {
   if (!history || !history.dataPoints || history.dataPoints.length === 0) {
@@ -182,7 +170,7 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
 
       <!-- Expanded view with detailed metrics -->
       <div v-if="isExpanded || selectedViewMode === 'full'">
-        <!-- Show comprehensive metrics for 7d/90d/365d -->
+        <!-- Show comprehensive metrics for 7d/90d -->
         <UptimeMetrics
           v-if="selectedTimeframe !== '24h'"
           :stats="currentStats"
@@ -226,6 +214,7 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
         />
         <EnhancedStatusChart
           :status-down-periods="get24hStatusDownPeriods(responseTimeHistory)"
+          :uptime-percentage="responseTimeHistory?.uptimePercentage24h"
           :timeframe="'24h'"
         />
       </template>
@@ -234,10 +223,15 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
         <EnhancedResponseTimeChart
           :data="currentStats.responseTimeDataPoints"
           :timeframe="selectedTimeframe"
+          :window-start="currentStats.periodStart"
+          :window-end="currentStats.periodEnd"
         />
         <EnhancedStatusChart
           :status-down-periods="currentStats.statusDownPeriods"
+          :uptime-percentage="currentStats.uptimePercentage"
           :timeframe="selectedTimeframe"
+          :window-start="currentStats.periodStart"
+          :window-end="currentStats.periodEnd"
         />
       </template>
 

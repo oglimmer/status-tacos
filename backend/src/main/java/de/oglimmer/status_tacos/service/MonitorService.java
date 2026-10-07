@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -133,15 +134,22 @@ public class MonitorService {
     return updatedMonitor;
   }
 
+  /**
+   * Locking read (shared lock) of the monitor's tenant. Call it in the transaction that writes
+   * check results etc. It waits while a tenant move of the monitor commits, and then returns the
+   * new tenant. Empty if the monitor does not exist anymore.
+   */
+  @Transactional(propagation = Propagation.MANDATORY)
+  public Optional<Integer> lockTenantId(Integer monitorId) {
+    return monitorRepository.findTenantIdForShare(monitorId);
+  }
+
   public void deleteMonitor(Integer tenantId, Integer id) {
     log.info("Deleting monitor ID: {}", id);
 
-    Monitor monitor =
-        monitorRepository
-            .findByIdAndTenantId(id, tenantId)
-            .orElseThrow(() -> new IllegalArgumentException("Monitor not found with ID: " + id));
-
-    monitorRepository.delete(monitor);
+    if (monitorRepository.deleteByIdAndTenantId(id, tenantId) == 0) {
+      throw new IllegalArgumentException("Monitor not found with ID: " + id);
+    }
     log.info("Monitor deleted: {}", id);
   }
 

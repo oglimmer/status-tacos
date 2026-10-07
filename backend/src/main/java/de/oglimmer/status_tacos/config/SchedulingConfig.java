@@ -2,10 +2,15 @@
 package de.oglimmer.status_tacos.config;
 
 import java.util.concurrent.Executor;
+import javax.sql.DataSource;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.core.LockProvider;
+import net.javacrumbs.shedlock.provider.jdbctemplate.JdbcTemplateLockProvider;
+import net.javacrumbs.shedlock.spring.annotation.EnableSchedulerLock;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -13,6 +18,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 @Configuration
 @EnableScheduling
+@EnableSchedulerLock(defaultLockAtMostFor = "PT10M")
 @Slf4j
 public class SchedulingConfig {
 
@@ -27,6 +33,19 @@ public class SchedulingConfig {
 
   @Value("${monitor.threading.scheduler-pool-size:5}")
   private int schedulerPoolSize;
+
+  /**
+   * Scheduled jobs run on every replica. The lock in the shedlock table makes sure only one replica
+   * runs a job at a time. The database clock is used, so the replica clocks do not matter.
+   */
+  @Bean
+  public LockProvider lockProvider(DataSource dataSource) {
+    return new JdbcTemplateLockProvider(
+        JdbcTemplateLockProvider.Configuration.builder()
+            .withJdbcTemplate(new JdbcTemplate(dataSource))
+            .usingDbTime()
+            .build());
+  }
 
   @Bean(name = "taskExecutor")
   public Executor taskExecutor() {
