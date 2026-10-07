@@ -14,7 +14,6 @@ This chart deploys a full-stack Status Tacos application consisting of:
 - Kubernetes 1.19+
 - Helm 3.2.0+
 - External database (MariaDB/MySQL) accessible from the cluster
-- Image pull secret for private registry access
 
 ## Installation
 
@@ -38,8 +37,8 @@ helm install my-status-tacos ./helm -f custom-values.yaml
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `global.imageRegistry` | Global image registry | `registry.oglimmer.com` |
-| `imagePullSecrets[0].name` | Image pull secret name | `oglimmerregistrykey` |
+| `global.imageRegistry` | Global image registry | `ghcr.io/oglimmer` |
+| `imagePullSecrets` | Image pull secrets (the ghcr.io images are public) | `[]` |
 | `frontend.image.repository` | Frontend image repository | `status-tacos-frontend` |
 | `frontend.image.tag` | Frontend image tag | `latest` |
 | `backend.image.repository` | Backend image repository | `status-tacos-backend` |
@@ -105,6 +104,24 @@ database:
 ```
 
 
+## Production (tacos.oglimmer.com)
+
+Images are built by the GitHub Action `.github/workflows/build.yml` on every push to `main` and
+pushed to `ghcr.io/oglimmer` (`./oglimmer.sh build`). The action then restarts the deployments
+through the restart hook, so the pods pull the new `latest` image.
+
+The action does **not** apply the chart. After a change in `helm/`, upgrade the release by hand,
+with the same values as before:
+
+```bash
+helm --kube-context default upgrade status-tacos ./helm -n default -f helm/custom-values.yaml
+```
+
+The ghcr.io packages are public, so the cluster needs no pull secret. Keep them public: a
+private package makes the pods fail with `ImagePullBackOff`.
+
+`registry.oglimmer.com` (pull secret `oglimmerregistrykey`) is the legacy registry. Do not use it.
+
 ## Upgrading
 
 ```bash
@@ -139,7 +156,7 @@ The chart includes comprehensive health checks:
 - Database credentials stored in Kubernetes secrets
 - Configurable service accounts
 - Pod security contexts enforced
-- Private registry authentication via image pull secrets
+- Optional image pull secrets for a private registry
 
 ## Using Sealed Secrets
 
