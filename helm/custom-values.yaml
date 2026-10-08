@@ -5,3 +5,7 @@ backend:
   replicaCount: 1
   email:
     enabled: true
+  apns:
+    enabled: true
+    teamId: "SBFZ9G94BG"
+    keyId: "29CV589ZM2"
