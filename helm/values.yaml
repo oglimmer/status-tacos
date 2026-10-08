@@ -85,6 +85,15 @@ backend:
     from: "mail@olikurt.de"
     subjectPrefix: "[Status Tacos]"
 
+  # iOS push alerts (Apple Push Notification service, token-based authentication).
+  # The .p8 key is read from the Secret <release-name>-apns-secret, key "private-key".
+  # Create it like the database Secret (see README).
+  apns:
+    enabled: false
+    teamId: ""
+    keyId: ""
+    bundleId: "de.oglimmer.statustacos"
+
   # Health check configuration
   livenessProbe:
     httpGet:

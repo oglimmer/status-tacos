@@ -13,6 +13,7 @@ interface SummaryData {
   email: number
   webhook: number
   teams: number
+  iosPush: number
 }
 
 defineProps<{
@@ -52,6 +53,10 @@ defineEmits<{
       <div class="summary-card">
         <div class="summary-number">{{ summary.teams }}</div>
         <div class="summary-label">Teams</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-number">{{ summary.iosPush }}</div>
+        <div class="summary-label">iOS Push</div>
       </div>
     </div>
 

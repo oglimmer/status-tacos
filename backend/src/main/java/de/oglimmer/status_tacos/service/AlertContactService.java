@@ -3,18 +3,22 @@ package de.oglimmer.status_tacos.service;
 
 import de.oglimmer.status_tacos.dto.AlertContactRequestDto;
 import de.oglimmer.status_tacos.dto.AlertContactResponseDto;
+import de.oglimmer.status_tacos.dto.PushAlertRequestDto;
 import de.oglimmer.status_tacos.dto.TenantResponseDto;
 import de.oglimmer.status_tacos.persistence.AlertContact;
 import de.oglimmer.status_tacos.persistence.Monitor;
 import de.oglimmer.status_tacos.persistence.Tenant;
+import de.oglimmer.status_tacos.persistence.User;
 import de.oglimmer.status_tacos.repository.AlertContactRepository;
 import de.oglimmer.status_tacos.repository.MonitorRepository;
 import de.oglimmer.status_tacos.repository.TenantRepository;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -34,6 +38,7 @@ public class AlertContactService {
   public AlertContactResponseDto createAlertContact(
       AlertContactRequestDto request, Integer tenantId, Set<Integer> allowedTenantIds) {
     validateTenantAccess(tenantId, allowedTenantIds);
+    rejectIosPush(request.getType());
 
     // Check for duplicate contact
     if (alertContactRepository.existsByTenantIdAndValueAndType(
@@ -116,6 +121,9 @@ public class AlertContactService {
             .orElseThrow(
                 () -> new IllegalArgumentException("Alert contact not found or access denied"));
 
+    rejectIosPush(alertContact.getType());
+    rejectIosPush(request.getType());
+
     // Check for duplicate contact (excluding current one)
     if (alertContactRepository.existsByTenantIdAndValueAndTypeAndIdNot(
         alertContact.getTenantId(), request.getValue(), request.getType(), id)) {
@@ -153,6 +161,7 @@ public class AlertContactService {
             .orElseThrow(
                 () -> new IllegalArgumentException("Alert contact not found or access denied"));
 
+    rejectIosPush(alertContact.getType());
     alertContactRepository.delete(alertContact);
     log.info("Deleted alert contact {} for tenant {}", id, alertContact.getTenantId());
   }
@@ -165,6 +174,7 @@ public class AlertContactService {
             .orElseThrow(
                 () -> new IllegalArgumentException("Alert contact not found or access denied"));
 
+    rejectIosPush(alertContact.getType());
     alertContact.setActive(!alertContact.isActive());
     AlertContact saved = alertContactRepository.save(alertContact);
 
@@ -184,6 +194,7 @@ public class AlertContactService {
             .orElseThrow(
                 () -> new IllegalArgumentException("Alert contact not found or access denied"));
 
+    rejectIosPush(alertContact.getType());
     if (!alertContact.isActive()) {
       throw new IllegalArgumentException("Cannot send test notification to inactive alert contact");
     }
@@ -248,6 +259,7 @@ public class AlertContactService {
         .httpBody(alertContact.getHttpBody())
         .httpContentType(alertContact.getHttpContentType())
         .allMonitors(alertContact.isAllMonitors())
+        .owner(ownerReference(alertContact.getOwner()))
         .monitors(
             alertContact.getMonitors().stream()
                 .sorted(Comparator.comparing(Monitor::getName, String.CASE_INSENSITIVE_ORDER))
@@ -256,6 +268,110 @@ public class AlertContactService {
                         new AlertContactResponseDto.MonitorReference(
                             monitor.getId(), monitor.getName()))
                 .toList())
+        .build();
+  }
+
+  private AlertContactResponseDto.OwnerReference ownerReference(User owner) {
+    if (owner == null) {
+      return null;
+    }
+    String name =
+        Stream.of(owner.getFirstName(), owner.getLastName())
+            .filter(part -> part != null && !part.isBlank())
+            .collect(Collectors.joining(" "));
+    return new AlertContactResponseDto.OwnerReference(
+        owner.getId(), owner.getEmail(), name.isEmpty() ? null : name);
+  }
+
+  /** iOS push contacts belong to one user and are managed only in the iOS app. */
+  private static void rejectIosPush(AlertContact.AlertContactType type) {
+    if (type == AlertContact.AlertContactType.IOS_PUSH) {
+      throw new IllegalArgumentException("iOS push alerts are managed in the iOS app");
+    }
+  }
+
+  // iOS push alerts of the current user, managed by the iOS app
+
+  @Transactional(readOnly = true)
+  public List<AlertContactResponseDto> getIosPushContacts(User owner, Set<Integer> tenantIds) {
+    return alertContactRepository
+        .findByTypeAndOwnerIdAndTenantIdIn(
+            AlertContact.AlertContactType.IOS_PUSH, owner.getId(), tenantIds)
+        .stream()
+        .map(this::convertToDto)
+        .toList();
+  }
+
+  /** Creates or changes the push alert of the user for the tenant. */
+  @Transactional
+  public AlertContactResponseDto saveIosPushContact(
+      User owner, Integer tenantId, PushAlertRequestDto request, Set<Integer> allowedTenantIds) {
+    validateTenantAccess(tenantId, allowedTenantIds);
+
+    AlertContact contact =
+        alertContactRepository
+            .findByTenantIdAndTypeAndOwnerId(
+                tenantId, AlertContact.AlertContactType.IOS_PUSH, owner.getId())
+            .orElseGet(() -> newIosPushContact(owner, tenantId));
+    contact.setActive(request.isActive());
+
+    AlertContactRequestDto scope = new AlertContactRequestDto();
+    scope.setAllMonitors(request.isAllMonitors());
+    scope.setMonitorIds(request.getMonitorIds());
+    applyMonitorScope(contact, scope, tenantId);
+
+    contact.validateValue();
+    AlertContact saved = alertContactRepository.save(contact);
+    log.info(
+        "Saved iOS push alert {} of user {} for tenant {}", saved.getId(), owner.getId(), tenantId);
+    return convertToDto(saved);
+  }
+
+  /**
+   * @return false if the user has no push alert for the tenant
+   */
+  @Transactional
+  public boolean deleteIosPushContact(User owner, Integer tenantId, Set<Integer> allowedTenantIds) {
+    validateTenantAccess(tenantId, allowedTenantIds);
+    return alertContactRepository
+        .findByTenantIdAndTypeAndOwnerId(
+            tenantId, AlertContact.AlertContactType.IOS_PUSH, owner.getId())
+        .map(
+            contact -> {
+              alertContactRepository.delete(contact);
+              log.info("Deleted iOS push alert {} of user {}", contact.getId(), owner.getId());
+              return true;
+            })
+        .orElse(false);
+  }
+
+  /**
+   * Sends a test notification to the devices of the user.
+   *
+   * @return false if the user has no push alert for the tenant
+   */
+  @Transactional
+  public boolean sendIosPushTest(User owner, Integer tenantId, Set<Integer> allowedTenantIds) {
+    validateTenantAccess(tenantId, allowedTenantIds);
+    Optional<AlertContact> contact =
+        alertContactRepository.findByTenantIdAndTypeAndOwnerId(
+            tenantId, AlertContact.AlertContactType.IOS_PUSH, owner.getId());
+    contact.ifPresent(alertService::sendTestNotification);
+    return contact.isPresent();
+  }
+
+  private AlertContact newIosPushContact(User owner, Integer tenantId) {
+    Tenant tenant =
+        tenantRepository
+            .findById(tenantId)
+            .orElseThrow(() -> new IllegalArgumentException("Tenant not found"));
+    return AlertContact.builder()
+        .tenant(tenant)
+        .tenantId(tenantId)
+        .type(AlertContact.AlertContactType.IOS_PUSH)
+        .value(AlertContact.iosPushValue(owner))
+        .name("iOS push: " + owner.getEmail())
+        .owner(owner)
         .build();
   }
 

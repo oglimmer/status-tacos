@@ -2,10 +2,13 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { apiService } from '../services/api'
 
-export type AlertContactType = 'EMAIL' | 'HTTP' | 'TEAMS'
+export type AlertContactType = 'EMAIL' | 'HTTP' | 'TEAMS' | 'IOS_PUSH'
+
+// IOS_PUSH contacts are managed in the iOS app only; the web app shows them read-only
+export type EditableAlertContactType = Exclude<AlertContactType, 'IOS_PUSH'>
 
 export interface AlertContactRequest {
-  type: AlertContactType
+  type: EditableAlertContactType
   value: string
   name?: string
   isActive: boolean
@@ -41,6 +44,8 @@ export interface AlertContactResponse {
   httpContentType?: 'application/json' | 'text/plain'
   allMonitors: boolean
   monitors?: Array<{ id: number; name: string }>
+  // Only set for IOS_PUSH: the user who owns the device(s)
+  owner?: { id: number; email: string; name?: string | null }
 }
 
 export const useAlertContactsStore = defineStore('alertContacts', () => {

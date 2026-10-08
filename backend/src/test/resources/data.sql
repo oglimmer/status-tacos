@@ -44,3 +44,6 @@ CREATE TABLE IF NOT EXISTS alert_contacts (
 -- Insert a default tenant for tests
 INSERT INTO tenant (id, name, code, description, is_active, created_at, updated_at)
 VALUES (1, 'Default Tenant', 'default', 'Default tenant for testing', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+
+-- The insert above sets the id by hand: start new tenants after it.
+ALTER TABLE tenant ALTER COLUMN id RESTART WITH 100;

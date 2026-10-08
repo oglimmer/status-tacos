@@ -72,6 +72,21 @@ spec:
               value: {{ .Values.backend.email.subjectPrefix | quote }}
             - name: MONITOR_APP_URL
               value: {{ .Values.backend.appUrl | default (printf "https://%s" (index .Values.ingress.hosts 0).host) | quote }}
+            - name: MONITOR_APNS_ENABLED
+              value: {{ .Values.backend.apns.enabled | quote }}
+            {{- if .Values.backend.apns.enabled }}
+            - name: MONITOR_APNS_TEAM_ID
+              value: {{ required "backend.apns.teamId is required" .Values.backend.apns.teamId | quote }}
+            - name: MONITOR_APNS_KEY_ID
+              value: {{ required "backend.apns.keyId is required" .Values.backend.apns.keyId | quote }}
+            - name: MONITOR_APNS_BUNDLE_ID
+              value: {{ .Values.backend.apns.bundleId | quote }}
+            - name: MONITOR_APNS_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "status-tacos.fullname" . }}-apns-secret
+                  key: private-key
+            {{- end }}
           {{- if .Values.backend.livenessProbe }}
           livenessProbe:
             {{- toYaml .Values.backend.livenessProbe | nindent 12 }}

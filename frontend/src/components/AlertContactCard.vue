@@ -20,8 +20,13 @@ const typeLabel = (type: AlertContactResponse['type']) => {
       return 'HTTP'
     case 'TEAMS':
       return 'Teams'
+    case 'IOS_PUSH':
+      return 'iOS Push'
   }
 }
+
+const ownerLabel = (owner: NonNullable<AlertContactResponse['owner']>) =>
+  owner.name ? `${owner.name} (${owner.email})` : owner.email
 
 const formatDate = (dateString: string) => {
   return new Date(dateString).toLocaleDateString()
@@ -41,7 +46,12 @@ const formatDate = (dateString: string) => {
     </div>
 
     <div class="contact-details">
-      <div class="detail-item">
+      <!-- IOS_PUSH: value is an internal key, show the owning user instead -->
+      <div v-if="contact.type === 'IOS_PUSH'" class="detail-item">
+        <strong>Owner:</strong>
+        <span class="contact-owner">{{ contact.owner ? ownerLabel(contact.owner) : 'Unknown' }}</span>
+      </div>
+      <div v-else class="detail-item">
         <strong>{{ contact.type === 'EMAIL' ? 'Email:' : 'URL:' }}</strong>
         <span
           :title="contact.type !== 'EMAIL' && contact.value.length > 25 ? contact.value : undefined"
@@ -95,7 +105,10 @@ const formatDate = (dateString: string) => {
       </div>
     </div>
 
-    <div class="contact-actions">
+    <p v-if="contact.type === 'IOS_PUSH'" class="managed-note">
+      Managed in the iOS app by its owner.
+    </p>
+    <div v-else class="contact-actions">
       <button
         @click="$emit('edit', contact)"
         class="btn btn-sm btn-primary"
@@ -172,6 +185,11 @@ const formatDate = (dateString: string) => {
 .contact-status .contact-type[data-type="TEAMS"] {
   background: #e8e7f8;
   color: #4b4a9e;
+}
+
+.contact-status .contact-type[data-type="IOS_PUSH"] {
+  background: #fef3c7;
+  color: #92400e;
 }
 
 .contact-status .contact-type[data-type="EMAIL"] {
@@ -254,6 +272,13 @@ const formatDate = (dateString: string) => {
   .contact-value.truncated {
     max-width: 25ch;
   }
+}
+
+.managed-note {
+  margin: 1rem 0 0;
+  font-size: 0.85rem;
+  color: #6c757d;
+  font-style: italic;
 }
 
 .contact-actions {

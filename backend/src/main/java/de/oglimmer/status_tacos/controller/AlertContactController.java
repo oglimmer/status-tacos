@@ -164,6 +164,8 @@ public class AlertContactController {
       if (!request.isValidHttpsUrl()) {
         throw new IllegalArgumentException("TEAMS contact needs an https:// workflow URL");
       }
+    } else if (request.getType() == AlertContact.AlertContactType.IOS_PUSH) {
+      throw new IllegalArgumentException("iOS push alerts are managed in the iOS app");
     }
   }
 }

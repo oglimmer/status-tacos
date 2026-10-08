@@ -73,6 +73,12 @@ onMounted(async () => {
     const userData = await authStore.fetchCurrentUser()
     currentUser.value = userData
 
+    // IOS_PUSH contacts are managed in the iOS app; the card offers no edit for them
+    if (props.contact?.type === 'IOS_PUSH') {
+      emit('close')
+      return
+    }
+
     // If editing, populate form with existing data
     if (props.contact) {
       form.value = {

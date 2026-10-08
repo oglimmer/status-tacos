@@ -219,6 +219,34 @@ Notes
 - Ensure the `SealedSecret` is created in the same namespace and with the exact name the chart expects.
 - You can rotate the password by re-sealing a new value and reapplying the `SealedSecret`; the controller updates the underlying `Secret` and pods will pick it up on restart/rollout.
 
+## iOS Push Alerts (APNs)
+
+The backend sends iOS push alerts through the Apple Push Notification service. It needs a `.p8` key of the Apple Developer account.
+
+1) In the Apple Developer portal, open **Certificates, Identifiers & Profiles → Keys**. Create a key with **Apple Push Notifications service (APNs)**. Download the `.p8` file (you can download it only once). Note the **Key ID** and your **Team ID**.
+
+2) Store the key as a Secret named `<release-name>-apns-secret`, key `private-key`. With Sealed Secrets:
+   ```bash
+   kubectl -n "$NAMESPACE" create secret generic "$RELEASE-apns-secret" \
+     --from-file=private-key=AuthKey_KEYID.p8 \
+     --dry-run=client -o yaml | kubeseal -n "$NAMESPACE" --format yaml > sealed-apns-secret.yaml
+   kubectl apply -n "$NAMESPACE" -f sealed-apns-secret.yaml
+   ```
+
+3) Turn it on in the values:
+   ```yaml
+   backend:
+     apns:
+       enabled: true
+       teamId: "ABCDE12345"
+       keyId: "KEYID12345"
+       bundleId: "de.oglimmer.statustacos"
+   ```
+
+One key works for the sandbox (debug builds from Xcode) and for production (TestFlight and App Store). The app tells the backend which one its token belongs to.
+
+While `apns.enabled` is `false`, users can still set up push alerts in the app, but the backend sends nothing.
+
 ## Troubleshooting
 
 ### Common Issues

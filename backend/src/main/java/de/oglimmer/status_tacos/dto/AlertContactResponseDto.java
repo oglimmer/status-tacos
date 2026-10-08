@@ -41,4 +41,9 @@ public class AlertContactResponseDto {
   private List<MonitorReference> monitors;
 
   public record MonitorReference(Integer id, String name) {}
+
+  /** IOS_PUSH only: the user whose iOS devices get the alerts. */
+  private OwnerReference owner;
+
+  public record OwnerReference(Integer id, String email, String name) {}
 }

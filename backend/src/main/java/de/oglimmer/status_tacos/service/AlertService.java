@@ -7,6 +7,7 @@ import de.oglimmer.status_tacos.persistence.AlertHistory;
 import de.oglimmer.status_tacos.persistence.CheckResult;
 import de.oglimmer.status_tacos.persistence.Monitor;
 import de.oglimmer.status_tacos.persistence.MonitorState;
+import de.oglimmer.status_tacos.persistence.User;
 import de.oglimmer.status_tacos.repository.AlertContactRepository;
 import de.oglimmer.status_tacos.repository.AlertHistoryRepository;
 import de.oglimmer.status_tacos.repository.CheckResultRepository;
@@ -39,6 +40,7 @@ public class AlertService {
   private final EmailConfig emailConfig;
   private final Optional<JavaMailSender> javaMailSender;
   private final TeamsNotificationService teamsNotificationService;
+  private final PushNotificationService pushNotificationService;
   private final RestTemplate restTemplate = new RestTemplate();
 
   @Transactional
@@ -99,6 +101,10 @@ public class AlertService {
             .filter(
                 contact ->
                     hasEmailConfig || contact.getType() != AlertContact.AlertContactType.EMAIL)
+            .filter(
+                contact ->
+                    contact.getType() != AlertContact.AlertContactType.IOS_PUSH
+                        || (pushNotificationService.isEnabled() && ownerCanSee(contact, monitor)))
             .toList();
 
     if (contacts.isEmpty()) {
@@ -108,6 +114,19 @@ public class AlertService {
           monitor.getTenantId());
     }
     return contacts;
+  }
+
+  /**
+   * The owner of an iOS push contact must still be active and have access to the tenant. A user who
+   * leaves a tenant gets no more alerts of it.
+   */
+  private boolean ownerCanSee(AlertContact contact, Monitor monitor) {
+    User owner = contact.getOwner();
+    return owner != null
+        && Boolean.TRUE.equals(owner.getIsActive())
+        && owner.getTenants() != null
+        && owner.getTenants().stream()
+            .anyMatch(tenant -> tenant.getId().equals(monitor.getTenantId()));
   }
 
   /** true if the last DOWN alert of the monitor has no UP alert after it. */
@@ -175,6 +194,7 @@ public class AlertService {
       case EMAIL -> sendEmailAlert(monitor, contact, alertType, statusCode, false);
       case HTTP -> sendHttpAlert(monitor, contact, alertType, statusCode, null, false);
       case TEAMS -> sendTeamsAlert(monitor, contact, alertType, teamsAlert, false);
+      case IOS_PUSH -> sendPushAlert(monitor, contact, alertType, teamsAlert, false);
     }
   }
 
@@ -367,6 +387,30 @@ public class AlertService {
     }
   }
 
+  private void sendPushAlert(
+      Monitor monitor, AlertContact contact, String alertType, TeamsAlert alert, boolean test) {
+    User owner = contact.getOwner();
+    // The test monitor has a negative id: the app must not open it.
+    Integer monitorId = monitor.getId() != null && monitor.getId() > 0 ? monitor.getId() : null;
+    int delivered =
+        pushNotificationService.sendToUser(
+            owner, PushMessage.of(alert, monitorId, monitor.getTenantId()));
+
+    log.info(
+        "Sent {} iOS push alert for monitor {} to {} device(s) of user {}",
+        alertType,
+        monitor.getId(),
+        delivered,
+        owner.getId());
+    if (delivered > 0 && !test) {
+      recordAlert(monitor, contact, alertType, "IOS_PUSH: " + owner.getEmail());
+    }
+    if (delivered == 0 && test) {
+      throw new IllegalStateException(
+          "No iOS device got the notification. Open the app to register this device again.");
+    }
+  }
+
   private String contactLabel(AlertContact contact) {
     return contact.getName() != null && !contact.getName().isBlank()
         ? contact.getName()
@@ -433,6 +477,11 @@ public class AlertService {
           true);
     } else if (contact.getType() == AlertContact.AlertContactType.TEAMS) {
       sendTeamsAlert(testMonitor, contact, "test", testTeamsAlert(contact), true);
+    } else if (contact.getType() == AlertContact.AlertContactType.IOS_PUSH) {
+      if (!pushNotificationService.isEnabled()) {
+        throw new IllegalStateException("Push notifications are not enabled on the server");
+      }
+      sendPushAlert(testMonitor, contact, "test", testTeamsAlert(contact), true);
     } else {
       throw new IllegalArgumentException("Unsupported contact type: " + contact.getType());
     }

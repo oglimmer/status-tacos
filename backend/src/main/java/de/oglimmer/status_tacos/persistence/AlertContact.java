@@ -70,6 +70,15 @@ public class AlertContact {
   @Builder.Default
   private boolean allMonitors = true;
 
+  /**
+   * IOS_PUSH only: the user who owns the contact. The alerts go to the iOS devices of this user.
+   */
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "user_id")
+  @ToString.Exclude
+  @EqualsAndHashCode.Exclude
+  private User owner;
+
   @ManyToMany(fetch = FetchType.LAZY)
   @JoinTable(
       name = "alert_contact_monitors",
@@ -101,7 +110,14 @@ public class AlertContact {
   public enum AlertContactType {
     EMAIL,
     HTTP,
-    TEAMS
+    TEAMS,
+    /** Push notification to the iOS app. Managed only in the iOS app, by its owner. */
+    IOS_PUSH
+  }
+
+  /** The value of an IOS_PUSH contact: one per owner and tenant. */
+  public static String iosPushValue(User owner) {
+    return "user:" + owner.getId();
   }
 
   public void validateValue() {
@@ -113,6 +129,9 @@ public class AlertContact {
     }
     if (type == AlertContactType.TEAMS && !isValidHttpsUrl(value)) {
       throw new IllegalArgumentException("TEAMS contact needs an https:// workflow URL");
+    }
+    if (type == AlertContactType.IOS_PUSH && owner == null) {
+      throw new IllegalArgumentException("IOS_PUSH contact needs an owner");
     }
     if (type == AlertContactType.HTTP
         && httpMethod != null
