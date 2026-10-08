@@ -178,16 +178,36 @@ struct MonitorListView: View {
 
     // MARK: - Tenants
 
+    /// A menu with its own label, so a long tenant name stays on one line and truncates
+    /// instead of wrapping and squeezing the "Tenant" title.
     private var tenantPicker: some View {
-        Picker(selection: $tenantFilter) {
-            Text("All tenants").tag(0)
-            ForEach(store.tenants) { tenant in
-                Text(tenant.name).tag(tenant.id)
+        Menu {
+            Picker("Tenant", selection: $tenantFilter) {
+                Text("All tenants").tag(0)
+                ForEach(store.tenants) { tenant in
+                    Text(tenant.name).tag(tenant.id)
+                }
             }
         } label: {
-            Label("Tenant", systemImage: "building.2")
+            HStack(spacing: 8) {
+                Label {
+                    Text("Tenant").foregroundStyle(.primary)
+                } icon: {
+                    Image(systemName: "building.2")
+                }
+                .layoutPriority(1)
+                Spacer(minLength: 12)
+                Text(selectedTenant?.name ?? "All tenants")
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .foregroundStyle(.secondary)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
         }
-        .pickerStyle(.menu)
+        .accessibilityLabel("Tenant")
+        .accessibilityValue(selectedTenant?.name ?? "All tenants")
     }
 
     private var selectedTenant: Tenant? {
