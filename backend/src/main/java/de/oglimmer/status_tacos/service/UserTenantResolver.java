@@ -6,6 +6,7 @@ import de.oglimmer.status_tacos.persistence.User;
 import de.oglimmer.status_tacos.repository.UserRepository;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
@@ -62,17 +63,14 @@ public class UserTenantResolver {
         && userTenants.stream().anyMatch(tenant -> tenant.getId().equals(tenantId));
   }
 
+  /**
+   * IDs of the tenants of the current user. Empty when the user has no user record (yet) or no
+   * tenant: such a user sees no data. GET /v1/users/me creates the user and its first tenant.
+   */
   public Set<Integer> getCurrentUserTenantIds() {
-    Optional<User> currentUser = getCurrentUser();
-    if (currentUser.isEmpty()) {
-      return Set.of(1); // Default tenant for unauthenticated users
-    }
-
-    Set<Tenant> userTenants = currentUser.get().getTenants();
-    if (userTenants == null || userTenants.isEmpty()) {
-      return Set.of(1); // Default tenant if user has no tenants
-    }
-
-    return userTenants.stream().map(Tenant::getId).collect(java.util.stream.Collectors.toSet());
+    return getCurrentUser()
+        .map(User::getTenants)
+        .map(tenants -> tenants.stream().map(Tenant::getId).collect(Collectors.toSet()))
+        .orElse(Set.of());
   }
 }

@@ -12,6 +12,7 @@ import de.oglimmer.status_tacos.dto.UptimeStatsResponseDto;
 import de.oglimmer.status_tacos.persistence.Monitor;
 import de.oglimmer.status_tacos.persistence.MonitorState;
 import de.oglimmer.status_tacos.persistence.Tenant;
+import de.oglimmer.status_tacos.repository.AlertContactRepository;
 import de.oglimmer.status_tacos.repository.CheckRollupRepository;
 import de.oglimmer.status_tacos.repository.MonitorRepository;
 import de.oglimmer.status_tacos.repository.TenantRepository;
@@ -103,6 +104,7 @@ class UptimeStatsIntegrationTest {
   @Autowired private CheckRollupRepository rollupRepository;
   @Autowired private TenantRepository tenantRepository;
   @Autowired private MonitorRepository monitorRepository;
+  @Autowired private AlertContactRepository alertContactRepository;
   @Autowired private JdbcTemplate jdbc;
 
   private Tenant tenant;
@@ -140,6 +142,16 @@ class UptimeStatsIntegrationTest {
     emptyMonitor = saveMonitor("New", MonitorState.ACTIVE);
     checks = generateChecks();
     insert(checks);
+  }
+
+  @Test
+  void noTenants_findNothing() {
+    // A user without tenants passes an empty set: the IN queries must run and match nothing.
+    assertThat(monitorRepository.findByTenantIdIn(Set.of())).isEmpty();
+    assertThat(monitorRepository.findByIdAndTenantIdIn(monitor.getId(), Set.of())).isEmpty();
+    assertThat(alertContactRepository.findByTenantIdIn(Set.of())).isEmpty();
+    assertThat(statsService.getStatsOfAllMonitors(Set.of(), StatsPeriod.SEVEN_DAYS)).isEmpty();
+    assertThat(statsService.getStats(Set.of(), monitor.getId(), StatsPeriod.SEVEN_DAYS)).isEmpty();
   }
 
   @Test
