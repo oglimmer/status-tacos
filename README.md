@@ -8,6 +8,7 @@ A multi-tenant status monitoring application that tracks service availability an
 - **Backend**: Java Spring Boot
 - **Database**: MariaDB
 - **Auth**: OIDC
+- **iOS app**: SwiftUI monitor client (see `ios-app/README.md`)
 
 ## Quick Start
 
