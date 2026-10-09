@@ -2,8 +2,8 @@
 package de.oglimmer.status_tacos.service;
 
 import de.oglimmer.status_tacos.persistence.*;
-import de.oglimmer.status_tacos.repository.MonitorRepository;
 import de.oglimmer.status_tacos.repository.MonitorStatusRepository;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -18,8 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class MonitorStatusService {
 
   private final MonitorStatusRepository monitorStatusRepository;
-  private final MonitorRepository monitorRepository;
-  private final TxDebug txDebug;
 
   public MonitorStatus updateMonitorStatus(
       Integer tenantId, Monitor monitor, CheckResult checkResult) {
@@ -32,12 +30,9 @@ public class MonitorStatusService {
     Optional<MonitorStatus> existingStatus =
         monitorStatusRepository.findByMonitorIdAndTenantId(monitor.getId(), tenantId);
 
-    txDebug.checkIfManaged(monitor);
-
     MonitorStatus status;
     if (existingStatus.isPresent()) {
       status = existingStatus.get();
-      txDebug.checkIfManaged(status);
     } else {
       log.info("Creating new monitor status for monitor: {}", monitor.getId());
       status = new MonitorStatus();
@@ -62,34 +57,37 @@ public class MonitorStatusService {
     if (checkResult.getIsUp()) {
       status.setLastUpAt(checkResult.getCheckedAt());
       status.setConsecutiveFailures(0);
+      // outageStartedAt stays: the UP alert reports the start of the outage that just ended
     } else {
       status.setLastDownAt(checkResult.getCheckedAt());
       status.setConsecutiveFailures(status.getConsecutiveFailures() + 1);
+      if (statusChanged || status.getOutageStartedAt() == null) {
+        status.setOutageStartedAt(checkResult.getCheckedAt());
+      }
     }
 
     MonitorStatus savedStatus = monitorStatusRepository.save(status);
 
-    if (statusChanged) {
-      log.info(
-          "Monitor {} status changed to: {} (consecutive failures: {})",
+    // Logged once per change, not for each failed check
+    if (statusChanged && checkResult.getIsUp()) {
+      log.info("Monitor {} ({}) is UP", monitor.getId(), monitor.getName());
+    } else if (statusChanged) {
+      log.warn(
+          "Monitor {} ({}) is DOWN: {}",
           monitor.getId(),
-          newStatus,
-          savedStatus.getConsecutiveFailures());
+          monitor.getName(),
+          checkResult.getErrorMessage());
     }
 
     return savedStatus;
   }
 
+  /** Statuses of the ACTIVE and SILENT monitors of the tenants, in one query. */
   @Transactional(readOnly = true)
-  public List<MonitorStatus> getAllActiveMonitorStatuses(Integer tenantId) {
-    log.debug("Getting all active monitor statuses");
-    return monitorStatusRepository.findAllActiveMonitorStatusesByTenantId(tenantId);
-  }
-
-  @Transactional(readOnly = true)
-  public List<MonitorStatus> getMonitorsWithConsecutiveFailures(Integer tenantId, int threshold) {
-    log.debug("Getting monitors with consecutive failures >= {}", threshold);
-    return monitorStatusRepository.findByTenantIdAndConsecutiveFailuresGreaterThanEqual(
-        tenantId, threshold);
+  public List<MonitorStatus> getAllActiveMonitorStatuses(Collection<Integer> tenantIds) {
+    log.debug("Getting all active monitor statuses for tenants: {}", tenantIds);
+    return tenantIds.isEmpty()
+        ? List.of()
+        : monitorStatusRepository.findAllActiveMonitorStatusesByTenantIdIn(tenantIds);
   }
 }

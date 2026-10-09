@@ -41,4 +41,6 @@ EXPOSE 8080
 
 USER ${APP_USER}
 
-ENTRYPOINT ["java", "-Duser.timezone=UTC", "-jar", "status-tacos.jar"]
+# DNS cache: 60 s for found hosts, 10 s for hosts not found. As JVM flags, because Java reads the
+# value at the first DNS lookup, which can happen before any application code runs.
+ENTRYPOINT ["java", "-Duser.timezone=UTC", "-Dsun.net.inetaddr.ttl=60", "-Dsun.net.inetaddr.negative.ttl=10", "-jar", "status-tacos.jar"]

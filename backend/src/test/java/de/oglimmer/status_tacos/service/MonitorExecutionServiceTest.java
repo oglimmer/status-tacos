@@ -15,7 +15,7 @@ import java.util.concurrent.Executor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationContext;
@@ -38,9 +38,11 @@ class MonitorExecutionServiceTest {
 
   @Mock private Executor taskExecutor;
 
+  @Mock private Executor alertExecutor;
+
   @Mock private ApplicationContext applicationContext;
 
-  @InjectMocks private MonitorExecutionService monitorExecutionService;
+  private MonitorExecutionService monitorExecutionService;
 
   private Monitor testMonitor;
   private HttpClientService.HttpCheckResult successfulHttpResult;
@@ -52,6 +54,19 @@ class MonitorExecutionServiceTest {
 
   @BeforeEach
   void setUp() {
+    monitorExecutionService =
+        new MonitorExecutionService(
+            httpClientService,
+            checkResultService,
+            monitorStatusService,
+            monitorService,
+            tenantService,
+            alertService,
+            taskExecutor,
+            alertExecutor,
+            applicationContext,
+            0L); // no start spread: checks start at once
+
     // Mock applicationContext.getBean() to return the service instance for self-reference
     // Use lenient() because not all tests use this stubbing
     lenient()
@@ -360,73 +375,146 @@ class MonitorExecutionServiceTest {
   }
 
   @Test
-  void executeMonitorsWithConsecutiveFailures_withNoFailingMonitors_shouldReturnEarly() {
-    when(tenantService.getAllActiveTenants()).thenReturn(List.of(testTenant));
-    when(monitorStatusService.getMonitorsWithConsecutiveFailures(TEST_TENANT_ID, 3))
-        .thenReturn(List.of());
+  void alertsAreQueuedAfterTheSave_notSentInsideIt() {
+    stubCheck(failedHttpResult, downCheck(), downStatusSince(120));
+    testMonitor.setAlertingThreshold(30);
 
-    monitorExecutionService.executeMonitorsWithConsecutiveFailures(3);
+    monitorExecutionService.executeMonitorCheck(testMonitor);
 
-    verify(tenantService).getAllActiveTenants();
-    verify(monitorStatusService).getMonitorsWithConsecutiveFailures(TEST_TENANT_ID, 3);
-    verifyNoInteractions(httpClientService);
-    verifyNoInteractions(checkResultService);
+    // Saved, but nothing sent yet: the alert waits on the alert thread
+    verify(checkResultService).saveCheckResult(eq(TEST_TENANT_ID), eq(testMonitor), any());
+    verifyNoInteractions(alertService);
+    runQueuedAlert();
+    verify(alertService)
+        .handleMonitorDown(eq(testMonitor), any(), eq(downStatusSince(120).getOutageStartedAt()));
   }
 
   @Test
-  void executeMonitorsWithConsecutiveFailures_withFailingMonitors_shouldRetryChecks() {
-    MonitorStatus failingStatus =
-        MonitorStatus.builder()
-            .monitorId(1)
-            .monitor(testMonitor)
-            .tenantId(TEST_TENANT_ID)
-            .currentStatus(MonitorStatus.StatusType.down)
-            .consecutiveFailures(3)
-            .build();
+  void downAlertWaitsForTheAlertingThreshold() {
+    stubCheck(failedHttpResult, downCheck(), downStatusSince(10));
+    testMonitor.setAlertingThreshold(30);
 
-    when(tenantService.getAllActiveTenants()).thenReturn(List.of(testTenant));
-    when(monitorStatusService.getMonitorsWithConsecutiveFailures(TEST_TENANT_ID, 3))
-        .thenReturn(List.of(failingStatus));
+    monitorExecutionService.executeMonitorCheck(testMonitor);
 
-    // Mock taskExecutor to run synchronously for testing
-    doAnswer(
-            invocation -> {
-              Runnable task = invocation.getArgument(0);
-              task.run();
-              return null;
-            })
-        .when(taskExecutor)
-        .execute(any(Runnable.class));
+    verifyNoInteractions(alertExecutor, alertService);
+  }
 
-    when(httpClientService.performHealthCheck(
-            eq(testMonitor.getUrl()),
-            eq(null),
-            eq("^[23]\\d{2}$"),
-            eq(null),
-            eq(null),
-            eq(null),
-            eq(null)))
-        .thenReturn(successfulHttpResult);
-    when(checkResultService.saveCheckResult(eq(TEST_TENANT_ID), any(), any()))
-        .thenReturn(testCheckResult);
-    when(monitorStatusService.updateMonitorStatus(eq(TEST_TENANT_ID), any(), any()))
-        .thenReturn(testMonitorStatus);
+  @Test
+  void upCheckQueuesTheRecoveryAlertWithTheOutageStart() {
+    MonitorStatus recovered = recoveredStatus();
+    stubCheck(successfulHttpResult, testCheckResult, recovered);
 
-    monitorExecutionService.executeMonitorsWithConsecutiveFailures(3);
+    monitorExecutionService.executeMonitorCheck(testMonitor);
+    runQueuedAlert();
 
-    verify(tenantService).getAllActiveTenants();
-    verify(monitorStatusService).getMonitorsWithConsecutiveFailures(TEST_TENANT_ID, 3);
-    verify(httpClientService)
-        .performHealthCheck(
-            eq(testMonitor.getUrl()),
-            eq(null),
-            eq("^[23]\\d{2}$"),
-            eq(null),
-            eq(null),
-            eq(null),
-            eq(null));
-    verify(checkResultService).saveCheckResult(eq(TEST_TENANT_ID), any(), any());
-    verify(monitorStatusService).updateMonitorStatus(eq(TEST_TENANT_ID), any(), any());
+    verify(alertService)
+        .handleMonitorUp(testMonitor, testCheckResult, recovered.getOutageStartedAt());
+  }
+
+  @Test
+  void upCheckLongAfterTheLastFailureQueuesNoRecoveryAlert() {
+    MonitorStatus longUp = recoveredStatus();
+    longUp.setLastDownAt(testCheckResult.getCheckedAt().minusHours(2));
+    stubCheck(successfulHttpResult, testCheckResult, longUp);
+
+    monitorExecutionService.executeMonitorCheck(testMonitor);
+
+    verifyNoInteractions(alertExecutor, alertService);
+  }
+
+  @Test
+  void upCheckOfAMonitorThatWasNeverDownQueuesNoRecoveryAlert() {
+    stubCheck(successfulHttpResult, testCheckResult, testMonitorStatus);
+
+    monitorExecutionService.executeMonitorCheck(testMonitor);
+
+    verifyNoInteractions(alertExecutor, alertService);
+  }
+
+  @Test
+  void startOffsetsAreSpreadOverTheWindow() {
+    long spread = 3_750;
+    java.util.Set<Long> offsets = new java.util.HashSet<>();
+    for (int id = 1; id <= 100; id++) {
+      long offset = MonitorExecutionService.startOffsetMs(id, spread);
+      assertThat(offset).isBetween(0L, spread - 1);
+      offsets.add(offset);
+    }
+    // Fixed per monitor, and different monitors start at different times
+    assertThat(MonitorExecutionService.startOffsetMs(7, spread))
+        .isEqualTo(MonitorExecutionService.startOffsetMs(7, spread));
+    assertThat(offsets).hasSizeGreaterThan(90);
+    assertThat(MonitorExecutionService.startOffsetMs(7, 0)).isZero();
+  }
+
+  @Test
+  void silentMonitorQueuesNoAlert() {
+    testMonitor.setState(MonitorState.SILENT);
+    stubCheck(failedHttpResult, downCheck(), downStatusSince(600));
+
+    monitorExecutionService.executeMonitorCheck(testMonitor);
+
+    verifyNoInteractions(alertExecutor, alertService);
+  }
+
+  @Test
+  void failingAlertDoesNotBreakTheCheck() {
+    stubCheck(successfulHttpResult, testCheckResult, recoveredStatus());
+    doThrow(new RuntimeException("SMTP down"))
+        .when(alertService)
+        .handleMonitorUp(any(), any(), any());
+
+    CheckResult result = monitorExecutionService.executeMonitorCheck(testMonitor);
+    runQueuedAlert();
+
+    assertThat(result).isSameAs(testCheckResult);
+  }
+
+  private void stubCheck(
+      HttpClientService.HttpCheckResult httpResult, CheckResult saved, MonitorStatus status) {
+    when(httpClientService.performHealthCheck(any(), any(), any(), any(), any(), any(), any()))
+        .thenReturn(httpResult);
+    when(checkResultService.saveCheckResult(eq(TEST_TENANT_ID), eq(testMonitor), any()))
+        .thenReturn(saved);
+    when(monitorStatusService.updateMonitorStatus(TEST_TENANT_ID, testMonitor, saved))
+        .thenReturn(status);
+  }
+
+  private void runQueuedAlert() {
+    ArgumentCaptor<Runnable> task = ArgumentCaptor.forClass(Runnable.class);
+    verify(alertExecutor).execute(task.capture());
+    task.getValue().run();
+  }
+
+  private static final LocalDateTime CHECKED_AT = LocalDateTime.of(2026, 10, 6, 10, 0, 0);
+
+  private CheckResult downCheck() {
+    return CheckResult.builder()
+        .id(2L)
+        .monitor(testMonitor)
+        .tenantId(TEST_TENANT_ID)
+        .checkedAt(CHECKED_AT)
+        .statusCode(500)
+        .isUp(false)
+        .build();
+  }
+
+  /** UP again, the last failed check was 15 seconds before this check. */
+  private MonitorStatus recoveredStatus() {
+    MonitorStatus status = downStatusSince(300);
+    status.setCurrentStatus(MonitorStatus.StatusType.up);
+    status.setLastDownAt(testCheckResult.getCheckedAt().minusSeconds(15));
+    return status;
+  }
+
+  private MonitorStatus downStatusSince(int secondsAgo) {
+    return MonitorStatus.builder()
+        .monitorId(1)
+        .tenantId(TEST_TENANT_ID)
+        .currentStatus(MonitorStatus.StatusType.down)
+        .outageStartedAt(CHECKED_AT.minusSeconds(secondsAgo))
+        .consecutiveFailures(3)
+        .build();
   }
 
   @Test

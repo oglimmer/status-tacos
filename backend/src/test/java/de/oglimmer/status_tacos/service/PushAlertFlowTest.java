@@ -48,6 +48,7 @@ import org.springframework.transaction.annotation.Transactional;
 class PushAlertFlowTest {
 
   private static final String TOKEN = "ab".repeat(32);
+  private static final LocalDateTime OUTAGE_START = LocalDateTime.of(2026, 10, 6, 10, 0, 0);
 
   @MockitoBean private ApnsClient apnsClient;
 
@@ -94,7 +95,7 @@ class PushAlertFlowTest {
   void downAlertGoesToTheDevicesOfTheOwner() {
     savePushAlert(true, Set.of());
 
-    alertService.handleMonitorDown(shop, check(shop, false));
+    alertService.handleMonitorDown(shop, check(shop, false), OUTAGE_START);
 
     verify(apnsClient)
         .send(
@@ -111,9 +112,9 @@ class PushAlertFlowTest {
   @Test
   void upAlertFollowsTheDownAlert() {
     savePushAlert(true, Set.of());
-    alertService.handleMonitorDown(shop, check(shop, false));
+    alertService.handleMonitorDown(shop, check(shop, false), OUTAGE_START);
 
-    alertService.handleMonitorUp(shop, check(shop, true));
+    alertService.handleMonitorUp(shop, check(shop, true), OUTAGE_START);
 
     verify(apnsClient).send(any(), argThat(message -> message.title().equals("Up again: Shop")));
   }
@@ -122,10 +123,10 @@ class PushAlertFlowTest {
   void selectedMonitorsOnly() {
     savePushAlert(false, Set.of(blog.getId()));
 
-    alertService.handleMonitorDown(shop, check(shop, false));
+    alertService.handleMonitorDown(shop, check(shop, false), OUTAGE_START);
     verify(apnsClient, never()).send(any(), any());
 
-    alertService.handleMonitorDown(blog, check(blog, false));
+    alertService.handleMonitorDown(blog, check(blog, false), OUTAGE_START);
     verify(apnsClient).send(any(), argThat(message -> message.title().equals("Down: Blog")));
   }
 
@@ -135,7 +136,7 @@ class PushAlertFlowTest {
     request.setActive(false);
     alertContactService.saveIosPushContact(owner, tenant.getId(), request, Set.of(tenant.getId()));
 
-    alertService.handleMonitorDown(shop, check(shop, false));
+    alertService.handleMonitorDown(shop, check(shop, false), OUTAGE_START);
 
     verify(apnsClient, never()).send(any(), any());
   }
@@ -146,7 +147,7 @@ class PushAlertFlowTest {
     owner.setTenants(new HashSet<>(Set.of(otherTenant)));
     userRepository.save(owner);
 
-    alertService.handleMonitorDown(shop, check(shop, false));
+    alertService.handleMonitorDown(shop, check(shop, false), OUTAGE_START);
 
     verify(apnsClient, never()).send(any(), any());
   }
@@ -156,7 +157,7 @@ class PushAlertFlowTest {
     savePushAlert(true, Set.of());
     apnsConfig.setEnabled(false);
     try {
-      alertService.handleMonitorDown(shop, check(shop, false));
+      alertService.handleMonitorDown(shop, check(shop, false), OUTAGE_START);
     } finally {
       apnsConfig.setEnabled(true);
     }
@@ -169,7 +170,7 @@ class PushAlertFlowTest {
     savePushAlert(true, Set.of());
     when(apnsClient.send(any(), any())).thenReturn(ApnsClient.Outcome.DEVICE_GONE);
 
-    alertService.handleMonitorDown(shop, check(shop, false));
+    alertService.handleMonitorDown(shop, check(shop, false), OUTAGE_START);
 
     assertThat(pushDeviceRepository.findByToken(TOKEN)).isEmpty();
     assertThat(alertHistoryRepository.findAll())

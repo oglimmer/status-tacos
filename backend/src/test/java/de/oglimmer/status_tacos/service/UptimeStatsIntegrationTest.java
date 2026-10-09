@@ -315,6 +315,11 @@ class UptimeStatsIntegrationTest {
         .isEqualTo((int) window.stream().filter(Check::up).count());
     assertThat(history.getDataPoints()).isEqualTo(chart(window, start24h, 3));
     assertThat(history.getStatusDownPeriods()).isEqualTo(downPeriods(start24h, NOW));
+
+    // The dashboard reads all monitors in one request: same result
+    assertThat(statsService.getResponseTimeHistory24hOfAllMonitors(Set.of(tenant.getId())))
+        .filteredOn(h -> h.getMonitorId().equals(monitor.getId()))
+        .containsExactly(history);
   }
 
   private UptimeStatsResponseDto stats(StatsPeriod period) {

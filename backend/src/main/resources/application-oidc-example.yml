@@ -37,11 +37,7 @@ monitor:
   scheduling:
     enabled: true
     check-interval: 60000
-    retry-interval: 300000
     cleanup-cron: "0 0 2 * * *"
-    health-check-interval: 30000
     rollup-interval: 60000
   cleanup:
-    retention-days: 90
-  retry:
-    consecutive-failures-threshold: 3
+    retention-days: 7

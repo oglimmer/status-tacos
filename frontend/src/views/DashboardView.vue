@@ -33,7 +33,9 @@ const selectedTimeframe = ref<TimeframeType>('24h')
 const selectedViewMode = ref<ViewModeType>('default')
 const loadingUptimeStats = ref(new Set<number>())
 let refreshInterval: ReturnType<typeof setInterval> | null = null
-// The 7d/90d stats change slowly, so they refresh less often than the 5-second monitor data.
+// The backend checks each monitor every 15 seconds, so polling more often shows nothing new.
+const MONITOR_REFRESH_MS = 15_000
+// The 7d/90d stats change slowly, so they refresh less often than the monitor data.
 const UPTIME_STATS_REFRESH_MS = 60_000
 let lastUptimeStatsFetch = 0
 
@@ -122,22 +124,14 @@ const handleMonitorCreated = async () => {
   await monitorsStore.fetchMonitors()
   await monitorsStore.fetchMonitorStatuses()
 
-  // Fetch response time history for all monitors
-  const monitorIds = monitorsStore.monitors.map(m => m.id)
-  await Promise.all(
-    monitorIds.map(id => monitorsStore.fetchResponseTimeHistory(id))
-  )
+  await monitorsStore.fetchAllResponseTimeHistories()
 }
 
 const handleMonitorUpdated = async () => {
   await monitorsStore.fetchMonitors()
   await monitorsStore.fetchMonitorStatuses()
 
-  // Fetch response time history for all monitors
-  const monitorIds = monitorsStore.monitors.map(m => m.id)
-  await Promise.all(
-    monitorIds.map(id => monitorsStore.fetchResponseTimeHistory(id))
-  )
+  await monitorsStore.fetchAllResponseTimeHistories()
 }
 
 const handleMonitorDelete = async (id: number) => {
@@ -170,11 +164,8 @@ const refreshMonitorData = async () => {
       monitorsStore.fetchMonitorStatusesSilently()
     ])
 
-    // Fetch response time history for all monitors
-    const monitorIds = monitorsStore.monitors.map(m => m.id)
-    await Promise.all(
-      monitorIds.map(id => monitorsStore.fetchResponseTimeHistory(id))
-    )
+    // One request for the 24h history of all monitors
+    await monitorsStore.fetchAllResponseTimeHistories()
 
     if (Date.now() - lastUptimeStatsFetch >= UPTIME_STATS_REFRESH_MS) {
       await fetchUptimeStatsForTimeframe(selectedTimeframe.value, true)
@@ -214,9 +205,31 @@ onMounted(async () => {
   // Initial load
   await refreshMonitorData()
 
-  // Set up 5-second refresh interval
-  refreshInterval = setInterval(refreshMonitorData, 5000)
+  startPolling()
+  document.addEventListener('visibilitychange', handleVisibilityChange)
 })
+
+const startPolling = () => {
+  stopPolling()
+  refreshInterval = setInterval(refreshMonitorData, MONITOR_REFRESH_MS)
+}
+
+const stopPolling = () => {
+  if (refreshInterval) {
+    clearInterval(refreshInterval)
+    refreshInterval = null
+  }
+}
+
+// No polling while the tab is hidden. When it is shown again, refresh at once.
+const handleVisibilityChange = () => {
+  if (document.hidden) {
+    stopPolling()
+  } else {
+    refreshMonitorData()
+    startPolling()
+  }
+}
 
 // Watch for changes to selectedTenantId and save to localStorage
 watch(selectedTenantId, (newValue) => {
@@ -229,11 +242,8 @@ watch(selectedTimeframe, async (newTimeframe) => {
 })
 
 onUnmounted(() => {
-  // Clean up interval when component is unmounted
-  if (refreshInterval) {
-    clearInterval(refreshInterval)
-    refreshInterval = null
-  }
+  stopPolling()
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 </script>
 

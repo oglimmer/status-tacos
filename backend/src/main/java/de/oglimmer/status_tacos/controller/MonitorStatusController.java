@@ -33,15 +33,18 @@ public class MonitorStatusController {
     Set<Integer> tenantIds = userTenantResolver.getCurrentUserTenantIds();
     log.debug("Getting all active monitor statuses for tenants: {}", tenantIds);
 
-    List<MonitorStatus> statuses =
-        tenantIds.stream()
-            .flatMap(
-                tenantId -> monitorStatusService.getAllActiveMonitorStatuses(tenantId).stream())
-            .toList();
+    List<MonitorStatus> statuses = monitorStatusService.getAllActiveMonitorStatuses(tenantIds);
     List<MonitorStatusResponseDto> dtos =
         statuses.stream().map(this::convertToDto).collect(Collectors.toList());
 
     return ResponseEntity.ok(dtos);
+  }
+
+  /** The 24h history of all monitors of the user, in one request (for the dashboard). */
+  @GetMapping("/response-time-history-24h")
+  public ResponseEntity<List<ResponseTimeHistoryResponseDto>> getResponseTimeHistory24hOfAll() {
+    Set<Integer> tenantIds = userTenantResolver.getCurrentUserTenantIds();
+    return ResponseEntity.ok(uptimeStatsService.getResponseTimeHistory24hOfAllMonitors(tenantIds));
   }
 
   @GetMapping("/{monitorId}/response-time-history-24h")

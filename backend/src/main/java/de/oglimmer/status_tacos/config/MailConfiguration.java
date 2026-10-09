@@ -33,6 +33,11 @@ public class MailConfiguration {
     props.put("mail.smtp.starttls.enable", emailConfig.getSmtp().getStarttls().isEnable());
     props.put("mail.smtp.starttls.required", emailConfig.getSmtp().getStarttls().isRequired());
     props.put("mail.debug", "false");
+    // JavaMail waits forever by default. A mail server that does not answer must not block the
+    // alert thread.
+    props.put("mail.smtp.connectiontimeout", "5000");
+    props.put("mail.smtp.timeout", "10000");
+    props.put("mail.smtp.writetimeout", "10000");
 
     return mailSender;
   }

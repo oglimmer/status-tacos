@@ -48,8 +48,8 @@ public class TeamsNotificationService {
       RestClient.Builder restClientBuilder,
       ObjectMapper objectMapper,
       @Value("${monitor.app-url:}") String appUrl) {
-    // The alert is sent while the check transaction is open, so a hanging webhook must not
-    // block the monitor scheduler.
+    // Alerts are sent one after the other on the alert thread, so a hanging webhook must not
+    // block the alerts of other monitors.
     SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
     requestFactory.setConnectTimeout(Duration.ofSeconds(5));
     requestFactory.setReadTimeout(Duration.ofSeconds(10));

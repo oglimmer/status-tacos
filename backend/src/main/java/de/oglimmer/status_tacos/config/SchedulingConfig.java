@@ -22,9 +22,6 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 @Slf4j
 public class SchedulingConfig {
 
-  @Value("${monitor.threading.core-pool-size:10}")
-  private int corePoolSize;
-
   @Value("${monitor.threading.max-pool-size:50}")
   private int maxPoolSize;
 
@@ -33,6 +30,9 @@ public class SchedulingConfig {
 
   @Value("${monitor.threading.scheduler-pool-size:5}")
   private int schedulerPoolSize;
+
+  @Value("${monitor.threading.alert-queue-capacity:1000}")
+  private int alertQueueCapacity;
 
   /**
    * Scheduled jobs run on every replica. The lock in the shedlock table makes sure only one replica
@@ -47,17 +47,23 @@ public class SchedulingConfig {
             .build());
   }
 
+  /**
+   * Runs the HTTP checks. A ThreadPoolExecutor only starts more than the core threads when the
+   * queue is full, so core size = max size: up to maxPoolSize checks run at the same time. Idle
+   * threads stop after 60 s.
+   */
   @Bean(name = "taskExecutor")
   public Executor taskExecutor() {
     log.info(
-        "Creating task executor with core pool size: {}, max pool size: {}, queue capacity: {}",
-        corePoolSize,
+        "Creating task executor with pool size: {}, queue capacity: {}",
         maxPoolSize,
         queueCapacity);
 
     ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-    executor.setCorePoolSize(corePoolSize);
+    executor.setCorePoolSize(maxPoolSize);
     executor.setMaxPoolSize(maxPoolSize);
+    executor.setAllowCoreThreadTimeOut(true);
+    executor.setKeepAliveSeconds(60);
     executor.setQueueCapacity(queueCapacity);
     executor.setThreadNamePrefix("monitor-exec-");
     executor.setWaitForTasksToCompleteOnShutdown(true);
@@ -66,6 +72,24 @@ public class SchedulingConfig {
         new java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy());
     executor.initialize();
 
+    return executor;
+  }
+
+  /**
+   * Sends the alerts after the check is committed. One thread: the alerts of a monitor are sent in
+   * the order of its checks, so the DOWN alert is recorded before the next check looks for it, and
+   * alerts hold at most one database connection.
+   */
+  @Bean(name = "alertExecutor")
+  public Executor alertExecutor() {
+    ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+    executor.setCorePoolSize(1);
+    executor.setMaxPoolSize(1);
+    executor.setQueueCapacity(alertQueueCapacity);
+    executor.setThreadNamePrefix("monitor-alert-");
+    executor.setWaitForTasksToCompleteOnShutdown(true);
+    executor.setAwaitTerminationSeconds(30);
+    executor.initialize();
     return executor;
   }
 

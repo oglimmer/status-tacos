@@ -186,6 +186,16 @@ export const useMonitorsStore = defineStore('monitors', () => {
     }
   }
 
+  /** 24h history of all monitors of the user in one request. Replaces the stored histories. */
+  const fetchAllResponseTimeHistories = async (): Promise<void> => {
+    try {
+      const data = await apiService.get<ResponseTimeHistory[]>('/monitor-statuses/response-time-history-24h', authStore.user)
+      responseTimeHistories.value = new Map(data.map(history => [history.monitorId, history]))
+    } catch (err) {
+      console.error('Fetch response time histories error:', err)
+    }
+  }
+
   const fetchUptimeStats = async (monitorId: number, periodType: StatsPeriodParam): Promise<UptimeStats | null> => {
     try {
       const data = await apiService.get<UptimeStats>(`/uptime-stats/${monitorId}/${periodType}`, authStore.user)
@@ -380,6 +390,7 @@ export const useMonitorsStore = defineStore('monitors', () => {
     fetchMonitorsSilently,
     fetchMonitorStatusesSilently,
     fetchResponseTimeHistory,
+    fetchAllResponseTimeHistories,
     fetchUptimeStats,
     fetchUptimeStatsOfAllMonitors,
     fetchAllUptimeStats,

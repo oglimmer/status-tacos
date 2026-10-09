@@ -10,15 +10,15 @@ import de.oglimmer.status_tacos.persistence.MonitorState;
 import de.oglimmer.status_tacos.persistence.User;
 import de.oglimmer.status_tacos.repository.AlertContactRepository;
 import de.oglimmer.status_tacos.repository.AlertHistoryRepository;
-import de.oglimmer.status_tacos.repository.CheckResultRepository;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Limit;
 import org.springframework.http.*;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
@@ -36,15 +36,29 @@ public class AlertService {
 
   private final AlertHistoryRepository alertHistoryRepository;
   private final AlertContactRepository alertContactRepository;
-  private final CheckResultRepository checkResultRepository;
   private final EmailConfig emailConfig;
   private final Optional<JavaMailSender> javaMailSender;
   private final TeamsNotificationService teamsNotificationService;
   private final PushNotificationService pushNotificationService;
-  private final RestTemplate restTemplate = new RestTemplate();
+  private final RestTemplate restTemplate = restTemplateWithTimeouts();
 
+  /** A webhook that does not answer must not block the alert thread. */
+  private static RestTemplate restTemplateWithTimeouts() {
+    SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+    requestFactory.setConnectTimeout(Duration.ofSeconds(5));
+    requestFactory.setReadTimeout(Duration.ofSeconds(10));
+    return new RestTemplate(requestFactory);
+  }
+
+  /**
+   * Sends the DOWN alert, if not sent yet for this outage. Runs after the check is committed, on
+   * the alert thread (see MonitorExecutionService).
+   *
+   * @param outageStart first failed check of the outage
+   */
   @Transactional
-  public void handleMonitorDown(Monitor monitor, CheckResult checkResult) {
+  public void handleMonitorDown(
+      Monitor monitor, CheckResult checkResult, LocalDateTime outageStart) {
     List<AlertContact> contacts = findDeliverableContacts(monitor);
     if (contacts.isEmpty()) {
       return;
@@ -57,8 +71,7 @@ public class AlertService {
     }
 
     int statusCode = checkResult.getStatusCode() != null ? checkResult.getStatusCode() : 0;
-    TeamsAlert teamsAlert =
-        monitorAlert(TeamsAlert.Kind.DOWN, monitor, checkResult, findOutageStart(checkResult));
+    TeamsAlert teamsAlert = monitorAlert(TeamsAlert.Kind.DOWN, monitor, checkResult, outageStart);
 
     // Send DOWN alert to all active contacts of this monitor
     for (AlertContact contact : contacts) {
@@ -66,8 +79,13 @@ public class AlertService {
     }
   }
 
+  /**
+   * Sends the UP alert, if a DOWN alert was sent before.
+   *
+   * @param outageStart first failed check of the outage that just ended, or null
+   */
   @Transactional
-  public void handleMonitorUp(Monitor monitor, CheckResult checkResult) {
+  public void handleMonitorUp(Monitor monitor, CheckResult checkResult, LocalDateTime outageStart) {
     List<AlertContact> contacts = findDeliverableContacts(monitor);
     if (contacts.isEmpty()) {
       return;
@@ -79,8 +97,7 @@ public class AlertService {
     }
 
     int statusCode = checkResult.getStatusCode() != null ? checkResult.getStatusCode() : 200;
-    TeamsAlert teamsAlert =
-        monitorAlert(TeamsAlert.Kind.UP, monitor, checkResult, findOutageStart(checkResult));
+    TeamsAlert teamsAlert = monitorAlert(TeamsAlert.Kind.UP, monitor, checkResult, outageStart);
 
     for (AlertContact contact : contacts) {
       sendAlert(monitor, contact, "up", statusCode, teamsAlert);
@@ -145,26 +162,6 @@ public class AlertService {
     return lastUpAlert
         .map(up -> !up.getSentAt().isAfter(lastDownAlert.get().getSentAt()))
         .orElse(true);
-  }
-
-  /**
-   * The first failed check after the last successful check before the given check, i.e. when the
-   * current (or, for an UP check, the just ended) outage started. null if there is none.
-   */
-  public LocalDateTime findOutageStart(CheckResult checkResult) {
-    Integer monitorId = checkResult.getMonitor().getId();
-    Integer tenantId = checkResult.getTenantId();
-    List<CheckResult> lastUp =
-        checkResultRepository.findLastUpBefore(
-            monitorId, tenantId, checkResult.getCheckedAt(), checkResult.getId(), Limit.of(1));
-    List<CheckResult> firstDown =
-        checkResultRepository.findFirstDownAfter(
-            monitorId,
-            tenantId,
-            lastUp.isEmpty() ? LocalDateTime.of(1970, 1, 1, 0, 0) : lastUp.get(0).getCheckedAt(),
-            lastUp.isEmpty() ? 0L : lastUp.get(0).getId(),
-            Limit.of(1));
-    return firstDown.isEmpty() ? null : firstDown.get(0).getCheckedAt();
   }
 
   private TeamsAlert monitorAlert(

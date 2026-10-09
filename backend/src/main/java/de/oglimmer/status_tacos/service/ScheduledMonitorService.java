@@ -4,7 +4,6 @@ package de.oglimmer.status_tacos.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -20,9 +19,6 @@ public class ScheduledMonitorService {
 
   private final MonitorExecutionService monitorExecutionService;
   private final CheckRollupService checkRollupService;
-
-  @Value("${monitor.retry.consecutive-failures-threshold:3}")
-  private int consecutiveFailuresThreshold;
 
   // One replica runs the checks. lockAtLeastFor keeps a second replica out of the same interval.
   @Scheduled(initialDelay = 5000, fixedRateString = "${monitor.scheduling.check-interval:60000}")
@@ -41,24 +37,6 @@ public class ScheduledMonitorService {
       log.error("Error during scheduled monitor checks: {}", e.getMessage(), e);
     }
   }
-
-  // we need to rethink this. I think it's not needed
-  //    @Scheduled(fixedRateString = "${monitor.scheduling.retry-interval:300000}")
-  //    public void retryFailingMonitors() {
-  //        log.info("Starting retry checks for failing monitors");
-  //
-  //        try {
-  //            long startTime = System.currentTimeMillis();
-  //
-  // monitorExecutionService.executeMonitorsWithConsecutiveFailures(consecutiveFailuresThreshold);
-  //            long duration = System.currentTimeMillis() - startTime;
-  //
-  //            log.info("Completed retry checks in {}ms", duration);
-  //
-  //        } catch (Exception e) {
-  //            log.error("Error during retry checks: {}", e.getMessage(), e);
-  //        }
-  //    }
 
   @Scheduled(
       initialDelayString = "${monitor.scheduling.rollup-initial-delay:30000}",
@@ -82,20 +60,6 @@ public class ScheduledMonitorService {
       log.info("Completed data cleanup in {}ms", System.currentTimeMillis() - startTime);
     } catch (Exception e) {
       log.error("Error during data cleanup: {}", e.getMessage(), e);
-    }
-  }
-
-  @Scheduled(fixedDelayString = "${monitor.scheduling.health-check-interval:30000}")
-  public void healthCheck() {
-    log.debug("Performing scheduler health check");
-
-    try {
-      // Simple health check to ensure scheduler is running
-      long activeMonitors = monitorExecutionService.getActiveMonitorCount();
-      log.debug("Scheduler health check completed - {} active monitors", activeMonitors);
-
-    } catch (Exception e) {
-      log.warn("Scheduler health check failed: {}", e.getMessage(), e);
     }
   }
 }

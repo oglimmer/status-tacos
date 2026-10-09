@@ -2,11 +2,23 @@
 package de.oglimmer.status_tacos.service;
 
 import jakarta.annotation.PreDestroy;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.Arrays;
 import java.util.Map;
-import java.util.regex.Matcher;
+import java.util.OptionalDouble;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.config.ConnectionConfig;
@@ -14,61 +26,85 @@ import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
-import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.util.Timeout;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.util.unit.DataSize;
 
+/**
+ * Runs the HTTP check of a monitor.
+ *
+ * <p>Each check opens a new connection, so the response time always holds DNS, TCP connect and TLS
+ * handshake, and DNS or certificate changes show up at the next check. A check never takes longer
+ * than the total timeout and never reads more than the max body size.
+ */
 @Service
 @Slf4j
 public class HttpClientService {
 
+  private static final int LOGGED_BODY_CHARS = 500;
+
   private final CloseableHttpClient httpClient;
   private final PoolingHttpClientConnectionManager connectionManager;
-  private final Timeout connectTimeout;
-  private final Timeout requestTimeout;
+  private final ScheduledExecutorService deadlineScheduler;
+  private final Duration totalTimeout;
+  private final int maxBodyBytes;
+  private final UserRegex userRegex;
 
   public HttpClientService(
-      @Value("${monitor.http.connect-timeout:10s}") java.time.Duration connectTimeoutDuration,
-      @Value("${monitor.http.request-timeout:30s}") java.time.Duration requestTimeoutDuration,
+      @Value("${monitor.http.connect-timeout:10s}") Duration connectTimeout,
+      @Value("${monitor.http.request-timeout:30s}") Duration requestTimeout,
+      @Value("${monitor.http.total-timeout:30s}") Duration totalTimeout,
+      @Value("${monitor.http.max-body-size:2MB}") DataSize maxBodySize,
+      @Value("${monitor.http.regex-timeout:1s}") Duration regexTimeout,
       @Value("${monitor.http.max-connections:200}") int maxConnections,
       @Value("${monitor.http.max-per-route:20}") int maxPerRoute) {
+    this.totalTimeout = totalTimeout;
+    this.maxBodyBytes = (int) Math.min(Integer.MAX_VALUE - 1, maxBodySize.toBytes());
+    this.userRegex = new UserRegex(regexTimeout);
 
-    this.connectTimeout = Timeout.ofMilliseconds(connectTimeoutDuration.toMillis());
-    this.requestTimeout = Timeout.ofMilliseconds(requestTimeoutDuration.toMillis());
-
-    // Configure connection pool with limits to prevent memory leaks
     this.connectionManager = new PoolingHttpClientConnectionManager();
     this.connectionManager.setMaxTotal(maxConnections);
     this.connectionManager.setDefaultMaxPerRoute(maxPerRoute);
-
-    // Set TCP connect timeout on the connection manager - without this,
-    // unreachable hosts block for the OS default timeout (60-120+ seconds)
-    ConnectionConfig connectionConfig =
+    // The TCP connect timeout must be set here. Without it an unreachable host blocks for the OS
+    // default (60-120+ seconds). The socket timeout is the max wait between two reads.
+    this.connectionManager.setDefaultConnectionConfig(
         ConnectionConfig.custom()
-            .setConnectTimeout(this.connectTimeout)
-            .setSocketTimeout(this.requestTimeout)
-            .build();
-    this.connectionManager.setDefaultConnectionConfig(connectionConfig);
-
-    RequestConfig requestConfig =
-        RequestConfig.custom()
-            .setConnectionRequestTimeout(this.connectTimeout)
-            .setResponseTimeout(this.requestTimeout)
-            .build();
+            .setConnectTimeout(Timeout.of(connectTimeout))
+            .setSocketTimeout(Timeout.of(requestTimeout))
+            .build());
 
     this.httpClient =
         HttpClients.custom()
             .setConnectionManager(connectionManager)
-            .setDefaultRequestConfig(requestConfig)
-            .evictIdleConnections(Timeout.ofSeconds(30))
-            .evictExpiredConnections()
+            .setDefaultRequestConfig(
+                RequestConfig.custom()
+                    .setConnectionRequestTimeout(Timeout.of(connectTimeout))
+                    .setResponseTimeout(Timeout.of(requestTimeout))
+                    .build())
+            // A monitor measures the full path of a new visitor: no keep-alive between checks.
+            .setConnectionReuseStrategy((request, response, context) -> false)
             .build();
 
+    this.deadlineScheduler =
+        Executors.newSingleThreadScheduledExecutor(
+            r -> {
+              Thread thread = new Thread(r, "http-check-deadline");
+              thread.setDaemon(true);
+              return thread;
+            });
+
     log.info(
-        "HttpClientService initialized with connect timeout: {}ms, request timeout: {}ms, max connections: {}, max per route: {}",
-        connectTimeout.toMilliseconds(),
-        requestTimeout.toMilliseconds(),
+        "HttpClientService initialized with connect timeout: {}, request timeout: {}, total timeout:"
+            + " {}, max body size: {} bytes, max connections: {}, max per route: {}",
+        connectTimeout,
+        requestTimeout,
+        totalTimeout,
+        maxBodyBytes,
         maxConnections,
         maxPerRoute);
   }
@@ -77,180 +113,11 @@ public class HttpClientService {
   public void cleanup() {
     try {
       log.info("Closing HTTP client and releasing connections");
+      deadlineScheduler.shutdownNow();
       httpClient.close();
       connectionManager.close();
     } catch (IOException e) {
       log.error("Error closing HTTP client: {}", e.getMessage(), e);
-    }
-  }
-
-  public HttpCheckResult performHealthCheck(String url) {
-    log.debug("Performing health check for URL: {}", url);
-
-    long startTime = System.nanoTime();
-    HttpGet request = new HttpGet(url);
-    request.setHeader("User-Agent", "StatusTacos-Monitor/1.0");
-    request.setHeader("Accept", "*/*");
-
-    try {
-      return httpClient.execute(
-          request,
-          response -> {
-            long responseTime = Math.max(1, (System.nanoTime() - startTime) / 1_000_000);
-            int statusCode = response.getCode();
-            boolean isUp = statusCode >= 200 && statusCode < 400;
-
-            // Read response body before consuming for error logging
-            String responseBody = null;
-            if (response.getEntity() != null) {
-              responseBody = EntityUtils.toString(response.getEntity());
-            }
-
-            // Log detailed information for failed requests (status >= 400)
-            if (statusCode >= 400) {
-              StringBuilder errorDetails = new StringBuilder();
-              errorDetails.append("\n=== Connection Test Failed ===\n");
-              errorDetails.append("URL: ").append(url).append("\n");
-              errorDetails.append("Status Code: ").append(statusCode).append("\n");
-              errorDetails.append("Response Time: ").append(responseTime).append("ms\n");
-
-              // Log response headers
-              errorDetails.append("\n--- Response Headers ---\n");
-              if (response.getHeaders() != null && response.getHeaders().length > 0) {
-                for (var header : response.getHeaders()) {
-                  errorDetails
-                      .append(header.getName())
-                      .append(": ")
-                      .append(header.getValue())
-                      .append("\n");
-                }
-              } else {
-                errorDetails.append("No headers\n");
-              }
-
-              // Log request headers
-              errorDetails.append("\n--- Request Headers ---\n");
-              if (request.getHeaders() != null && request.getHeaders().length > 0) {
-                for (var header : request.getHeaders()) {
-                  errorDetails
-                      .append(header.getName())
-                      .append(": ")
-                      .append(header.getValue())
-                      .append("\n");
-                }
-              }
-
-              // Log response body (truncate if too large)
-              errorDetails.append("\n--- Response Body ---\n");
-              if (responseBody != null && !responseBody.isEmpty()) {
-                if (responseBody.length() > 1000) {
-                  errorDetails.append(responseBody.substring(0, 1000)).append("... (truncated)\n");
-                } else {
-                  errorDetails.append(responseBody).append("\n");
-                }
-              } else {
-                errorDetails.append("Empty response body\n");
-              }
-              errorDetails.append("==============================");
-
-              log.error("Connection test failed with status {}: {}", statusCode, errorDetails);
-            }
-
-            log.debug(
-                "Health check completed for {}: status={}, responseTime={}ms, isUp={}",
-                url,
-                statusCode,
-                responseTime,
-                isUp);
-
-            return HttpCheckResult.builder()
-                .url(url)
-                .statusCode(statusCode)
-                .responseTimeMs((int) responseTime)
-                .isUp(isUp)
-                .errorMessage(isUp ? null : "HTTP " + statusCode + " response")
-                .build();
-          });
-
-    } catch (IOException e) {
-      long responseTime = Math.max(1, (System.nanoTime() - startTime) / 1_000_000);
-      String errorMessage = "Network error: " + e.getMessage();
-
-      // Log detailed exception information
-      StringBuilder errorDetails = new StringBuilder();
-      errorDetails.append("\n=== Connection Test Failed (IOException) ===\n");
-      errorDetails.append("URL: ").append(url).append("\n");
-      errorDetails.append("Error: ").append(e.getClass().getName()).append("\n");
-      errorDetails.append("Message: ").append(e.getMessage()).append("\n");
-      errorDetails.append("Response Time: ").append(responseTime).append("ms\n");
-
-      // Log request headers
-      errorDetails.append("\n--- Request Headers ---\n");
-      if (request.getHeaders() != null && request.getHeaders().length > 0) {
-        for (var header : request.getHeaders()) {
-          errorDetails.append(header.getName()).append(": ").append(header.getValue()).append("\n");
-        }
-      }
-
-      errorDetails.append("\n--- Stack Trace ---\n");
-      for (StackTraceElement element : e.getStackTrace()) {
-        errorDetails.append(element.toString()).append("\n");
-        if (errorDetails.length() > 2000) {
-          errorDetails.append("... (truncated)\n");
-          break;
-        }
-      }
-      errorDetails.append("==========================================");
-
-      log.error("Health check failed for {} due to IOException: {}", url, errorDetails);
-
-      return HttpCheckResult.builder()
-          .url(url)
-          .statusCode(null)
-          .responseTimeMs((int) responseTime)
-          .isUp(false)
-          .errorMessage(errorMessage)
-          .build();
-
-    } catch (Exception e) {
-      long responseTime = Math.max(1, (System.nanoTime() - startTime) / 1_000_000);
-      String errorMessage = "Unexpected error: " + e.getMessage();
-
-      // Log detailed exception information
-      StringBuilder errorDetails = new StringBuilder();
-      errorDetails.append("\n=== Connection Test Failed (Unexpected Error) ===\n");
-      errorDetails.append("URL: ").append(url).append("\n");
-      errorDetails.append("Error: ").append(e.getClass().getName()).append("\n");
-      errorDetails.append("Message: ").append(e.getMessage()).append("\n");
-      errorDetails.append("Response Time: ").append(responseTime).append("ms\n");
-
-      // Log request headers
-      errorDetails.append("\n--- Request Headers ---\n");
-      if (request.getHeaders() != null && request.getHeaders().length > 0) {
-        for (var header : request.getHeaders()) {
-          errorDetails.append(header.getName()).append(": ").append(header.getValue()).append("\n");
-        }
-      }
-
-      errorDetails.append("\n--- Stack Trace ---\n");
-      for (StackTraceElement element : e.getStackTrace()) {
-        errorDetails.append(element.toString()).append("\n");
-        if (errorDetails.length() > 2000) {
-          errorDetails.append("... (truncated)\n");
-          break;
-        }
-      }
-      errorDetails.append("================================================");
-
-      log.error("Unexpected error during health check for {}: {}", url, errorDetails, e);
-
-      return HttpCheckResult.builder()
-          .url(url)
-          .statusCode(null)
-          .responseTimeMs((int) responseTime)
-          .isUp(false)
-          .errorMessage(errorMessage)
-          .build();
     }
   }
 
@@ -262,232 +129,124 @@ public class HttpClientService {
       String prometheusKey,
       Double prometheusMinValue,
       Double prometheusMaxValue) {
-    log.debug("Performing health check for URL: {} with custom criteria", url);
-
     long startTime = System.nanoTime();
     HttpGet request = new HttpGet(url);
     request.setHeader("User-Agent", "StatusTacos-Monitor/1.0");
     request.setHeader("Accept", "*/*");
-
     if (customHeaders != null) {
-      for (Map.Entry<String, String> header : customHeaders.entrySet()) {
-        request.setHeader(header.getKey(), header.getValue());
-      }
+      customHeaders.forEach(request::setHeader);
     }
 
-    try {
-      return httpClient.execute(
-          request,
-          response -> {
-            long responseTime = Math.max(1, (System.nanoTime() - startTime) / 1_000_000);
-            int statusCode = response.getCode();
+    // The socket timeout only limits the wait between two reads. A server that sends the body
+    // very slowly is stopped here.
+    AtomicBoolean deadlineHit = new AtomicBoolean();
+    ScheduledFuture<?> deadline =
+        deadlineScheduler.schedule(
+            () -> {
+              deadlineHit.set(true);
+              request.cancel();
+            },
+            totalTimeout.toMillis(),
+            TimeUnit.MILLISECONDS);
 
-            // Read response body and ensure connection is released
-            String responseBody = null;
-            if (response.getEntity() != null) {
-              responseBody = EntityUtils.toString(response.getEntity());
-            }
+    // executeOpen, not execute with a handler: execute reads the rest of a cut body to the end.
+    // Closing the response instead drops the connection.
+    try (ClassicHttpResponse response = httpClient.executeOpen(null, request, null)) {
+      int responseTime = elapsedMs(startTime);
+      int statusCode = response.getCode();
+      Body body = readBody(response.getEntity());
 
-            boolean isUp =
-                evaluateSuccessCriteria(
-                    statusCode,
-                    responseBody,
-                    statusCodeRegex,
-                    responseBodyRegex,
-                    prometheusKey,
-                    prometheusMinValue,
-                    prometheusMaxValue);
+      String failure =
+          checkSuccessCriteria(
+              statusCode,
+              body.text(),
+              statusCodeRegex,
+              responseBodyRegex,
+              prometheusKey,
+              prometheusMinValue,
+              prometheusMaxValue);
+      if (failure != null && body.truncated()) {
+        failure += " (only the first " + maxBodyBytes + " bytes of the body were read)";
+      }
+      if (failure != null && log.isDebugEnabled()) {
+        log.debug(
+            "Check failed for {}: {}, response time {}ms, request headers {}, response headers {},"
+                + " body: {}",
+            url,
+            failure,
+            responseTime,
+            headerNames(request.getHeaders()),
+            headerNames(response.getHeaders()),
+            abbreviate(body.text()));
+      }
 
-            // Log detailed information for failed requests (status >= 400 or custom criteria
-            // failed)
-            if (statusCode >= 400 || !isUp) {
-              StringBuilder errorDetails = new StringBuilder();
-              errorDetails.append("\n=== Connection Test Failed (Advanced Check) ===\n");
-              errorDetails.append("URL: ").append(url).append("\n");
-              errorDetails.append("Status Code: ").append(statusCode).append("\n");
-              errorDetails.append("Response Time: ").append(responseTime).append("ms\n");
-              errorDetails.append("Criteria Met: ").append(isUp ? "YES" : "NO").append("\n");
-
-              // Log custom criteria if present
-              if (statusCodeRegex != null && !statusCodeRegex.isEmpty()) {
-                errorDetails.append("Status Code Regex: ").append(statusCodeRegex).append("\n");
-              }
-              if (responseBodyRegex != null && !responseBodyRegex.isEmpty()) {
-                errorDetails.append("Response Body Regex: ").append(responseBodyRegex).append("\n");
-              }
-              if (prometheusKey != null && !prometheusKey.isEmpty()) {
-                errorDetails
-                    .append("Prometheus Key: ")
-                    .append(prometheusKey)
-                    .append(", Min: ")
-                    .append(prometheusMinValue)
-                    .append(", Max: ")
-                    .append(prometheusMaxValue)
-                    .append("\n");
-              }
-
-              // Log response headers
-              errorDetails.append("\n--- Response Headers ---\n");
-              if (response.getHeaders() != null && response.getHeaders().length > 0) {
-                for (var header : response.getHeaders()) {
-                  errorDetails
-                      .append(header.getName())
-                      .append(": ")
-                      .append(header.getValue())
-                      .append("\n");
-                }
-              } else {
-                errorDetails.append("No headers\n");
-              }
-
-              // Log request headers
-              errorDetails.append("\n--- Request Headers ---\n");
-              if (request.getHeaders() != null && request.getHeaders().length > 0) {
-                for (var header : request.getHeaders()) {
-                  errorDetails
-                      .append(header.getName())
-                      .append(": ")
-                      .append(header.getValue())
-                      .append("\n");
-                }
-              }
-
-              // Log response body (truncate if too large)
-              errorDetails.append("\n--- Response Body ---\n");
-              if (responseBody != null && !responseBody.isEmpty()) {
-                if (responseBody.length() > 1000) {
-                  errorDetails.append(responseBody.substring(0, 1000)).append("... (truncated)\n");
-                } else {
-                  errorDetails.append(responseBody).append("\n");
-                }
-              } else {
-                errorDetails.append("Empty response body\n");
-              }
-              errorDetails.append("===============================================");
-
-              log.error("Connection test failed with status {}: {}", statusCode, errorDetails);
-            }
-
-            log.debug(
-                "Health check completed for {}: status={}, responseTime={}ms, isUp={}",
-                url,
-                statusCode,
-                responseTime,
-                isUp);
-
-            return HttpCheckResult.builder()
-                .url(url)
-                .statusCode(statusCode)
-                .responseTimeMs((int) responseTime)
-                .isUp(isUp)
-                .responseBody(responseBody)
-                .errorMessage(
-                    isUp
-                        ? null
-                        : buildErrorMessage(
-                            statusCode, responseBody, statusCodeRegex, responseBodyRegex))
-                .build();
-          });
+      return HttpCheckResult.builder()
+          .url(url)
+          .statusCode(statusCode)
+          .responseTimeMs(responseTime)
+          .isUp(failure == null)
+          .responseBody(body.text())
+          .errorMessage(failure)
+          .build();
 
     } catch (IOException e) {
-      long responseTime = Math.max(1, (System.nanoTime() - startTime) / 1_000_000);
-      String errorMessage = "Network error: " + e.getMessage();
-
-      // Log detailed exception information
-      StringBuilder errorDetails = new StringBuilder();
-      errorDetails.append("\n=== Connection Test Failed (IOException - Advanced Check) ===\n");
-      errorDetails.append("URL: ").append(url).append("\n");
-      errorDetails.append("Error: ").append(e.getClass().getName()).append("\n");
-      errorDetails.append("Message: ").append(e.getMessage()).append("\n");
-      errorDetails.append("Response Time: ").append(responseTime).append("ms\n");
-
-      // Log custom criteria if present
-      if (statusCodeRegex != null && !statusCodeRegex.isEmpty()) {
-        errorDetails.append("Status Code Regex: ").append(statusCodeRegex).append("\n");
-      }
-      if (responseBodyRegex != null && !responseBodyRegex.isEmpty()) {
-        errorDetails.append("Response Body Regex: ").append(responseBodyRegex).append("\n");
-      }
-
-      // Log request headers
-      errorDetails.append("\n--- Request Headers ---\n");
-      if (request.getHeaders() != null && request.getHeaders().length > 0) {
-        for (var header : request.getHeaders()) {
-          errorDetails.append(header.getName()).append(": ").append(header.getValue()).append("\n");
-        }
-      }
-
-      errorDetails.append("\n--- Stack Trace ---\n");
-      for (StackTraceElement element : e.getStackTrace()) {
-        errorDetails.append(element.toString()).append("\n");
-        if (errorDetails.length() > 2000) {
-          errorDetails.append("... (truncated)\n");
-          break;
-        }
-      }
-      errorDetails.append("============================================================");
-
-      log.error("Health check failed for {} due to IOException: {}", url, errorDetails);
-
-      return HttpCheckResult.builder()
-          .url(url)
-          .statusCode(null)
-          .responseTimeMs((int) responseTime)
-          .isUp(false)
-          .errorMessage(errorMessage)
-          .build();
+      String errorMessage =
+          deadlineHit.get()
+              ? "Timeout: no complete response within " + totalTimeout.toSeconds() + "s"
+              : "Network error: " + e.getMessage();
+      // An expected outcome of a check, so no stack trace
+      log.debug("Check failed for {}: {} ({})", url, errorMessage, e.getClass().getName());
+      return failedResult(url, startTime, errorMessage);
 
     } catch (Exception e) {
-      long responseTime = Math.max(1, (System.nanoTime() - startTime) / 1_000_000);
-      String errorMessage = "Unexpected error: " + e.getMessage();
+      log.warn("Unexpected error during health check for {}: {}", url, e.getMessage(), e);
+      return failedResult(url, startTime, "Unexpected error: " + e.getMessage());
 
-      // Log detailed exception information
-      StringBuilder errorDetails = new StringBuilder();
-      errorDetails.append("\n=== Connection Test Failed (Unexpected Error - Advanced Check) ===\n");
-      errorDetails.append("URL: ").append(url).append("\n");
-      errorDetails.append("Error: ").append(e.getClass().getName()).append("\n");
-      errorDetails.append("Message: ").append(e.getMessage()).append("\n");
-      errorDetails.append("Response Time: ").append(responseTime).append("ms\n");
-
-      // Log custom criteria if present
-      if (statusCodeRegex != null && !statusCodeRegex.isEmpty()) {
-        errorDetails.append("Status Code Regex: ").append(statusCodeRegex).append("\n");
-      }
-      if (responseBodyRegex != null && !responseBodyRegex.isEmpty()) {
-        errorDetails.append("Response Body Regex: ").append(responseBodyRegex).append("\n");
-      }
-
-      // Log request headers
-      errorDetails.append("\n--- Request Headers ---\n");
-      if (request.getHeaders() != null && request.getHeaders().length > 0) {
-        for (var header : request.getHeaders()) {
-          errorDetails.append(header.getName()).append(": ").append(header.getValue()).append("\n");
-        }
-      }
-
-      errorDetails.append("\n--- Stack Trace ---\n");
-      for (StackTraceElement element : e.getStackTrace()) {
-        errorDetails.append(element.toString()).append("\n");
-        if (errorDetails.length() > 2000) {
-          errorDetails.append("... (truncated)\n");
-          break;
-        }
-      }
-      errorDetails.append("==================================================================");
-
-      log.error("Unexpected error during health check for {}: {}", url, errorDetails, e);
-
-      return HttpCheckResult.builder()
-          .url(url)
-          .statusCode(null)
-          .responseTimeMs((int) responseTime)
-          .isUp(false)
-          .errorMessage(errorMessage)
-          .build();
+    } finally {
+      deadline.cancel(false);
     }
   }
 
-  private boolean evaluateSuccessCriteria(
+  private record Body(String text, boolean truncated) {}
+
+  /** Reads at most maxBodyBytes. The caller closes the response, so the rest is never read. */
+  private Body readBody(HttpEntity entity) throws IOException {
+    if (entity == null) {
+      return new Body(null, false);
+    }
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+    boolean truncated = false;
+    InputStream in = entity.getContent();
+    if (in != null) {
+      byte[] buffer = new byte[8192];
+      int read;
+      while ((read = in.read(buffer)) != -1) {
+        int room = maxBodyBytes - out.size();
+        if (read > room) {
+          out.write(buffer, 0, room);
+          truncated = true;
+          break;
+        }
+        out.write(buffer, 0, read);
+      }
+    }
+    return new Body(out.toString(charsetOf(entity)), truncated);
+  }
+
+  private static Charset charsetOf(HttpEntity entity) {
+    try {
+      ContentType contentType = ContentType.parseLenient(entity.getContentType());
+      Charset charset = contentType != null ? contentType.getCharset() : null;
+      return charset != null ? charset : StandardCharsets.UTF_8;
+    } catch (RuntimeException e) {
+      return StandardCharsets.UTF_8;
+    }
+  }
+
+  /**
+   * @return null if all criteria are met, else why the check failed
+   */
+  private String checkSuccessCriteria(
       int statusCode,
       String responseBody,
       String statusCodeRegex,
@@ -495,134 +254,115 @@ public class HttpClientService {
       String prometheusKey,
       Double prometheusMinValue,
       Double prometheusMaxValue) {
-    try {
-      if (statusCodeRegex != null && !statusCodeRegex.isEmpty()) {
-        Pattern statusPattern = Pattern.compile(statusCodeRegex);
-        if (!statusPattern.matcher(String.valueOf(statusCode)).matches()) {
-          log.debug("Status code {} does not match pattern {}", statusCode, statusCodeRegex);
-          return false;
-        }
-      } else {
-        if (statusCode < 200 || statusCode >= 400) {
-          return false;
-        }
+    // One time budget for all regexes of this check
+    long deadline = userRegex.deadline();
+
+    if (statusCodeRegex == null || statusCodeRegex.isEmpty()) {
+      if (statusCode < 200 || statusCode >= 400) {
+        return "HTTP " + statusCode + " response";
       }
-
-      if (responseBodyRegex != null && !responseBodyRegex.isEmpty() && responseBody != null) {
-        Pattern bodyPattern = Pattern.compile(responseBodyRegex, Pattern.DOTALL);
-        if (!bodyPattern.matcher(responseBody).find()) {
-          log.debug("Response body does not match pattern {}", responseBodyRegex);
-          return false;
-        }
-      }
-
-      if (prometheusKey != null && !prometheusKey.isEmpty()) {
-        if (!evaluatePrometheusResult(
-            responseBody, prometheusKey, prometheusMinValue, prometheusMaxValue)) {
-          log.debug(
-              "Prometheus result does not meet criteria for key: {}, min: {}, max: {}",
-              prometheusKey,
-              prometheusMinValue,
-              prometheusMaxValue);
-          return false;
-        }
-      }
-
-      return true;
-    } catch (PatternSyntaxException e) {
-      log.error("Invalid regex pattern: {}", e.getMessage());
-      return false;
-    }
-  }
-
-  /**
-   * Evaluates a Prometheus result by summing matching values and checking against range
-   *
-   * @param prometheusResult The Prometheus query result as a string
-   * @param keyRegex The regex pattern to match metric names/keys
-   * @param minValue The minimum allowed value (null if no minimum)
-   * @param maxValue The maximum allowed value (null if no maximum)
-   * @return true if the summed value is within the specified range, false otherwise
-   */
-  private static boolean evaluatePrometheusResult(
-      String prometheusResult, String keyRegex, Double minValue, Double maxValue) {
-    if (prometheusResult == null || keyRegex == null) {
-      return false;
-    }
-
-    double totalValue = 0.0;
-    boolean foundMatch = false;
-
-    Pattern keyPattern = Pattern.compile(keyRegex);
-
-    String[] lines = prometheusResult.split("\\n");
-
-    for (String line : lines) {
-      line = line.trim();
-
-      // Skip comments and empty lines
-      if (line.isEmpty() || line.startsWith("#")) {
-        continue;
-      }
-
-      String[] lineMatcher = line.split("\\s+", 2);
-      String metricName = lineMatcher[0];
-      String valueStr = lineMatcher[1];
-
-      Matcher keyMatcher = keyPattern.matcher(metricName);
-      if (keyMatcher.find()) {
-        try {
-          double value = Double.parseDouble(valueStr);
-          totalValue += value;
-          foundMatch = true;
-        } catch (NumberFormatException e) {
-          // Skip invalid numbers
-        }
-      }
-    }
-
-    // If no matching keys were found, return false
-    if (!foundMatch) {
-      return false;
-    }
-
-    // Check against min/max constraints
-    if (minValue != null && totalValue < minValue) {
-      return false;
-    }
-
-    if (maxValue != null && totalValue > maxValue) {
-      return false;
-    }
-
-    return true;
-  }
-
-  private String buildErrorMessage(
-      int statusCode, String responseBody, String statusCodeRegex, String responseBodyRegex) {
-    if (statusCodeRegex != null && !statusCodeRegex.isEmpty()) {
+    } else {
       try {
-        Pattern statusPattern = Pattern.compile(statusCodeRegex);
-        if (!statusPattern.matcher(String.valueOf(statusCode)).matches()) {
+        if (!userRegex
+            .compile(statusCodeRegex, 0)
+            .matcher(UserRegex.withDeadline(String.valueOf(statusCode), deadline))
+            .matches()) {
           return "Status code " + statusCode + " does not match pattern: " + statusCodeRegex;
         }
       } catch (PatternSyntaxException e) {
         return "Invalid status code regex: " + statusCodeRegex;
+      } catch (UserRegex.TimeoutException e) {
+        return regexTimeoutMessage("Status code regex", statusCodeRegex);
       }
     }
 
     if (responseBodyRegex != null && !responseBodyRegex.isEmpty() && responseBody != null) {
       try {
-        Pattern bodyPattern = Pattern.compile(responseBodyRegex, Pattern.DOTALL);
-        if (!bodyPattern.matcher(responseBody).find()) {
+        if (!userRegex
+            .compile(responseBodyRegex, Pattern.DOTALL)
+            .matcher(UserRegex.withDeadline(responseBody, deadline))
+            .find()) {
           return "Response body does not match pattern: " + responseBodyRegex;
         }
       } catch (PatternSyntaxException e) {
         return "Invalid response body regex: " + responseBodyRegex;
+      } catch (UserRegex.TimeoutException e) {
+        return regexTimeoutMessage("Response body regex", responseBodyRegex);
       }
     }
 
-    return "HTTP " + statusCode + " response";
+    if (prometheusKey != null && !prometheusKey.isEmpty()) {
+      Pattern keyPattern;
+      try {
+        keyPattern = userRegex.compile(prometheusKey, 0);
+      } catch (PatternSyntaxException e) {
+        return "Invalid Prometheus key regex: " + prometheusKey;
+      }
+      OptionalDouble sum;
+      try {
+        sum =
+            responseBody != null
+                ? PrometheusParser.sumMatching(
+                    responseBody,
+                    series -> keyPattern.matcher(UserRegex.withDeadline(series, deadline)).find())
+                : OptionalDouble.empty();
+      } catch (UserRegex.TimeoutException e) {
+        return regexTimeoutMessage("Prometheus key regex", prometheusKey);
+      }
+      if (sum.isEmpty()) {
+        return "No Prometheus metric matches key: " + prometheusKey;
+      }
+      double value = sum.getAsDouble();
+      if ((prometheusMinValue != null && value < prometheusMinValue)
+          || (prometheusMaxValue != null && value > prometheusMaxValue)) {
+        return "Prometheus value "
+            + value
+            + " for key "
+            + prometheusKey
+            + " is outside ["
+            + (prometheusMinValue != null ? prometheusMinValue : "-")
+            + ", "
+            + (prometheusMaxValue != null ? prometheusMaxValue : "-")
+            + "]";
+      }
+    }
+    return null;
+  }
+
+  private String regexTimeoutMessage(String what, String regex) {
+    return what + " took longer than " + userRegex.timeout().toMillis() + "ms: " + regex;
+  }
+
+  private static HttpCheckResult failedResult(String url, long startTime, String errorMessage) {
+    return HttpCheckResult.builder()
+        .url(url)
+        .statusCode(null)
+        .responseTimeMs(elapsedMs(startTime))
+        .isUp(false)
+        .errorMessage(errorMessage)
+        .build();
+  }
+
+  private static int elapsedMs(long startNanos) {
+    return (int) Math.max(1, (System.nanoTime() - startNanos) / 1_000_000);
+  }
+
+  /**
+   * Header values can hold secrets (Authorization, API keys, cookies), so only names are logged.
+   */
+  private static String headerNames(Header[] headers) {
+    return headers == null
+        ? "[]"
+        : Arrays.stream(headers).map(Header::getName).collect(Collectors.joining(", ", "[", "]"));
+  }
+
+  private static String abbreviate(String text) {
+    if (text == null || text.isEmpty()) {
+      return "<empty>";
+    }
+    return text.length() > LOGGED_BODY_CHARS
+        ? text.substring(0, LOGGED_BODY_CHARS) + "... (truncated)"
+        : text;
   }
 
   public static class HttpCheckResult {

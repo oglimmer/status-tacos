@@ -64,7 +64,7 @@ public class CheckRollupService {
       TransactionTemplate transactionTemplate,
       Clock clock,
       MeterRegistry meterRegistry,
-      @Value("${monitor.cleanup.retention-days:90}") int rawRetentionDays) {
+      @Value("${monitor.cleanup.retention-days:7}") int rawRetentionDays) {
     this.repository = repository;
     this.transactionTemplate = transactionTemplate;
     this.clock = clock;

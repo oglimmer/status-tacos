@@ -86,7 +86,14 @@ public class UptimeStatsService {
       Set<Integer> tenantIds, Integer monitorId) {
     return monitorRepository
         .findByIdAndTenantIdIn(monitorId, tenantIds)
-        .map(this::computeHistory24h);
+        .map(monitor -> computeHistory24h(List.of(monitor)).getFirst());
+  }
+
+  /** The last 24 hours of all monitors of the tenants, in one read. */
+  public List<ResponseTimeHistoryResponseDto> getResponseTimeHistory24hOfAllMonitors(
+      Set<Integer> tenantIds) {
+    List<Monitor> monitors = monitorRepository.findByTenantIdIn(tenantIds);
+    return monitors.isEmpty() ? List.of() : computeHistory24h(monitors);
   }
 
   private List<UptimeStatsResponseDto> computeStats(List<Monitor> monitors, StatsPeriod period) {
@@ -133,39 +140,45 @@ public class UptimeStatsService {
         .toList();
   }
 
-  private ResponseTimeHistoryResponseDto computeHistory24h(Monitor monitor) {
+  private List<ResponseTimeHistoryResponseDto> computeHistory24h(List<Monitor> monitors) {
     LocalDateTime now = LocalDateTime.now(clock);
     // 480 aligned 3-minute buckets, the last one holds now.
     LocalDateTime start =
         floorToMinutes(now, HISTORY_24H_INTERVAL_MINUTES)
             .minusMinutes((long) (HISTORY_24H_DATA_POINTS - 1) * HISTORY_24H_INTERVAL_MINUTES);
-    List<CheckPoint> checks = checkResultRepository.findCheckPoints(monitor.getId(), start, now);
-
-    long up = checks.stream().filter(CheckPoint::isUp).count();
-    TreeMap<LocalDateTime, Integer> maxByBucket = new TreeMap<>();
-    for (CheckPoint check : checks) {
-      if (check.isUp() && check.responseTimeMs() != null) {
-        maxByBucket.merge(
-            bucketStart(start, check.checkedAt(), HISTORY_24H_INTERVAL_MINUTES),
-            check.responseTimeMs(),
-            Math::max);
-      }
-    }
-
+    List<Integer> ids = monitors.stream().map(Monitor::getId).toList();
+    Map<Integer, List<CheckPoint>> checksByMonitor =
+        groupBy(checkResultRepository.findCheckPoints(ids, start, now), CheckPoint::monitorId);
     Watermarks marks = readWatermarks(start, now);
-    return ResponseTimeHistoryResponseDto.builder()
-        .monitorId(monitor.getId())
-        .monitorName(monitor.getName())
-        .intervalMinutes(HISTORY_24H_INTERVAL_MINUTES)
-        .totalDataPoints(HISTORY_24H_DATA_POINTS)
-        .uptimePercentage24h(uptimePercentage(up, checks.size()))
-        .totalChecks24h(checks.size())
-        .successfulChecks24h((int) up)
-        .dataPoints(toDataPoints(maxByBucket))
-        .statusDownPeriods(
-            readDownPeriods(List.of(monitor.getId()), start, now, marks)
-                .getOrDefault(monitor.getId(), List.of()))
-        .build();
+    Map<Integer, List<StatusDownPeriodsDto>> downPeriods = readDownPeriods(ids, start, now, marks);
+
+    return monitors.stream()
+        .map(
+            monitor -> {
+              List<CheckPoint> checks = checksByMonitor.getOrDefault(monitor.getId(), List.of());
+              long up = checks.stream().filter(CheckPoint::isUp).count();
+              TreeMap<LocalDateTime, Integer> maxByBucket = new TreeMap<>();
+              for (CheckPoint check : checks) {
+                if (check.isUp() && check.responseTimeMs() != null) {
+                  maxByBucket.merge(
+                      bucketStart(start, check.checkedAt(), HISTORY_24H_INTERVAL_MINUTES),
+                      check.responseTimeMs(),
+                      Math::max);
+                }
+              }
+              return ResponseTimeHistoryResponseDto.builder()
+                  .monitorId(monitor.getId())
+                  .monitorName(monitor.getName())
+                  .intervalMinutes(HISTORY_24H_INTERVAL_MINUTES)
+                  .totalDataPoints(HISTORY_24H_DATA_POINTS)
+                  .uptimePercentage24h(uptimePercentage(up, checks.size()))
+                  .totalChecks24h(checks.size())
+                  .successfulChecks24h((int) up)
+                  .dataPoints(toDataPoints(maxByBucket))
+                  .statusDownPeriods(downPeriods.getOrDefault(monitor.getId(), List.of()))
+                  .build();
+            })
+        .toList();
   }
 
   /**

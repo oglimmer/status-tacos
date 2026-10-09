@@ -46,18 +46,11 @@ monitor:
   http:
     connect-timeout: "5s"
     request-timeout: "10s"
-  network:
-    dns:
-      cache-ttl: 30
-      negative-cache-ttl: 5
   scheduling:
     enabled: false
   threading:
-    core-pool-size: 2
     max-pool-size: 5
     queue-capacity: 10
     scheduler-pool-size: 2
   cleanup:
     retention-days: 30
-  retry:
-    consecutive-failures-threshold: 2

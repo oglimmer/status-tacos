@@ -63,6 +63,10 @@ public class MonitorStatus {
   @Column(name = "last_down_at")
   private LocalDateTime lastDownAt;
 
+  /** First failed check of the current outage, or of the last outage when the monitor is up. */
+  @Column(name = "outage_started_at")
+  private LocalDateTime outageStartedAt;
+
   @Column(name = "consecutive_failures", nullable = false)
   @Builder.Default
   private Integer consecutiveFailures = 0;

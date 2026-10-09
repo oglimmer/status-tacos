@@ -85,26 +85,20 @@ monitor:
     request-timeout: "10s"
     max-connections: 100
     max-per-route: 20
-  network:
-    dns:
-      cache-ttl: 60
-      negative-cache-ttl: 10
+    total-timeout: "15s"
+    max-body-size: "2MB"
+    regex-timeout: "1s"
   scheduling:
     enabled: true
     check-interval: 15000
-    retry-interval: 4800
     cleanup-cron: "0 0 2 * * *"
-    health-check-interval: 30000
     rollup-interval: 60000
   threading:
-    core-pool-size: 10
     max-pool-size: 50
     queue-capacity: 100
     scheduler-pool-size: 5
   cleanup:
-    retention-days: 90
-  retry:
-    consecutive-failures-threshold: 3
+    retention-days: 7
   email:
     enabled: false
     smtp:
