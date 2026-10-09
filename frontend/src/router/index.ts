@@ -34,19 +34,19 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
-      path: '/about',
-      name: 'about',
-      component: () => import('../views/AboutView.vue'),
+      path: '/privacy',
+      name: 'privacy',
+      component: () => import('../views/PrivacyView.vue'),
+    },
+    {
+      path: '/terms',
+      name: 'terms',
+      component: () => import('../views/TermsView.vue'),
     },
     {
       path: '/imprint',
       name: 'imprint',
       component: () => import('../views/ImprintView.vue'),
-    },
-    {
-      path: '/tos',
-      name: 'tos',
-      component: () => import('../views/TosView.vue'),
     },
     {
       path: '/auth-debug',

@@ -23,7 +23,6 @@ const goToDashboard = () => {
         <span class="brand-name">Status Tacos</span>
       </div>
       <nav class="nav-links">
-        <router-link to="/about" class="nav-link">About</router-link>
         <div v-if="!authStore.isAuthenticated" class="login-section">
           <button
             @click="handleLogin"
@@ -218,9 +217,9 @@ const goToDashboard = () => {
           <span class="brand-name">Status Tacos</span>
         </div>
         <nav class="footer-nav">
-          <router-link to="/about" class="footer-link">About</router-link>
+          <router-link to="/privacy" class="footer-link">Privacy Policy</router-link>
+          <router-link to="/terms" class="footer-link">Terms of Service</router-link>
           <router-link to="/imprint" class="footer-link">Imprint</router-link>
-          <router-link to="/tos" class="footer-link">Terms of Service</router-link>
         </nav>
         <div class="footer-tagline">
           Made with ❤️ and a lot of 🌮
@@ -684,7 +683,11 @@ const goToDashboard = () => {
 .footer-logo {
   height: 40px;
   width: auto;
-  filter: brightness(0) invert(1);
+  border-radius: 8px;
+}
+
+.footer-brand .brand-name {
+  color: white;
 }
 
 .footer-nav {
