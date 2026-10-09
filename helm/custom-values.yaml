@@ -10,3 +10,8 @@ backend:
     keyId: "29CV589ZM2"
   keycloakAdmin:
     enabled: true
+  appleSignIn:
+    enabled: true
+    clientId: "de.oglimmer.statustacos.signin"
+    teamId: "SBFZ9G94BG"
+    keyId: "LG3HL2N5ST"
