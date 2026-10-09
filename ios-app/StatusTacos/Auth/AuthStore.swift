@@ -16,6 +16,8 @@ final class AuthStore {
     private(set) var account: Account?
     /// Why the last sign-in failed or why the user was signed out.
     var errorMessage: String?
+    /// A neutral message for the sign-in screen, for example after the account was deleted.
+    private(set) var noticeMessage: String?
 
     @ObservationIgnored private let settings: AppSettings
     @ObservationIgnored private let tokenStore: TokenStoring
@@ -44,6 +46,7 @@ final class AuthStore {
         guard phase == .signedOut else { return }
         phase = .signingIn
         errorMessage = nil
+        noticeMessage = nil
         let client = self.client
         do {
             let discovery = try await discovery(for: client)
@@ -81,6 +84,15 @@ final class AuthStore {
         tokenStore.clear()
         phase = .signedOut
         errorMessage = message
+    }
+
+    /// After the server deleted the account. No logout at the identity provider: the user and its
+    /// sessions are gone there already, or (without admin access on the server) must stay usable.
+    func accountWasDeleted(loginAccountDeleted: Bool) {
+        endLocalSession(message: nil)
+        noticeMessage = loginAccountDeleted
+            ? "Your account and all its data are deleted."
+            : "Your Status Tacos data is deleted. Your login account at the identity provider still exists."
     }
 
     /// A valid access token. Refreshes it when it expires within 30 seconds or when forced.

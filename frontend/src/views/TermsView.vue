@@ -173,8 +173,8 @@ import LegalPage from '../components/LegalPage.vue'
     <h2>8. Termination</h2>
 
     <p>
-      8.1. You may stop using the Service at any time and ask us to delete your account, as
-      described in the <router-link to="/privacy">Privacy Policy</router-link>.
+      8.1. You may stop using the Service at any time and delete your account in the web app or
+      in the iOS app, as described in the <router-link to="/privacy">Privacy Policy</router-link>.
     </p>
 
     <p>

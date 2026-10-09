@@ -16,6 +16,12 @@ struct CurrentUserDTO: Decodable, Sendable {
     let tenants: [Tenant]?
 }
 
+/// Result of an account deletion.
+struct AccountDeletionDTO: Decodable, Sendable {
+    /// False if the server cannot delete the login account at the identity provider: it still exists.
+    let loginAccountDeleted: Bool
+}
+
 /// State of a monitor, set by the user.
 enum MonitorState: String, Decodable, Sendable {
     /// Checked, alerts are sent on failures.

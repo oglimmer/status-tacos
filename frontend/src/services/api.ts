@@ -25,6 +25,11 @@ export interface CurrentUser {
   updatedAt: string
 }
 
+export interface AccountDeletionResult {
+  /** False if the server has no access to the identity provider: the login account still exists. */
+  loginAccountDeleted: boolean
+}
+
 export interface TenantRequest {
   name: string
   code: string
@@ -297,6 +302,20 @@ export class ApiService {
     const params = new URLSearchParams()
     params.append('email', email)
     return this.deleteVoid(`/tenants/${tenantId}/users?${params.toString()}`, user)
+  }
+
+  /** Deletes the account of the signed-in user, with all tenants only they belong to. */
+  async deleteAccount(user: User | null): Promise<AccountDeletionResult> {
+    const response = await fetch(`${this.getApiBaseUrl()}/users/me`, {
+      method: 'DELETE',
+      headers: this.getAuthHeaders(user)
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    return response.json()
   }
 
   private async getAuthenticatedUser(): Promise<User | null> {

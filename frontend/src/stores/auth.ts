@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { User, UserManager, WebStorageStateStore } from 'oidc-client-ts'
-import { apiService, type CurrentUser } from '../services/api'
+import { apiService, type AccountDeletionResult, type CurrentUser } from '../services/api'
 
 const oidcConfig = {
   authority: 'https://id.oglimmer.de/realms/status-tacos',
@@ -105,6 +105,18 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  /**
+   * Deletes the account on the server, then forgets the session locally. No Keycloak logout
+   * redirect: the Keycloak user and its sessions are gone already.
+   */
+  const deleteAccount = async (): Promise<AccountDeletionResult> => {
+    const result = await apiService.deleteAccount(user.value)
+    await userManager.removeUser()
+    user.value = null
+    localStorage.removeItem('status-tacos-user-config')
+    return result
+  }
+
   const renewToken = async () => {
     try {
       const renewedUser = await userManager.signinSilent()
@@ -147,6 +159,7 @@ export const useAuthStore = defineStore('auth', () => {
     initAuth,
     login,
     logout,
+    deleteAccount,
     handleCallback,
     renewToken,
     fetchCurrentUser,

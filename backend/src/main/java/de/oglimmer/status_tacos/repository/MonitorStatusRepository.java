@@ -54,4 +54,9 @@ public interface MonitorStatusRepository extends JpaRepository<MonitorStatus, In
   @Query("UPDATE MonitorStatus ms SET ms.tenantId = :tenantId WHERE ms.monitorId = :monitorId")
   int updateTenantIdByMonitorId(
       @Param("monitorId") Integer monitorId, @Param("tenantId") Integer tenantId);
+
+  /** Account deletion: removes the rows of a tenant that is deleted. */
+  @Modifying
+  @Query("DELETE FROM MonitorStatus e WHERE e.tenantId = :tenantId")
+  int deleteAllByTenantId(@Param("tenantId") Integer tenantId);
 }

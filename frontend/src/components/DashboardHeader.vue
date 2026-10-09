@@ -1,8 +1,11 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import DeleteAccountModal from './DeleteAccountModal.vue'
 import VersionInfo from './VersionInfo.vue'
 
 const authStore = useAuthStore()
+const showDeleteAccount = ref(false)
 
 const handleLogout = () => {
   authStore.logout()
@@ -19,11 +22,18 @@ const handleLogout = () => {
       <span class="welcome-text">¡Hola {{ authStore.user?.profile?.name || 'Amigo' }}! 🌮</span>
       <div class="user-actions">
         <VersionInfo />
+        <button @click="showDeleteAccount = true" class="btn btn-link-danger">
+          Delete Account
+        </button>
         <button @click="handleLogout" class="btn btn-outline">
           Sign Out
         </button>
       </div>
     </div>
+    <!-- To body: the header's backdrop-filter would make it the box of the fixed overlay. -->
+    <Teleport to="body">
+      <DeleteAccountModal v-if="showDeleteAccount" @close="showDeleteAccount = false" />
+    </Teleport>
   </header>
 </template>
 
@@ -139,5 +149,17 @@ const handleLogout = () => {
   background: #007bff;
   color: white;
   transform: translateY(-2px);
+}
+
+.btn-link-danger {
+  background: transparent;
+  color: #6c757d;
+  padding: 0.75rem 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.btn-link-danger:hover {
+  color: #dc3545;
 }
 </style>

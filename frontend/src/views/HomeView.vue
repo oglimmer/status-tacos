@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { } from 'vue'
 import { useAuthStore } from '../stores/auth'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 const authStore = useAuthStore()
 const router = useRouter()
+const route = useRoute()
+
+// Set by the account deletion: "all" or "data" (the login account at the provider still exists).
+const accountDeleted = route.query.accountDeleted as string | undefined
 const handleLogin = () => {
   authStore.login()
 }
@@ -76,6 +80,15 @@ const goToDashboard = () => {
               View Your Monitors
             </button>
           </div>
+        </div>
+
+        <div v-if="accountDeleted" class="info-alert">
+          <span class="error-icon">👋</span>
+          <span v-if="accountDeleted === 'all'">Your account and all its data are deleted.</span>
+          <span v-else>
+            Your Status Tacos data is deleted. Your login account at the identity provider still
+            exists; delete it there.
+          </span>
         </div>
 
         <div v-if="authStore.error" class="error-alert">
@@ -380,6 +393,19 @@ const goToDashboard = () => {
   padding: 1rem;
   border-radius: 8px;
   border: 1px solid rgba(220, 53, 69, 0.2);
+}
+
+.info-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  color: white;
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  margin-bottom: 1rem;
 }
 
 /* Hero Visual */

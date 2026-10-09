@@ -247,6 +247,32 @@ One key works for the sandbox (debug builds from Xcode) and for production (Test
 
 While `apns.enabled` is `false`, users can still set up push alerts in the app, but the backend sends nothing.
 
+## Account Deletion (Keycloak)
+
+Users can delete their account in the web app and in the iOS app. The backend deletes their data and, with Keycloak admin access, also their Keycloak user. Without it, the Keycloak user stays.
+
+1) In the Keycloak admin console, realm `status-tacos`, create a client:
+   - **Client ID** `status-tacos-backend`, **Client authentication** on, **Service accounts roles** on. Turn off all other flows.
+   - Tab **Service accounts roles → Assign role → Filter by clients**: assign `realm-management` / `manage-users`.
+   - Tab **Credentials**: copy the client secret.
+
+2) Store the secret as a Secret named `<release-name>-keycloak-admin-secret`, key `client-secret`. With Sealed Secrets:
+   ```bash
+   kubectl -n "$NAMESPACE" create secret generic "$RELEASE-keycloak-admin-secret" \
+     --from-literal=client-secret='THE_SECRET' \
+     --dry-run=client -o yaml | kubeseal -n "$NAMESPACE" --format yaml > sealed-keycloak-admin-secret.yaml
+   kubectl apply -n "$NAMESPACE" -f sealed-keycloak-admin-secret.yaml
+   ```
+
+3) Turn it on in the values:
+   ```yaml
+   backend:
+     keycloakAdmin:
+       enabled: true
+   ```
+
+If Keycloak refuses the delete, the backend deletes nothing and the user sees an error.
+
 ## Troubleshooting
 
 ### Common Issues

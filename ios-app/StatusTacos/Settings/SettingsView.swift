@@ -6,7 +6,11 @@ struct SettingsView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(AuthStore.self) private var auth
     @Environment(PushStore.self) private var push
+    @Environment(APIClient.self) private var api
     @Environment(\.dismiss) private var dismiss
+    @State private var showsDeleteConfirmation = false
+    @State private var isDeleting = false
+    @State private var deleteError: String?
 
     var body: some View {
         NavigationStack {
@@ -26,6 +30,24 @@ struct SettingsView: View {
                             dismiss()
                         }
                     }
+                    .disabled(isDeleting)
+                }
+
+                Section {
+                    Button(role: .destructive) {
+                        showsDeleteConfirmation = true
+                    } label: {
+                        HStack {
+                            Text("Delete Account")
+                            if isDeleting {
+                                Spacer()
+                                ProgressView()
+                            }
+                        }
+                    }
+                    .disabled(isDeleting)
+                } footer: {
+                    Text("Deletes your login account and every tenant only you belong to, with its monitors and alert contacts.")
                 }
 
                 Section {
@@ -39,6 +61,12 @@ struct SettingsView: View {
                 }
                 .textSelection(.enabled)
 
+                Section("Legal") {
+                    Link("Privacy Policy", destination: LegalLinks.privacyPolicy)
+                    Link("Terms of Service", destination: LegalLinks.termsOfService)
+                    Link("Imprint & Support", destination: LegalLinks.imprint)
+                }
+
                 Section {
                     LabeledContent("Version", value: Self.version)
                 }
@@ -48,8 +76,40 @@ struct SettingsView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
+                        .disabled(isDeleting)
                 }
             }
+            .alert("Delete your account?", isPresented: $showsDeleteConfirmation) {
+                Button("Delete Account", role: .destructive) {
+                    Task { await deleteAccount() }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This deletes your login account and every tenant only you belong to, with its monitors, check history and alert contacts. Shared tenants stay with their other members. You cannot undo this.")
+            }
+            .alert(
+                "Account Not Deleted",
+                isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })
+            ) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(deleteError ?? "")
+            }
+        }
+        .interactiveDismissDisabled(isDeleting)
+    }
+
+    private func deleteAccount() async {
+        isDeleting = true
+        defer { isDeleting = false }
+        do {
+            let result = try await api.deleteAccount()
+            // The server deleted the push devices too.
+            push.reset()
+            auth.accountWasDeleted(loginAccountDeleted: result.loginAccountDeleted)
+            dismiss()
+        } catch {
+            deleteError = "Nothing was deleted. Please try again later. (\(error.localizedDescription))"
         }
     }
 

@@ -87,6 +87,21 @@ spec:
                   name: {{ include "status-tacos.fullname" . }}-apns-secret
                   key: private-key
             {{- end }}
+            - name: MONITOR_KEYCLOAKADMIN_ENABLED
+              value: {{ .Values.backend.keycloakAdmin.enabled | quote }}
+            {{- if .Values.backend.keycloakAdmin.enabled }}
+            - name: MONITOR_KEYCLOAKADMIN_BASEURL
+              value: {{ required "backend.keycloakAdmin.baseUrl is required" .Values.backend.keycloakAdmin.baseUrl | quote }}
+            - name: MONITOR_KEYCLOAKADMIN_REALM
+              value: {{ required "backend.keycloakAdmin.realm is required" .Values.backend.keycloakAdmin.realm | quote }}
+            - name: MONITOR_KEYCLOAKADMIN_CLIENTID
+              value: {{ required "backend.keycloakAdmin.clientId is required" .Values.backend.keycloakAdmin.clientId | quote }}
+            - name: MONITOR_KEYCLOAKADMIN_CLIENTSECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "status-tacos.fullname" . }}-keycloak-admin-secret
+                  key: client-secret
+            {{- end }}
           {{- if .Values.backend.livenessProbe }}
           livenessProbe:
             {{- toYaml .Values.backend.livenessProbe | nindent 12 }}

@@ -40,6 +40,11 @@ final class APIClient {
         try await get("users/me")
     }
 
+    /// Deletes the account of the signed-in user, with every tenant only they belong to.
+    func deleteAccount() async throws -> AccountDeletionDTO {
+        try await send("DELETE", "users/me")
+    }
+
     func monitors() async throws -> [MonitorDTO] {
         try await get("monitors")
     }

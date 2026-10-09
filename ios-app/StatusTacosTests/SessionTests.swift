@@ -32,6 +32,14 @@ final class StubURLProtocol: URLProtocol {
     }
 }
 
+final class RecordedRequests: @unchecked Sendable {
+    private let lock = NSLock()
+    private var items: [String] = []
+
+    func append(_ item: String) { lock.withLock { items.append(item) } }
+    var values: [String] { lock.withLock { items } }
+}
+
 final class MemoryTokenStore: TokenStoring, @unchecked Sendable {
     private let lock = NSLock()
     private var tokens: TokenSet?
@@ -132,6 +140,39 @@ struct SessionTests {
 
         let monitors = try await api.monitors()
         #expect(monitors.map(\.name) == ["A"])
+        #expect(auth.phase == .signedIn)
+    }
+
+    @Test func deleteAccountSendsDeleteAndEndsTheSession() async throws {
+        let recorded = RecordedRequests()
+        StubURLProtocol.handler = route(
+            token: { (200, "{}") },
+            api: { request in
+                recorded.append("\(request.httpMethod ?? "") \(request.url!.path())")
+                return (200, #"{"loginAccountDeleted":true}"#)
+            })
+        let valid = TokenSet(accessToken: "valid", refreshToken: "refresh", idToken: nil, expiresAt: .distantFuture)
+        let store = MemoryTokenStore(valid)
+        let auth = AuthStore(settings: settings, tokenStore: store, session: session)
+        let api = APIClient(settings: settings, auth: auth, session: session)
+
+        let result = try await api.deleteAccount()
+        auth.accountWasDeleted(loginAccountDeleted: result.loginAccountDeleted)
+
+        #expect(recorded.values == ["DELETE /api/v1/users/me"])
+        #expect(auth.phase == .signedOut)
+        #expect(auth.errorMessage == nil)
+        #expect(auth.noticeMessage == "Your account and all its data are deleted.")
+        #expect(store.load() == nil)
+    }
+
+    @Test func failedAccountDeletionKeepsTheSession() async {
+        StubURLProtocol.handler = route(token: { (200, "{}") }, api: { _ in (502, "") })
+        let valid = TokenSet(accessToken: "valid", refreshToken: "refresh", idToken: nil, expiresAt: .distantFuture)
+        let auth = AuthStore(settings: settings, tokenStore: MemoryTokenStore(valid), session: session)
+        let api = APIClient(settings: settings, auth: auth, session: session)
+
+        await #expect(throws: APIError.http(502)) { try await api.deleteAccount() }
         #expect(auth.phase == .signedIn)
     }
 

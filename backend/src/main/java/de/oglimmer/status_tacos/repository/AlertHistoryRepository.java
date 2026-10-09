@@ -69,4 +69,9 @@ public interface AlertHistoryRepository extends JpaRepository<AlertHistory, Long
   @Query("UPDATE AlertHistory ah SET ah.tenantId = :tenantId WHERE ah.monitor.id = :monitorId")
   int updateTenantIdByMonitorId(
       @Param("monitorId") Integer monitorId, @Param("tenantId") Integer tenantId);
+
+  /** Account deletion: removes the rows of a tenant that is deleted. */
+  @Modifying
+  @Query("DELETE FROM AlertHistory e WHERE e.tenantId = :tenantId")
+  int deleteAllByTenantId(@Param("tenantId") Integer tenantId);
 }

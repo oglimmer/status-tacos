@@ -94,6 +94,15 @@ backend:
     keyId: ""
     bundleId: "de.oglimmer.statustacos"
 
+  # Keycloak admin access, to delete the login account when a user deletes their account.
+  # The client secret is read from the Secret <release-name>-keycloak-admin-secret, key
+  # "client-secret". Off: account deletion keeps the Keycloak user (see README).
+  keycloakAdmin:
+    enabled: false
+    baseUrl: "https://id.oglimmer.de"
+    realm: "status-tacos"
+    clientId: "status-tacos-backend"
+
   # Health check configuration
   livenessProbe:
     httpGet:

@@ -25,6 +25,13 @@ struct LoginView: View {
 
             Spacer()
 
+            if let notice = auth.noticeMessage {
+                Label(notice, systemImage: "checkmark.circle.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+
             if let error = auth.errorMessage {
                 Label(error, systemImage: "exclamationmark.triangle.fill")
                     .font(.subheadline)
@@ -57,6 +64,13 @@ struct LoginView: View {
             .disabled(auth.phase == .signingIn)
             .accessibilityLabel("Connection settings")
             .accessibilityValue(settings.serverURL.absoluteString)
+
+            HStack(spacing: 16) {
+                Link("Privacy Policy", destination: LegalLinks.privacyPolicy)
+                Link("Terms of Service", destination: LegalLinks.termsOfService)
+            }
+            .font(.footnote)
+            .foregroundStyle(.secondary)
         }
         .padding(24)
         .frame(maxWidth: 480)

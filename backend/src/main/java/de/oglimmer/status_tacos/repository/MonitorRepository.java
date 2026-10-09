@@ -96,4 +96,9 @@ public interface MonitorRepository extends JpaRepository<Monitor, Integer> {
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   @Query("SELECT m FROM Monitor m WHERE m.id = :id")
   Optional<Monitor> findByIdForUpdate(@Param("id") Integer id);
+
+  /** Bulk delete of all monitors of a tenant. The database cascades to their child rows. */
+  @Modifying
+  @Query("DELETE FROM Monitor m WHERE m.tenantId = :tenantId")
+  int deleteAllByTenantId(@Param("tenantId") Integer tenantId);
 }

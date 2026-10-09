@@ -137,6 +137,35 @@ describe('ApiService', () => {
       })
     })
 
+    describe('deleteAccount', () => {
+      it('should send DELETE to /users/me and return the result', async () => {
+        window.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          json: async () => ({ loginAccountDeleted: true })
+        })
+
+        const result = await apiService.deleteAccount(mockUser)
+
+        expect(result).toEqual({ loginAccountDeleted: true })
+        expect(fetch).toHaveBeenCalledWith('http://localhost:8080/api/v1/users/me', {
+          method: 'DELETE',
+          headers: {
+            'Authorization': 'Bearer test-token',
+            'Content-Type': 'application/json'
+          }
+        })
+      })
+
+      it('should throw error when the server refuses', async () => {
+        window.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          status: 502
+        })
+
+        await expect(apiService.deleteAccount(mockUser)).rejects.toThrow('HTTP error! status: 502')
+      })
+    })
+
     describe('get', () => {
       it('should throw error on non-ok response', async () => {
         window.fetch = vi.fn().mockResolvedValue({

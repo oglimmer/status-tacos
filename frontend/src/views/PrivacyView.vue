@@ -193,11 +193,13 @@ import LegalPage from '../components/LegalPage.vue'
 
     <h2>12. Deleting Your Account</h2>
     <p>
-      To delete your account, send an email to
+      You can delete your account at any time: in the web app with "Delete Account" at the top of
+      the page, or in the iOS app under Settings → Delete Account. We then delete your login
+      account, your user data, your push tokens and every tenant that only you belong to, with its
+      monitors, check results and alert contacts. Tenants that you share with other users stay
+      with them; we only remove you from them. If you cannot sign in any more, send an email to
       <a href="mailto:oglimmer@gmail.com">oglimmer@gmail.com</a> from the email address of your
-      account. We then delete your login account, your user data, your push tokens and every
-      tenant that only you belong to, with its monitors, check results and alert contacts.
-      Tenants that you share with other users stay with them; we only remove you from them.
+      account and we delete it for you.
     </p>
 
     <h2>13. Children</h2>

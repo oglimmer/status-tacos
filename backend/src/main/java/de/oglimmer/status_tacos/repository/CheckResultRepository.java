@@ -62,4 +62,9 @@ public interface CheckResultRepository extends JpaRepository<CheckResult, Long> 
 
   @Query("SELECT MIN(cr.checkedAt) FROM CheckResult cr WHERE cr.monitor.id = :monitorId")
   Optional<LocalDateTime> findOldestCheckedAt(@Param("monitorId") Integer monitorId);
+
+  /** Account deletion: removes the rows of a tenant that is deleted. */
+  @Modifying
+  @Query("DELETE FROM CheckResult e WHERE e.tenantId = :tenantId")
+  int deleteAllByTenantId(@Param("tenantId") Integer tenantId);
 }
