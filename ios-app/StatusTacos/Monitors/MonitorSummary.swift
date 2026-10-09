@@ -109,6 +109,19 @@ struct MonitorSummary: Identifiable, Sendable {
 
     var host: String { URL(string: url)?.host() ?? url }
 
+    /// Splits the URL: "https://a.com/b?c" gives "https", "a.com" and "/b?c".
+    /// The path is nil when there is nothing after the host (or only "/").
+    var urlParts: (scheme: String?, host: String, path: String?) {
+        guard let schemeEnd = url.range(of: "://") else { return (nil, url, nil) }
+        let scheme = url[..<schemeEnd.lowerBound].lowercased()
+        let afterScheme = url[schemeEnd.upperBound...]
+        guard let pathStart = afterScheme.firstIndex(where: { "/?#".contains($0) }) else {
+            return (scheme, String(afterScheme), nil)
+        }
+        let path = String(afterScheme[pathStart...])
+        return (scheme, String(afterScheme[..<pathStart]), path == "/" ? nil : path)
+    }
+
     /// Window of the 7-day stats. The backend aligns the start to a full UTC hour.
     var weekWindow: (start: Date, end: Date)? {
         guard let start = week?.periodStart, let end = week?.periodEnd, end > start else { return nil }

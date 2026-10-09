@@ -78,6 +78,22 @@ struct MonitorSummaryTests {
         #expect(summary.host == "api.example.com")
         #expect(summary.weekWindow?.end.timeIntervalSince(summary.weekWindow!.start) == 604_800.0)
     }
+
+    @Test(arguments: [
+        ("https://api.example.com/health", "https", "api.example.com", "/health"),
+        ("HTTP://a.com:8443/v1/x?y=1#z", "http", "a.com:8443", "/v1/x?y=1#z"),
+        ("https://a.com?q=1", "https", "a.com", "?q=1"),
+        ("https://a.com/", "https", "a.com", nil),
+        ("https://a.com", "https", "a.com", nil),
+        ("not a url", nil, "not a url", nil),
+    ] as [(String, String?, String, String?)])
+    func splitsURLIntoSchemeHostAndPath(url: String, scheme: String?, host: String, path: String?) {
+        let summary = MonitorSummary(id: 1, name: "X", url: url, tenant: nil, state: .active,
+                                     alertingThreshold: nil, status: nil, week: nil)
+        #expect(summary.urlParts.scheme == scheme)
+        #expect(summary.urlParts.host == host)
+        #expect(summary.urlParts.path == path)
+    }
 }
 
 struct PeriodSnapshotTests {

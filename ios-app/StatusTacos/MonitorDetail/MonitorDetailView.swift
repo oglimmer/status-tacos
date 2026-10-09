@@ -151,11 +151,12 @@ struct MonitorDetailView: View {
             .foregroundStyle(health.color)
 
             if let url = URL(string: summary.url), url.scheme?.hasPrefix("http") == true {
-                Link(summary.url, destination: url)
-                    .font(.subheadline)
-                    .lineLimit(2)
+                Link(destination: url) {
+                    urlLines(summary)
+                }
+                .font(.subheadline)
             } else {
-                Text(summary.url)
+                urlLines(summary)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -167,6 +168,36 @@ struct MonitorDetailView: View {
             }
         }
         .padding(.vertical, 4)
+    }
+
+    /// Host on the first line, the path on the second line. The icon of the host line shows the protocol.
+    private func urlLines(_ summary: MonitorSummary) -> some View {
+        let parts = summary.urlParts
+        let hostSymbol = switch parts.scheme {
+        case "https": "lock.fill"
+        case "http": "lock.open.fill"
+        default: "globe"
+        }
+        return VStack(alignment: .leading, spacing: 4) {
+            urlLine(symbol: hostSymbol, text: parts.host, lineLimit: 1)
+            if let path = parts.path {
+                urlLine(symbol: "arrow.turn.down.right", text: path, lineLimit: 2)
+            }
+        }
+        .multilineTextAlignment(.leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(summary.url)
+    }
+
+    private func urlLine(symbol: String, text: String, lineLimit: Int) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Image(systemName: symbol)
+                .font(.caption)
+                .frame(width: 16)
+            Text(text)
+                .lineLimit(lineLimit)
+                .truncationMode(.middle)
+        }
     }
 
     // MARK: - Monitoring state
