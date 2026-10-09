@@ -4,10 +4,7 @@ import LegalPage from '../components/LegalPage.vue'
 
 <template>
   <LegalPage
-    badge-icon="📜"
-    badge="Legal Information"
-    title="Terms of"
-    title-highlight="Service"
+    title="Terms of Service"
     description="Please read these terms carefully before you use Status Tacos. By using the service, you agree to them."
     last-updated="9 October 2026"
   >

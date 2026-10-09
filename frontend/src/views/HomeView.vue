@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { } from 'vue'
+import { computed, ref } from 'vue'
+import '../assets/brand.css'
+import SiteFooter from '../components/SiteFooter.vue'
 import { useAuthStore } from '../stores/auth'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -9,820 +11,690 @@ const route = useRoute()
 
 // Set by the account deletion: "all" or "data" (the login account at the provider still exists).
 const accountDeleted = route.query.accountDeleted as string | undefined
+
 const handleLogin = () => {
   authStore.login()
 }
 
-const goToDashboard = () => {
+const goToMonitors = () => {
   router.push('/monitors')
 }
+
+// The demo strip: 12 minutes of checks, one every 15 seconds, with a one-minute outage.
+// The default alert threshold is 30 seconds, so the alert goes out on the third failed check.
+const CHECKS = 48
+const OUTAGE_START = 30
+const OUTAGE_END = 34
+const ALERT_AT = OUTAGE_START + 2
+
+const clock = (i: number) => {
+  const seconds = 12 * 3600 + i * 15
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  const s = seconds % 60
+  return [h, m, s].map((n) => String(n).padStart(2, '0')).join(':')
+}
+
+// Response times look plausible but are fixed, so the strip is the same on every load.
+const checks = Array.from({ length: CHECKS }, (_, i) => {
+  const down = i >= OUTAGE_START && i < OUTAGE_END
+  const ms = 38 + ((i * 37) % 23) + (i % 7 === 3 ? 31 : 0)
+  return {
+    i,
+    down,
+    time: clock(i),
+    result: down ? 'Down, status 503' : `Up, ${ms} ms`,
+    height: down ? 100 : Math.round((ms / 92) * 100),
+  }
+})
+
+// The header reads out one check: the latest, or the one under the pointer or keyboard.
+const picked = ref<number | null>(null)
+const shown = computed(() => checks[picked.value ?? CHECKS - 1]!)
+
+const pickAt = (event: PointerEvent) => {
+  const box = (event.currentTarget as HTMLElement).getBoundingClientRect()
+  const i = Math.floor(((event.clientX - box.left) / box.width) * CHECKS)
+  picked.value = Math.min(CHECKS - 1, Math.max(0, i))
+}
+
+const step = (by: number) => {
+  picked.value = Math.min(CHECKS - 1, Math.max(0, (picked.value ?? CHECKS - 1) + by))
+}
+
+const pos = (i: number) => `${((i + 0.5) / CHECKS) * 100}%`
+
+const events = [
+  { i: OUTAGE_START, time: clock(OUTAGE_START), text: 'Status 503. The check fails.' },
+  { i: ALERT_AT, time: clock(ALERT_AT), text: 'Down for 30 seconds. Alert sent.' },
+  { i: OUTAGE_END, time: clock(OUTAGE_END), text: 'Answers again. All-clear sent.' },
+]
 </script>
 
 <template>
-  <main class="home-container">
-    <!-- Navigation Header -->
-    <header class="nav-header">
-      <div class="nav-brand">
-        <img src="../assets/logo.png" alt="Status Tacos" class="nav-logo" />
-        <span class="brand-name">Status Tacos</span>
-      </div>
-      <nav class="nav-links">
-        <div v-if="!authStore.isAuthenticated" class="login-section">
-          <button
-            @click="handleLogin"
-            :disabled="authStore.isLoading"
-            class="btn btn-outline"
-          >
-            {{ authStore.isLoading ? 'Signing in...' : 'Sign In' }}
-          </button>
-        </div>
-        <button
-          v-else
-          @click="goToDashboard"
-          class="btn btn-primary"
-        >
-          Dashboard
-        </button>
-      </nav>
-    </header>
-
-    <!-- Hero Section -->
+  <main class="home tacos-page">
     <section class="hero">
-      <div class="hero-content">
-        <div class="hero-badge">
-          <span class="badge-icon">🌮</span>
-          <span>Deliciously Reliable Monitoring</span>
-        </div>
-        <h1 class="hero-title">
-          Keep Your APIs Fresh & Your<br>
-          <span class="gradient-text">Services Spicy</span>
-        </h1>
-        <p class="hero-description">
-          Status Tacos serves up comprehensive endpoint monitoring with a side of reliability.
-          Track uptime, monitor performance, and get notified faster than you can say "¡Olé!"
+      <header class="bar">
+        <span class="tacos-brand">
+          <img src="../assets/logo.png" alt="" />
+          Status Tacos
+        </span>
+        <button
+          v-if="!authStore.isAuthenticated"
+          class="btn btn-quiet"
+          :disabled="authStore.isLoading"
+          @click="handleLogin"
+        >
+          {{ authStore.isLoading ? 'Signing in…' : 'Sign in' }}
+        </button>
+        <button v-else class="btn btn-quiet" @click="goToMonitors">Open my monitors</button>
+      </header>
+
+      <div class="hero-text">
+        <h1 class="hero-title">Is it up?</h1>
+        <p class="lead">
+          Status Tacos calls your URLs every 15&nbsp;seconds. When one stops answering, you hear
+          about it: by email, webhook, Microsoft Teams or on your iPhone.
         </p>
 
-        <div class="hero-actions">
-          <div v-if="!authStore.isAuthenticated" class="hero-login-section">
-            <button
-              @click="handleLogin"
-              :disabled="authStore.isLoading"
-              class="btn btn-primary btn-large"
-            >
-              <span class="btn-icon">🚀</span>
-              {{ authStore.isLoading ? 'Getting Started...' : 'Start Monitoring Free' }}
-            </button>
-          </div>
-          <div v-else class="authenticated-hero">
-            <p class="welcome-text">¡Hola {{ authStore.user?.profile?.name || 'Amigo' }}!</p>
-            <button @click="goToDashboard" class="btn btn-primary btn-large">
-              <span class="btn-icon">📊</span>
-              View Your Monitors
-            </button>
-          </div>
-        </div>
-
-        <div v-if="accountDeleted" class="info-alert">
-          <span class="error-icon">👋</span>
-          <span v-if="accountDeleted === 'all'">Your account and all its data are deleted.</span>
-          <span v-else>
-            Your Status Tacos data is deleted. Your login account at the identity provider still
-            exists; delete it there.
-          </span>
-        </div>
-
-        <div v-if="authStore.error" class="error-alert">
-          <span class="error-icon">⚠️</span>
-          {{ authStore.error }}
-        </div>
-      </div>
-
-      <div class="hero-visual">
-        <div class="status-demo">
-          <div class="demo-card">
-            <div class="demo-header">
-              <span class="status-dot status-up"></span>
-              <span class="demo-url">api.example.com</span>
-              <span class="demo-time">99.9% uptime</span>
-            </div>
-            <div class="demo-chart">
-              <div class="chart-bar" style="height: 60%"></div>
-              <div class="chart-bar" style="height: 80%"></div>
-              <div class="chart-bar" style="height: 100%"></div>
-              <div class="chart-bar" style="height: 40%"></div>
-              <div class="chart-bar" style="height: 90%"></div>
-              <div class="chart-bar" style="height: 70%"></div>
-            </div>
-          </div>
-          <div class="floating-alerts">
-            <div class="alert-bubble">
-              <span class="alert-icon">✅</span>
-              <span>API is healthy</span>
-            </div>
-            <div class="alert-bubble delay-1">
-              <span class="alert-icon">📈</span>
-              <span>Response time: 45ms</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Features Section -->
-    <section class="features-section">
-      <div class="section-header">
-        <h2>Why Choose Status Tacos?</h2>
-        <p>Everything you need to keep your services running smoothly</p>
-      </div>
-
-      <div class="features-grid">
-        <div class="feature-card">
-          <div class="feature-icon">⚡</div>
-          <h3>Lightning Fast Checks</h3>
-          <p>Monitor your endpoints every minute with sub-second response times. No more waiting around for status updates.</p>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-icon">🎯</div>
-          <h3>Smart Alerting</h3>
-          <p>Configurable thresholds and multi-channel notifications. Get alerts via email, Slack, or webhook when it matters.</p>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-icon">📊</div>
-          <h3>Beautiful Analytics</h3>
-          <p>Visualize your uptime trends, response times, and historical data with stunning charts and insights.</p>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-icon">🔒</div>
-          <h3>Enterprise Security</h3>
-          <p>Multi-tenant architecture with role-based access control. Your data stays secure and organized.</p>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-icon">🌍</div>
-          <h3>Global Monitoring</h3>
-          <p>Check your services from multiple locations worldwide. Ensure consistent performance for all users.</p>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-icon">🔧</div>
-          <h3>Easy Integration</h3>
-          <p>RESTful API, webhooks, and integrations with your favorite tools. Set up monitoring in minutes, not hours.</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- Stats Section -->
-    <section class="stats-section">
-      <div class="stats-container">
-        <div class="stat-item">
-          <div class="stat-number">99.99%</div>
-          <div class="stat-label">Platform Uptime</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-number" style="text-wrap: nowrap">< 100ms</div>
-          <div class="stat-label">Avg Response Time</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-number">24/7</div>
-          <div class="stat-label">Monitoring Coverage</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-number">∞</div>
-          <div class="stat-label">Endpoints Supported</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- CTA Section -->
-    <section class="cta-section">
-      <div class="cta-content">
-        <h2>Ready to Spice Up Your Monitoring?</h2>
-        <p>Join thousands of developers who trust Status Tacos to keep their services running smoothly.</p>
-        <div v-if="!authStore.isAuthenticated" class="cta-login-section">
-          <button
-            @click="handleLogin"
-            :disabled="authStore.isLoading"
-            class="btn btn-primary btn-large"
-          >
-            <span class="btn-icon">🌮</span>
-            {{ authStore.isLoading ? 'Getting Started...' : 'Start Your Free Monitoring' }}
+        <div v-if="!authStore.isAuthenticated" class="hero-action">
+          <button class="btn btn-main" :disabled="authStore.isLoading" @click="handleLogin">
+            {{ authStore.isLoading ? 'Signing in…' : 'Sign in' }}
           </button>
+          <span class="hint">New here? Signing in creates your account.</span>
         </div>
-        <button
-          v-else
-          @click="goToDashboard"
-          class="btn btn-primary btn-large"
-        >
-          <span class="btn-icon">📊</span>
-          Go to Your Dashboard
-        </button>
+        <div v-else class="hero-action">
+          <button class="btn btn-main" @click="goToMonitors">Open my monitors</button>
+          <span class="hint">Hi, {{ authStore.user?.profile?.name || 'welcome back' }}.</span>
+        </div>
+
+        <p v-if="accountDeleted" class="notice" role="status">
+          <template v-if="accountDeleted === 'all'">Your account and all its data are deleted.</template>
+          <template v-else>
+            Your Status Tacos data is deleted. Your login account at the identity provider still
+            exists. Delete it there.
+          </template>
+        </p>
+        <p v-if="authStore.error" class="notice notice-error" role="alert">
+          Sign-in failed: {{ authStore.error }}
+        </p>
       </div>
     </section>
 
-    <!-- Footer -->
-    <footer class="footer">
-      <div class="footer-content">
-        <div class="footer-brand">
-          <img src="../assets/logo.png" alt="Status Tacos" class="footer-logo" />
-          <span class="brand-name">Status Tacos</span>
-        </div>
-        <nav class="footer-nav">
-          <router-link to="/privacy" class="footer-link">Privacy Policy</router-link>
-          <router-link to="/terms" class="footer-link">Terms of Service</router-link>
-          <router-link to="/imprint" class="footer-link">Imprint</router-link>
-        </nav>
-        <div class="footer-tagline">
-          Made with ❤️ and a lot of 🌮
-        </div>
+    <figure class="strip" aria-labelledby="strip-caption">
+      <img src="../assets/taco.webp" alt="" class="taco" width="640" height="441" />
+      <div class="strip-head">
+        <span class="strip-url">example.com/health</span>
+        <span class="strip-state" :class="{ 'strip-state-down': shown.down }">
+          <time class="strip-time">{{ shown.time }}</time>
+          {{ shown.result }}
+        </span>
       </div>
-    </footer>
+
+      <div
+        class="ticks"
+        :class="{ 'ticks-picking': picked !== null }"
+        role="slider"
+        tabindex="0"
+        aria-label="Checks of the last 12 minutes"
+        aria-valuemin="1"
+        :aria-valuemax="CHECKS"
+        :aria-valuenow="shown.i + 1"
+        :aria-valuetext="`${shown.time}, ${shown.result}`"
+        @pointermove="pickAt"
+        @pointerdown="pickAt"
+        @pointerleave="picked = null"
+        @blur="picked = null"
+        @keydown.left.prevent="step(-1)"
+        @keydown.right.prevent="step(1)"
+        @keydown.home.prevent="picked = 0"
+        @keydown.end.prevent="picked = CHECKS - 1"
+      >
+        <span
+          v-for="c in checks"
+          :key="c.i"
+          class="tick"
+          :class="{ 'tick-down': c.down, 'tick-picked': c.i === picked }"
+          :style="{ '--i': c.i, height: c.height + '%' }"
+        ></span>
+      </div>
+
+      <ol class="events">
+        <li
+          v-for="(e, row) in events"
+          :key="e.i"
+          class="event"
+          :style="{ '--row': row, '--i': e.i, right: `calc(100% - ${pos(e.i)})` }"
+        >
+          <time class="event-time">{{ e.time }}</time> {{ e.text }}
+        </li>
+      </ol>
+
+      <figcaption id="strip-caption" class="strip-caption">
+        Each bar is one check. Its height is the response time. Point at a bar to read it.
+      </figcaption>
+    </figure>
+
+    <div class="body">
+      <section class="part" aria-labelledby="up-title">
+        <h2 id="up-title">What counts as up</h2>
+        <div class="part-content">
+          <p>A check sends a request to your URL and reads the answer. You choose which rule decides.</p>
+          <dl class="rules">
+            <div class="rule">
+              <dt>
+                <code class="snippet">HTTP/1.1 <mark>200</mark> OK</code>
+                Status code
+              </dt>
+              <dd>Any 2xx or 3xx answer is up. Need something else? Write your own pattern.</dd>
+            </div>
+            <div class="rule">
+              <dt>
+                <code class="snippet">{"db":<mark>"ok"</mark>,"queue":"ok"}</code>
+                Body text
+              </dt>
+              <dd>The answer must contain text you choose. A regular expression works too.</dd>
+            </div>
+            <div class="rule">
+              <dt>
+                <code class="snippet">queue_depth <mark>12</mark></code>
+                Prometheus metric
+              </dt>
+              <dd>Point the check at a /metrics page. One value must stay between a minimum and a maximum.</dd>
+            </div>
+          </dl>
+          <p class="aside">Your URL needs a token? Add your own request headers to the check.</p>
+        </div>
+      </section>
+
+      <section class="part" aria-labelledby="alert-title">
+        <h2 id="alert-title">Who hears about it</h2>
+        <div class="part-content">
+          <p>Pick from the menu. Take as many as you like.</p>
+          <ul class="menu">
+            <li><span class="menu-item">Email</span><span class="menu-detail">to any address</span></li>
+            <li><span class="menu-item">Webhook</span><span class="menu-detail">a request to your URL</span></li>
+            <li><span class="menu-item">Microsoft Teams</span><span class="menu-detail">a message in your channel</span></li>
+            <li><span class="menu-item">iPhone and iPad</span><span class="menu-detail">a push alert, also in Focus</span></li>
+          </ul>
+          <p>
+            One slow answer does not wake anybody up. You choose how long a URL must fail before
+            the alert goes out: 30&nbsp;seconds by default, 15 at the least. When the URL answers
+            again, you get the all-clear.
+          </p>
+          <p>
+            Planned maintenance? Make the monitor silent. The checks go on, the alerts stop.
+          </p>
+        </div>
+      </section>
+
+      <section class="part" aria-labelledby="team-title">
+        <h2 id="team-title">Watch it together</h2>
+        <div class="part-content">
+          <p>
+            Put monitors into tenants, for example one per customer or per team. Add people by
+            their email address. They see the same monitors and the same history.
+          </p>
+          <p>
+            For each URL you see uptime, response times and every outage of the last 24&nbsp;hours,
+            7&nbsp;days or 90&nbsp;days. The iPhone app shows the same, and you can silence a
+            monitor from it.
+          </p>
+        </div>
+      </section>
+
+      <section class="part part-own" aria-labelledby="own-title">
+        <h2 id="own-title">Run your own</h2>
+        <div class="part-content">
+          <p>
+            The code is on GitHub. Run Status Tacos on your server with Docker Compose or the Helm
+            chart.
+          </p>
+          <p class="links">
+            <a class="link" href="https://github.com/oglimmer/status-tacos">See the code on GitHub</a>
+            <button
+              v-if="!authStore.isAuthenticated"
+              class="btn btn-main"
+              :disabled="authStore.isLoading"
+              @click="handleLogin"
+            >
+              Or sign in and use this one
+            </button>
+          </p>
+        </div>
+      </section>
+    </div>
+
+    <SiteFooter />
   </main>
 </template>
 
 <style scoped>
-.home-container {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  background-attachment: fixed;
+/* Hero: the teal band of the logo, with the headline painted on it like a shop sign. */
+.hero {
+  background: var(--teal);
+  padding: 1rem var(--gutter) 7.5rem;
 }
 
-/* Navigation Header */
-.nav-header {
+/* On small screens the taco needs its own room above the strip. */
+@media (max-width: 720px) {
+  .hero {
+    padding-bottom: calc(5rem + 7rem);
+  }
+}
+
+.bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem 2rem;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.nav-brand {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.nav-logo {
-  height: 40px;
-  width: auto;
-}
-
-.brand-name {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #2c3e50;
-}
-
-.nav-links {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-}
-
-.login-section {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.hero-login-section {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-}
-
-.cta-login-section {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-}
-
-.nav-link {
-  color: #6c757d;
-  text-decoration: none;
-  font-weight: 500;
-  transition: color 0.2s;
-}
-
-.nav-link:hover {
-  color: #007bff;
-}
-
-/* Hero Section */
-.hero {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4rem;
-  align-items: center;
-  padding: 6rem 2rem;
-  max-width: 1200px;
+  max-width: 72rem;
   margin: 0 auto;
 }
 
-.hero-content {
-  color: white;
-}
-
-.hero-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(10px);
-  padding: 0.5rem 1rem;
-  border-radius: 50px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  margin-bottom: 2rem;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.badge-icon {
-  font-size: 1.2rem;
+.hero-text {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding-top: clamp(3rem, 9vw, 6.5rem);
 }
 
 .hero-title {
-  font-size: 3.5rem;
-  font-weight: 800;
-  line-height: 1.1;
-  margin-bottom: 1.5rem;
-  color: white;
+  font-family: var(--sign);
+  font-weight: 400;
+  font-size: clamp(3.5rem, 13vw, 10rem);
+  line-height: 0.9;
+  letter-spacing: -0.01em;
+  margin: 0 0 2rem;
+  /* A painted drop shade, like the lettering on a taqueria window. */
+  text-shadow: 0.06em 0.06em 0 var(--masa);
 }
 
-.gradient-text {
-  background: linear-gradient(45deg, #ff6b6b, #feca57);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+.lead {
+  max-width: 34rem;
+  font-size: clamp(1.2rem, 2.2vw, 1.45rem);
+  line-height: 1.45;
+  margin: 0 0 2rem;
 }
 
-.hero-description {
-  font-size: 1.25rem;
-  line-height: 1.6;
-  margin-bottom: 2.5rem;
-  color: rgba(255, 255, 255, 0.9);
-  max-width: 500px;
-}
-
-.hero-actions {
-  margin-bottom: 2rem;
-}
-
-.authenticated-hero .welcome-text {
-  font-size: 1.1rem;
-  margin-bottom: 1rem;
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.error-alert {
+.hero-action {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
-  background: rgba(220, 53, 69, 0.1);
-  backdrop-filter: blur(10px);
-  color: #ff6b6b;
-  padding: 1rem;
-  border-radius: 8px;
-  border: 1px solid rgba(220, 53, 69, 0.2);
+  gap: 0.75rem 1.25rem;
 }
 
-.info-alert {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(10px);
-  color: white;
-  padding: 1rem;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  margin-bottom: 1rem;
+.hint {
+  font-size: 1rem;
 }
 
-/* Hero Visual */
-.hero-visual {
-  position: relative;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+.notice {
+  max-width: 34rem;
+  margin: 1.5rem 0 0;
+  padding: 0.75rem 1rem;
+  border: var(--line);
+  border-radius: 0.6rem;
+  background: var(--paper);
+  font-size: 1rem;
 }
 
-.status-demo {
-  position: relative;
-  transform: rotate(-5deg);
-  animation: float 6s ease-in-out infinite;
-}
-
-.demo-card {
-  background: white;
-  border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-  min-width: 280px;
-}
-
-.demo-header {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-}
-
-.status-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #28a745;
-  box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.2);
-  animation: pulse 2s infinite;
-}
-
-.demo-url {
-  font-weight: 600;
-  color: #2c3e50;
-  flex: 1;
-}
-
-.demo-time {
-  font-size: 0.875rem;
-  color: #28a745;
-  font-weight: 500;
-}
-
-.demo-chart {
-  display: flex;
-  align-items: end;
-  gap: 4px;
-  height: 60px;
-}
-
-.chart-bar {
-  background: linear-gradient(to top, #007bff, #17a2b8);
-  width: 8px;
-  border-radius: 4px;
-  transition: height 0.3s ease;
-  animation: chart-animate 2s ease-in-out infinite;
-}
-
-.chart-bar:nth-child(even) {
-  animation-delay: 0.2s;
-}
-
-.chart-bar:nth-child(3n) {
-  animation-delay: 0.4s;
-}
-
-.floating-alerts {
-  position: absolute;
-  top: -20px;
-  right: -40px;
-}
-
-.alert-bubble {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #2c3e50;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  margin-bottom: 0.5rem;
-  animation: slide-in 0.5s ease-out;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.alert-bubble.delay-1 {
-  animation-delay: 1s;
-  animation-fill-mode: both;
+.notice-error {
+  border-color: var(--salsa);
+  color: #8f2615;
 }
 
 /* Buttons */
 .btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 8px;
+  font: inherit;
+  font-weight: 700;
   font-size: 1rem;
-  font-weight: 600;
+  color: var(--ink);
+  border: var(--line);
+  border-radius: 999px;
+  padding: 0.6rem 1.3rem;
   cursor: pointer;
-  transition: all 0.2s;
-  text-decoration: none;
 }
 
-.btn-primary {
-  background: linear-gradient(45deg, #007bff, #0056b3);
-  color: white;
-  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
-}
-
-.btn-primary:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 123, 255, 0.4);
-}
-
-.btn-outline {
-  background: transparent;
-  color: #007bff;
-  border: 2px solid #007bff;
-}
-
-.btn-outline:hover:not(:disabled) {
-  background: #007bff;
-  color: white;
-}
-
-.btn-large {
-  padding: 1rem 2rem;
+.btn-main {
+  background: var(--masa);
+  padding: 0.85rem 1.8rem;
   font-size: 1.1rem;
+}
+
+.btn-main:hover:not(:disabled) {
+  background: #f6c665;
+}
+
+.btn-quiet {
+  background: transparent;
+}
+
+.btn-quiet:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.2);
 }
 
 .btn:disabled {
   opacity: 0.6;
-  cursor: not-allowed;
-  transform: none !important;
+  cursor: progress;
 }
 
-.btn-icon {
-  font-size: 1.2rem;
+/* The strip: twelve minutes of checks. It is the one thing on the page that moves. */
+/* The taco from the logo stands on top of it, with its HTTP sign. Same teal, so it sits in the band. */
+.taco {
+  --taco-width: clamp(8rem, 20vw, 17rem);
+  position: absolute;
+  bottom: calc(100% - 2px);
+  right: clamp(1rem, 4vw, 3rem);
+  width: var(--taco-width);
+  height: auto;
+  pointer-events: none;
 }
 
-/* Features Section */
-.features-section {
-  background: white;
-  padding: 6rem 2rem;
+.strip {
+  position: relative;
+  width: min(72rem, 100% - 2 * var(--gutter));
+  margin: -5rem auto 0;
+  padding: 1.25rem clamp(1rem, 3vw, 2rem) 1.25rem;
+  background: var(--paper);
+  border: var(--line);
+  border-radius: 1rem;
 }
 
-.section-header {
-  text-align: center;
-  max-width: 600px;
-  margin: 0 auto 4rem;
-}
-
-.section-header h2 {
-  font-size: 2.5rem;
+.strip-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  margin-bottom: 1rem;
   font-weight: 700;
-  color: #2c3e50;
-  margin-bottom: 1rem;
 }
 
-.section-header p {
-  font-size: 1.1rem;
-  color: #6c757d;
-  line-height: 1.6;
+.strip-url {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.features-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 2rem;
-  max-width: 1200px;
-  margin: 0 auto;
+.strip-state {
+  flex: none;
+  color: var(--cilantro);
+  font-variant-numeric: tabular-nums;
 }
 
-.feature-card {
-  background: #f8f9fa;
-  padding: 2rem;
-  border-radius: 12px;
-  border: 1px solid #e9ecef;
-  transition: transform 0.2s, box-shadow 0.2s;
-  text-align: center;
+.strip-state-down {
+  color: var(--salsa);
 }
 
-.feature-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+.strip-time {
+  color: var(--ink-soft);
+  font-weight: 400;
+  margin-right: 0.4rem;
 }
 
-.feature-icon {
-  font-size: 3rem;
-  margin-bottom: 1rem;
-  display: block;
+.strip-state::before {
+  content: '';
+  display: inline-block;
+  width: 0.6rem;
+  height: 0.6rem;
+  margin-right: 0.45rem;
+  border-radius: 50%;
+  background: currentColor;
 }
 
-.feature-card h3 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #2c3e50;
-  margin-bottom: 1rem;
+.ticks {
+  display: flex;
+  align-items: flex-end;
+  gap: clamp(1px, 0.35vw, 4px);
+  height: clamp(4rem, 10vw, 7rem);
+  cursor: crosshair;
+  touch-action: pan-y;
 }
 
-.feature-card p {
-  color: #6c757d;
-  line-height: 1.6;
+.ticks:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 6px;
+  border-radius: 2px;
+}
+
+.ticks-picking .tick:not(.tick-picked) {
+  opacity: 0.45;
+}
+
+.tick {
+  flex: 1;
+  min-height: 30%;
+  background: var(--cilantro);
+  border-radius: 2px 2px 0 0;
+  transform-origin: bottom;
+  animation: tick-in 260ms cubic-bezier(0.2, 0.8, 0.3, 1.2) both;
+  animation-delay: calc(var(--i) * 32ms);
+  transition: opacity 120ms;
+}
+
+.tick-down {
+  background: var(--salsa);
+}
+
+.events {
+  --row-height: 1.9rem;
+  position: relative;
+  height: calc(3 * var(--row-height) + 0.5rem);
   margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: var(--line);
+  font-size: 0.95rem;
 }
 
-/* Stats Section */
-.stats-section {
-  background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
-  padding: 4rem 2rem;
-  color: white;
+/* Each note hangs from its check. The right border is the leader line up to the strip. */
+.event {
+  position: absolute;
+  top: 0;
+  height: calc((var(--row) + 1) * var(--row-height));
+  display: flex;
+  align-items: flex-end;
+  padding-right: 0.5rem;
+  border-right: var(--line);
+  white-space: nowrap;
+  line-height: 1.2;
+  animation: note-in 300ms ease-out both;
+  animation-delay: calc(var(--i) * 32ms + 200ms);
 }
 
-.stats-container {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 2rem;
-  max-width: 1000px;
-  margin: 0 auto;
-  text-align: center;
-}
-
-.stat-item {
-  padding: 1rem;
-}
-
-.stat-number {
-  font-size: 3rem;
-  font-weight: 800;
-  color: #17a2b8;
-  margin-bottom: 0.5rem;
-}
-
-.stat-label {
-  font-size: 1.1rem;
-  color: rgba(255, 255, 255, 0.8);
-  font-weight: 500;
-}
-
-/* CTA Section */
-.cta-section {
-  background: linear-gradient(45deg, #ff6b6b, #feca57);
-  padding: 6rem 2rem;
-  text-align: center;
-}
-
-.cta-content {
-  max-width: 600px;
-  margin: 0 auto;
-}
-
-.cta-content h2 {
-  font-size: 2.5rem;
+.event-time {
   font-weight: 700;
-  color: white;
-  margin-bottom: 1rem;
+  font-variant-numeric: tabular-nums;
+  margin-right: 0.4rem;
 }
 
-.cta-content p {
-  font-size: 1.1rem;
-  color: rgba(255, 255, 255, 0.9);
-  margin-bottom: 2rem;
-  line-height: 1.6;
+.strip-caption {
+  margin-top: 0.75rem;
+  font-size: 0.95rem;
+  color: var(--ink-soft);
 }
 
-/* Footer */
-.footer {
-  background: #2c3e50;
-  padding: 3rem 2rem 2rem;
-  color: white;
+@keyframes tick-in {
+  from {
+    transform: scaleY(0);
+  }
 }
 
-.footer-content {
-  max-width: 1200px;
-  margin: 0 auto;
-  text-align: center;
-}
-
-.footer-brand {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  margin-bottom: 2rem;
-}
-
-.footer-logo {
-  height: 40px;
-  width: auto;
-  border-radius: 8px;
-}
-
-.footer-brand .brand-name {
-  color: white;
-}
-
-.footer-nav {
-  display: flex;
-  justify-content: center;
-  gap: 2rem;
-  margin-bottom: 2rem;
-}
-
-.footer-link {
-  color: rgba(255, 255, 255, 0.8);
-  text-decoration: none;
-  font-weight: 500;
-  transition: color 0.2s;
-}
-
-.footer-link:hover {
-  color: #17a2b8;
-}
-
-.footer-tagline {
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 0.9rem;
-}
-
-/* Animations */
-@keyframes float {
-  0%, 100% { transform: rotate(-5deg) translateY(0px); }
-  50% { transform: rotate(-5deg) translateY(-10px); }
-}
-
-@keyframes pulse {
-  0%, 100% { box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.2); }
-  50% { box-shadow: 0 0 0 6px rgba(40, 167, 69, 0.4); }
-}
-
-@keyframes chart-animate {
-  0%, 100% { transform: scaleY(1); }
-  50% { transform: scaleY(1.2); }
-}
-
-@keyframes slide-in {
+@keyframes note-in {
   from {
     opacity: 0;
-    transform: translateX(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
   }
 }
 
-/* Responsive Design */
-@media (max-width: 768px) {
-  .hero {
+/* Body: heading left, text right, one column on small screens. */
+.body {
+  width: min(72rem, 100% - 2 * var(--gutter));
+  margin: 0 auto;
+  padding: clamp(3rem, 8vw, 6rem) 0 2rem;
+}
+
+.part {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 1rem 3rem;
+  padding-bottom: clamp(3rem, 7vw, 5rem);
+}
+
+.part h2 {
+  position: sticky;
+  top: 2rem;
+  align-self: start;
+  margin: 0;
+  font-size: clamp(1.6rem, 3vw, 2.1rem);
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.part-content {
+  max-width: var(--measure);
+}
+
+.part-content > p {
+  margin: 0 0 1rem;
+}
+
+.aside {
+  color: var(--ink-soft);
+}
+
+.rules {
+  margin: 1.5rem 0;
+}
+
+.rule {
+  padding: 1rem 0;
+  border-top: 1px solid rgb(16 46 42 / 0.25);
+}
+
+.rule:last-child {
+  border-bottom: 1px solid rgb(16 46 42 / 0.25);
+}
+
+.rule dt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-weight: 700;
+}
+
+.rule dd {
+  margin: 0.25rem 0 0;
+}
+
+/* The part of the answer the rule reads. */
+.snippet mark {
+  background: none;
+  color: var(--masa);
+  font-weight: 700;
+}
+
+.snippet {
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  font-weight: 400;
+  padding: 0.2rem 0.55rem;
+  background: var(--ink);
+  color: var(--agua);
+  border-radius: 0.35rem;
+}
+
+/* Alert channels as a menu board, with dotted leaders. */
+.menu {
+  margin: 0 0 1.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.menu li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.3rem 0;
+}
+
+.menu li::after {
+  content: '';
+  order: 1;
+  flex: 1;
+  min-width: 1.5rem;
+  border-bottom: 2px dotted var(--ink-soft);
+}
+
+.menu-item {
+  font-weight: 700;
+}
+
+.menu-detail {
+  order: 2;
+  text-align: right;
+}
+
+.part-own .links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.link {
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.2em;
+}
+
+.link:hover {
+  text-decoration-color: var(--teal);
+}
+
+@media (max-width: 720px) {
+  .part {
     grid-template-columns: 1fr;
-    gap: 2rem;
-    padding: 4rem 1rem;
   }
 
-  .hero-title {
-    font-size: 2.5rem;
+  .part h2 {
+    position: static;
   }
 
-  .nav-header {
-    padding: 1rem;
+  /* Not enough room for the hanging notes: list them under the strip. */
+  .events {
+    height: auto;
+    padding-top: 0.5rem;
+    font-size: 0.9rem;
   }
 
-  .nav-links {
-    gap: 1rem;
+  .event {
+    position: static;
+    height: auto;
+    padding: 0.15rem 0;
+    border-right: 0;
+    white-space: normal;
   }
 
-  .features-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .stats-container {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .footer-nav {
+  .menu li {
     flex-direction: column;
-    gap: 1rem;
+    gap: 0;
+  }
+
+  .menu li::after {
+    display: none;
+  }
+
+  .menu-detail {
+    text-align: left;
   }
 }
 
-@media (max-width: 480px) {
-  .hero-title {
-    font-size: 2rem;
-  }
-
-  .hero-description {
-    font-size: 1.1rem;
-  }
-
-  .section-header h2 {
-    font-size: 2rem;
-  }
-
-  .cta-content h2 {
-    font-size: 2rem;
-  }
-
-  .stats-container {
-    grid-template-columns: 1fr;
-  }
-
-  .stat-number {
-    font-size: 2.5rem;
+@media (prefers-reduced-motion: reduce) {
+  .tick,
+  .event {
+    animation: none;
+    transition: none;
   }
 }
 </style>

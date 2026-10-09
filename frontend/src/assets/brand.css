@@ -1,0 +1,56 @@
+/* The look of the public pages: the landing page and the legal pages. */
+@import '@fontsource/bungee/400.css';
+@import '@fontsource/atkinson-hyperlegible-next/400.css';
+@import '@fontsource/atkinson-hyperlegible-next/700.css';
+@import '@fontsource/atkinson-hyperlegible-next/800.css';
+@import '@fontsource/atkinson-hyperlegible-mono/400.css';
+
+.tacos-page {
+  /* Colors from the logo: its teal, the tortilla, the salsa, the lettuce. */
+  --agua: #e9f2ee;
+  --paper: #f8fbf9;
+  --teal: #33ada4;
+  --ink: #102e2a;
+  --ink-soft: #3d5a55;
+  --masa: #f2b53c;
+  --salsa: #d2412b;
+  --cilantro: #2e8b47;
+  --line: 2px solid var(--ink);
+
+  --sign: 'Bungee', 'Arial Black', sans-serif;
+  --text: 'Atkinson Hyperlegible Next', system-ui, sans-serif;
+  --mono: 'Atkinson Hyperlegible Mono', ui-monospace, monospace;
+
+  --gutter: clamp(1rem, 4vw, 3rem);
+  --measure: 40rem;
+
+  min-height: 100vh;
+  background: var(--agua);
+  color: var(--ink);
+  font-family: var(--text);
+  font-size: 1.125rem;
+  line-height: 1.55;
+}
+
+.tacos-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--sign);
+  font-size: 1.05rem;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.tacos-brand img {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.6rem;
+  border: var(--line);
+}
+
+.tacos-page a:focus-visible,
+.tacos-page button:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+}

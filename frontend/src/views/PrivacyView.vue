@@ -4,10 +4,7 @@ import LegalPage from '../components/LegalPage.vue'
 
 <template>
   <LegalPage
-    badge-icon="🔒"
-    badge="Legal Information"
-    title="Privacy"
-    title-highlight="Policy"
+    title="Privacy Policy"
     description="How Status Tacos processes personal data when you use the web app or the iOS app."
     last-updated="9 October 2026"
   >

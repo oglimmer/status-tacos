@@ -1,220 +1,222 @@
 <script setup lang="ts">
+import { onMounted, ref } from 'vue'
+import '../assets/brand.css'
+import SiteFooter from './SiteFooter.vue'
+
 defineProps<{
-  badgeIcon: string
-  badge: string
   title: string
-  titleHighlight: string
   description: string
   lastUpdated?: string
 }>()
 
-const year = new Date().getFullYear()
+// The contents list is built from the h2 headings of the slotted legal text.
+const article = ref<HTMLElement | null>(null)
+const sections = ref<{ id: string; text: string }[]>([])
+
+const slug = (text: string) =>
+  text
+    .toLowerCase()
+    .replace(/^\d+\.\s*/, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+
+onMounted(() => {
+  const headings = article.value?.querySelectorAll('h2') ?? []
+  sections.value = Array.from(headings, (h) => {
+    h.id ||= slug(h.textContent ?? '')
+    return { id: h.id, text: h.textContent ?? '' }
+  })
+})
 </script>
 
 <template>
-  <main class="legal-page">
-    <!-- Navigation Header -->
-    <header class="nav-header">
-      <router-link to="/" class="nav-brand">
-        <img src="../assets/logo.png" alt="Status Tacos" class="nav-logo" />
-        <span class="brand-name">Status Tacos</span>
-      </router-link>
-      <nav class="nav-links">
-        <router-link to="/" class="nav-link">Home</router-link>
-        <router-link to="/privacy" class="nav-link">Privacy</router-link>
-        <router-link to="/terms" class="nav-link">Terms</router-link>
-        <router-link to="/imprint" class="nav-link">Imprint</router-link>
-      </nav>
-    </header>
+  <main class="legal-page tacos-page">
+    <section class="legal-band">
+      <header class="legal-bar">
+        <router-link to="/" class="tacos-brand">
+          <img src="../assets/logo.png" alt="" />
+          Status Tacos
+        </router-link>
+        <nav class="legal-nav" aria-label="Legal">
+          <router-link to="/privacy">Privacy</router-link>
+          <router-link to="/terms">Terms</router-link>
+          <router-link to="/imprint">Imprint</router-link>
+        </nav>
+      </header>
 
-    <!-- Hero Section -->
-    <section class="hero">
-      <div class="hero-badge">
-        <span class="badge-icon">{{ badgeIcon }}</span>
-        <span>{{ badge }}</span>
-      </div>
-      <h1 class="hero-title">
-        {{ title }} <span class="gradient-text">{{ titleHighlight }}</span>
-      </h1>
-      <p class="hero-description">{{ description }}</p>
-      <div v-if="lastUpdated" class="last-updated">
-        <span>🕒</span>
-        <span>Last updated: {{ lastUpdated }}</span>
+      <div class="legal-head">
+        <h1 class="legal-title">{{ title }}</h1>
+        <p class="legal-description">{{ description }}</p>
+        <p v-if="lastUpdated" class="legal-updated">Last updated {{ lastUpdated }}</p>
       </div>
     </section>
 
-    <!-- Content -->
-    <section class="content-section">
-      <article class="legal-content">
+    <div class="legal-sheet">
+      <img src="../assets/taco.webp" alt="" class="legal-taco" width="640" height="441" />
+      <article ref="article" class="legal-content">
         <slot />
       </article>
-    </section>
+      <nav v-if="sections.length > 1" class="legal-toc" aria-labelledby="legal-toc-title">
+        <h2 id="legal-toc-title">Contents</h2>
+        <ol>
+          <li v-for="s in sections" :key="s.id">
+            <a :href="`#${s.id}`">{{ s.text }}</a>
+          </li>
+        </ol>
+      </nav>
+    </div>
 
-    <!-- Footer -->
-    <footer class="footer">
-      <div class="footer-content">
-        <div class="footer-brand">
-          <img src="../assets/logo.png" alt="Status Tacos" class="footer-logo" />
-          <span class="brand-name">Status Tacos</span>
-        </div>
-        <nav class="footer-nav">
-          <router-link to="/" class="footer-link">Home</router-link>
-          <router-link to="/privacy" class="footer-link">Privacy Policy</router-link>
-          <router-link to="/terms" class="footer-link">Terms of Service</router-link>
-          <router-link to="/imprint" class="footer-link">Imprint</router-link>
-        </nav>
-        <div class="footer-tagline">© {{ year }} Status Tacos · Made with ❤️ and a lot of 🌮</div>
-      </div>
-    </footer>
+    <SiteFooter />
   </main>
 </template>
 
 <!-- Not scoped: the styles must reach the slotted legal text. All rules sit under .legal-page. -->
 <style>
 .legal-page {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  background-attachment: fixed;
+  --legal-width: min(72rem, 100% - 2 * var(--gutter));
 }
 
-/* Navigation Header */
-.legal-page .nav-header {
+/* The teal band of the landing page, quieter: no strip, a smaller sign. */
+.legal-page .legal-band {
+  background: var(--teal);
+  padding: 1rem 0 6rem;
+}
+
+.legal-page .legal-bar,
+.legal-page .legal-head {
+  width: var(--legal-width);
+  margin: 0 auto;
+}
+
+.legal-page .legal-bar {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem 2rem;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-  position: sticky;
-  top: 0;
-  z-index: 100;
+  gap: 1rem;
 }
 
-.legal-page .nav-brand {
+.legal-page .legal-nav {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  text-decoration: none;
-}
-
-.legal-page .nav-logo {
-  height: 40px;
-  width: auto;
-}
-
-.legal-page .brand-name {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #2c3e50;
-}
-
-.legal-page .nav-links {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-}
-
-.legal-page .nav-link {
-  color: #6c757d;
-  text-decoration: none;
-  font-weight: 500;
-  transition: color 0.2s;
-}
-
-.legal-page .nav-link:hover,
-.legal-page .nav-link.router-link-exact-active {
-  color: #007bff;
-}
-
-/* Hero Section */
-.legal-page .hero {
-  max-width: 860px;
-  margin: 0 auto;
-  padding: 5rem 2rem 4rem;
-  color: white;
-}
-
-.legal-page .hero-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(10px);
-  padding: 0.5rem 1rem;
-  border-radius: 50px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  margin-bottom: 2rem;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.legal-page .badge-icon {
-  font-size: 1.2rem;
-}
-
-.legal-page .hero-title {
-  font-size: 3rem;
-  font-weight: 800;
-  line-height: 1.1;
-  margin: 0 0 1.5rem;
-  color: white;
-}
-
-.legal-page .gradient-text {
-  background: linear-gradient(45deg, #ff6b6b, #feca57);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.legal-page .hero-description {
-  font-size: 1.2rem;
-  line-height: 1.6;
-  margin: 0 0 1.5rem;
-  color: rgba(255, 255, 255, 0.9);
-  max-width: 640px;
-}
-
-.legal-page .last-updated {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.9rem;
-  color: rgba(255, 255, 255, 0.8);
-}
-
-/* Content */
-.legal-page .content-section {
-  background: white;
-  padding: 4rem 2rem 5rem;
-}
-
-.legal-page .legal-content {
-  max-width: 860px;
-  margin: 0 auto;
-  color: #495057;
+  gap: 1.25rem;
   font-size: 1rem;
-  line-height: 1.7;
+}
+
+.legal-page .legal-nav a {
+  color: var(--ink);
+  text-underline-offset: 0.2em;
+}
+
+.legal-page .legal-nav a.router-link-exact-active {
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.legal-page .legal-head {
+  padding-top: clamp(2.5rem, 7vw, 4.5rem);
+}
+
+.legal-page .legal-title {
+  font-family: var(--sign);
+  font-weight: 400;
+  font-size: clamp(2.4rem, 7vw, 5rem);
+  line-height: 0.95;
+  margin: 0 0 1.25rem;
+  text-shadow: 0.06em 0.06em 0 var(--masa);
+  overflow-wrap: anywhere;
+  /* Keep clear of the taco in the right corner. */
+  max-width: calc(100% - clamp(7rem, 14vw, 12rem) - 2rem);
+}
+
+.legal-page .legal-description {
+  max-width: 34rem;
+  font-size: clamp(1.1rem, 2vw, 1.3rem);
+  line-height: 1.45;
+  margin: 0 0 0.75rem;
+}
+
+.legal-page .legal-updated {
+  margin: 0;
+  font-size: 1rem;
+}
+
+/* The text sits on a sheet that overlaps the band. The taco stands on top of it. */
+.legal-page .legal-sheet {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 42rem) minmax(12rem, 16rem);
+  justify-content: space-between;
+  gap: 3rem;
+  width: var(--legal-width);
+  margin: -3.5rem auto clamp(3rem, 7vw, 5rem);
+  padding: clamp(1.5rem, 4vw, 3rem);
+  background: var(--paper);
+  border: var(--line);
+  border-radius: 1rem;
+}
+
+.legal-page .legal-taco {
+  position: absolute;
+  bottom: calc(100% - 2px);
+  right: clamp(1rem, 4vw, 3rem);
+  width: clamp(7rem, 14vw, 12rem);
+  height: auto;
+  pointer-events: none;
+}
+
+.legal-page .legal-toc {
+  position: sticky;
+  top: 2rem;
+  align-self: start;
+  font-size: 0.95rem;
+}
+
+.legal-page .legal-toc h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.legal-page .legal-toc ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-left: var(--line);
+}
+
+.legal-page .legal-toc li {
+  padding: 0.25rem 0 0.25rem 0.9rem;
+}
+
+.legal-page .legal-toc a {
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+
+.legal-page .legal-toc a:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+/* The legal text */
+.legal-page .legal-content {
+  font-size: 1.05rem;
+  line-height: 1.65;
 }
 
 .legal-page .legal-content h2 {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #2c3e50;
-  margin: 3rem 0 1rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 2px solid #e9ecef;
-}
-
-.legal-page .legal-content h2:first-child {
-  margin-top: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.25;
+  margin: 2.5rem 0 0.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgb(16 46 42 / 0.25);
+  scroll-margin-top: 1.5rem;
 }
 
 .legal-page .legal-content h3 {
-  font-size: 1.15rem;
-  font-weight: 600;
-  color: #2c3e50;
+  font-size: 1.1rem;
+  font-weight: 700;
   margin: 1.5rem 0 0.5rem;
 }
 
@@ -224,145 +226,74 @@ const year = new Date().getFullYear()
 
 .legal-page .legal-content ul {
   margin: 0 0 1rem;
-  padding-left: 1.5rem;
+  padding-left: 1.25rem;
 }
 
 .legal-page .legal-content li {
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.4rem;
 }
 
 .legal-page .legal-content a {
-  color: #007bff;
-  text-decoration: none;
-  font-weight: 500;
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.2em;
+  overflow-wrap: anywhere;
 }
 
 .legal-page .legal-content a:hover {
-  text-decoration: underline;
+  text-decoration-color: var(--teal);
 }
 
 .legal-page .legal-content code {
-  background: #f8f9fa;
-  border: 1px solid #e9ecef;
-  border-radius: 4px;
-  padding: 0.1rem 0.35rem;
+  font-family: var(--mono);
   font-size: 0.9em;
+  padding: 0.1rem 0.35rem;
+  background: var(--agua);
+  border-radius: 0.3rem;
 }
 
 .legal-page .legal-content .intro {
-  background: #f8f9fa;
-  border: 1px solid #e9ecef;
-  border-left: 4px solid #667eea;
-  border-radius: 12px;
-  padding: 1.5rem;
-  margin-bottom: 2.5rem;
+  font-size: 1.2rem;
+  line-height: 1.5;
+  margin-bottom: 0;
 }
 
 .legal-page .legal-content .info-card {
-  background: #f8f9fa;
-  border: 1px solid #e9ecef;
-  border-radius: 12px;
-  padding: 1.5rem;
-  margin-bottom: 1rem;
+  margin: 0 0 1rem;
+  padding: 1rem 1.25rem;
+  background: var(--agua);
+  border: var(--line);
+  border-radius: 0.6rem;
+}
+
+.legal-page .legal-content .info-card h3 {
+  margin-top: 0;
 }
 
 .legal-page .legal-content .info-card p:last-child {
   margin-bottom: 0;
 }
 
-/* Footer */
-.legal-page .footer {
-  background: #2c3e50;
-  padding: 3rem 2rem 2rem;
-  color: white;
-}
-
-.legal-page .footer-content {
-  max-width: 1200px;
-  margin: 0 auto;
-  text-align: center;
-}
-
-.legal-page .footer-brand {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  margin-bottom: 2rem;
-}
-
-.legal-page .footer-brand .brand-name {
-  color: white;
-}
-
-.legal-page .footer-logo {
-  height: 40px;
-  width: auto;
-  border-radius: 8px;
-}
-
-.legal-page .footer-nav {
-  display: flex;
-  justify-content: center;
-  gap: 2rem;
-  margin-bottom: 2rem;
-}
-
-.legal-page .footer-link {
-  color: rgba(255, 255, 255, 0.8);
-  text-decoration: none;
-  font-weight: 500;
-  transition: color 0.2s;
-}
-
-.legal-page .footer-link:hover {
-  color: #17a2b8;
-}
-
-.legal-page .footer-tagline {
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 0.9rem;
-}
-
-/* Responsive Design */
-@media (max-width: 768px) {
-  .legal-page .nav-header {
-    padding: 1rem;
+@media (max-width: 860px) {
+  .legal-page .legal-sheet {
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .legal-page .nav-links {
-    gap: 1rem;
-  }
-
-  .legal-page .hero {
-    padding: 3rem 1rem;
-  }
-
-  .legal-page .hero-title {
-    font-size: 2.25rem;
-  }
-
-  .legal-page .content-section {
-    padding: 3rem 1rem 4rem;
-  }
-
-  .legal-page .footer-nav {
-    flex-direction: column;
-    gap: 1rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .legal-page .nav-brand .brand-name {
+  /* The headings are one scroll away on a phone; the list would only push the text down. */
+  .legal-page .legal-toc {
     display: none;
   }
+}
 
-  .legal-page .hero-title {
-    font-size: 1.9rem;
+@media (max-width: 720px) {
+  .legal-page .legal-band {
+    padding-bottom: calc(3.5rem + 6.5rem);
   }
 
-  .legal-page .hero-description {
-    font-size: 1.05rem;
+  /* The taco has its own room below the title here. */
+  .legal-page .legal-title {
+    max-width: none;
   }
 }
 </style>

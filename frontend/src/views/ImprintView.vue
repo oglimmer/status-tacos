@@ -4,10 +4,7 @@ import LegalPage from '../components/LegalPage.vue'
 
 <template>
   <LegalPage
-    badge-icon="🏢"
-    badge="Legal Information"
-    title="Imprint /"
-    title-highlight="Impressum"
+    title="Imprint / Impressum"
     description="Legal information and contact details."
   >
     <p class="intro">For Germany: Angaben gemäß § 5 TMG</p>
