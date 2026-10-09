@@ -15,6 +15,22 @@ struct ConnectionSettingsView: View {
         NavigationStack {
             Form {
                 Section {
+                    Label {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("For advanced users only")
+                                .font(.headline)
+                            Text("Change these settings only if you run your own Status Tacos backend on a server you own, for example at home or in your home lab. You also need your own OpenID Connect sign-in service.")
+                            Text("To use Status Tacos at tacos.oglimmer.com, keep the defaults.")
+                        }
+                        .font(.subheadline)
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                    }
+                    .padding(.vertical, 4)
+                }
+
+                Section {
                     TextField("https://tacos.oglimmer.com", text: $serverURL)
                         .keyboardType(.URL)
                         .textContentType(.URL)
