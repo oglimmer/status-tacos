@@ -31,7 +31,7 @@ final class PushStore {
                 }
             },
             requestPermission: {
-                try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
+                try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
             },
             registerForRemoteNotifications: { UIApplication.shared.registerForRemoteNotifications() })
     }
