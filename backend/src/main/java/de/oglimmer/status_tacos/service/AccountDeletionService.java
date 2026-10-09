@@ -19,7 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Deletes a user account: the user, every tenant that only this user belongs to (with its monitors,
  * check results and alert contacts), and the login account in Keycloak. Shared tenants stay with
- * their other members.
+ * their other members. For a user who signed in with Apple, the Apple tokens are revoked first, as
+ * Apple requires.
  */
 @Service
 @RequiredArgsConstructor
@@ -34,15 +35,22 @@ public class AccountDeletionService {
   private final AlertHistoryRepository alertHistoryRepository;
   private final CleanupJobRepository cleanupJobRepository;
   private final KeycloakAdminClient keycloakAdminClient;
+  private final AppleSignInClient appleSignInClient;
 
   /**
+   * @param userAccessToken the user's access token of this request. Keycloak hands out the stored
+   *     Apple tokens only with it.
    * @return true if the login account in Keycloak was deleted too, false if Keycloak deletion is
    *     off
-   * @throws IllegalStateException if Keycloak refuses. Nothing is deleted then.
+   * @throws IllegalStateException if Keycloak or Apple refuses. No data is deleted then; only an
+   *     Apple revocation that already happened stays (the user can sign in with Apple again).
    */
   @Transactional
-  public boolean deleteAccount(User user) {
+  public boolean deleteAccount(User user, String userAccessToken) {
     log.info("Deleting account of user {} (id={})", user.getEmail(), user.getId());
+
+    // First: the stored Apple tokens exist only while the Keycloak user exists.
+    revokeAppleSignIn(user, userAccessToken);
 
     List<Integer> soleTenantIds =
         user.getTenants().stream()
@@ -73,6 +81,29 @@ public class AccountDeletionService {
         user.getId(),
         soleTenantIds.size());
     return identityDeleted;
+  }
+
+  private void revokeAppleSignIn(User user, String userAccessToken) {
+    if (!appleSignInClient.isEnabled()) {
+      return;
+    }
+    if (!keycloakAdminClient.isEnabled()) {
+      log.warn("Apple token revocation needs Keycloak admin access, which is off");
+      return;
+    }
+    String alias = appleSignInClient.identityProviderAlias();
+    if (!keycloakAdminClient.hasIdentityProviderLink(user.getOidcSubject(), alias)) {
+      return;
+    }
+    keycloakAdminClient
+        .fetchStoredIdentityProviderToken(alias, userAccessToken)
+        .ifPresentOrElse(
+            appleSignInClient::revoke,
+            () ->
+                log.warn(
+                    "User id={} signed in with Apple, but Keycloak stored no Apple token: not"
+                        + " revoked",
+                    user.getId()));
   }
 
   private void deleteTenant(Integer tenantId) {

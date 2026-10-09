@@ -72,8 +72,11 @@ public class UserController {
     if (user == null) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown user");
     }
+    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+    String accessToken = ((Jwt) authentication.getPrincipal()).getTokenValue();
     try {
-      return new AccountDeletionResponseDto(accountDeletionService.deleteAccount(user));
+      return new AccountDeletionResponseDto(
+          accountDeletionService.deleteAccount(user, accessToken));
     } catch (IllegalStateException e) {
       log.error("Account deletion of user id={} failed: {}", user.getId(), e.getMessage());
       throw new ResponseStatusException(

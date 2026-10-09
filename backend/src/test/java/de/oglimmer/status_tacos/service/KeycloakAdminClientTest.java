@@ -24,6 +24,8 @@ class KeycloakAdminClientTest {
   private final List<Recorded> requests = new ArrayList<>();
   private volatile int tokenStatus = 200;
   private volatile int deleteStatus = 204;
+  private volatile int brokerTokenStatus = 200;
+  private volatile String federatedIdentities = "[]";
   private KeycloakAdminClient client;
 
   record Recorded(String method, String path, String authorization, String body) {}
@@ -102,14 +104,63 @@ class KeycloakAdminClientTest {
             exchange.getRequestURI().getPath(),
             exchange.getRequestHeaders().getFirst("Authorization"),
             body));
-    if (exchange.getRequestURI().getPath().endsWith("/token")) {
-      byte[] response =
-          "{\"access_token\":\"admin-token\",\"expires_in\":60}".getBytes(StandardCharsets.UTF_8);
-      exchange.sendResponseHeaders(tokenStatus, response.length);
-      exchange.getResponseBody().write(response);
+    String path = exchange.getRequestURI().getPath();
+    if (path.endsWith("/protocol/openid-connect/token")) {
+      respond(exchange, tokenStatus, "{\"access_token\":\"admin-token\",\"expires_in\":60}");
+    } else if (path.endsWith("/broker/apple/token")) {
+      respond(exchange, brokerTokenStatus, "{\"refresh_token\":\"apple-refresh\"}");
+    } else if (path.endsWith("/federated-identity")) {
+      respond(exchange, 200, federatedIdentities);
     } else {
       exchange.sendResponseHeaders(deleteStatus, -1);
     }
     exchange.close();
+  }
+
+  private static void respond(HttpExchange exchange, int status, String body) throws IOException {
+    byte[] response = body.getBytes(StandardCharsets.UTF_8);
+    exchange.sendResponseHeaders(status, response.length);
+    exchange.getResponseBody().write(response);
+  }
+
+  @Test
+  void findsTheAppleLinkOfAUser() {
+    federatedIdentities =
+        "[{\"identityProvider\":\"google\",\"userId\":\"g1\"},"
+            + "{\"identityProvider\":\"apple\",\"userId\":\"a1\"}]";
+
+    assertThat(client.hasIdentityProviderLink("1b2c-uuid", "apple")).isTrue();
+    assertThat(client.hasIdentityProviderLink("1b2c-uuid", "microsoft")).isFalse();
+    Recorded list = requests.get(1);
+    assertThat(list.method()).isEqualTo("GET");
+    assertThat(list.path())
+        .isEqualTo("/admin/realms/status-tacos/users/1b2c-uuid/federated-identity");
+    assertThat(list.authorization()).isEqualTo("Bearer admin-token");
+  }
+
+  @Test
+  void fetchesTheStoredTokenWithTheUsersAccessToken() {
+    assertThat(client.fetchStoredIdentityProviderToken("apple", "user-token"))
+        .contains("{\"refresh_token\":\"apple-refresh\"}");
+
+    assertThat(requests).hasSize(1);
+    assertThat(requests.get(0).path()).isEqualTo("/realms/status-tacos/broker/apple/token");
+    assertThat(requests.get(0).authorization()).isEqualTo("Bearer user-token");
+  }
+
+  @Test
+  void returnsNothingWhenNoTokenIsStored() {
+    brokerTokenStatus = 404;
+
+    assertThat(client.fetchStoredIdentityProviderToken("apple", "user-token")).isEmpty();
+  }
+
+  @Test
+  void failsWhenTheUserMayNotReadTheStoredToken() {
+    brokerTokenStatus = 403;
+
+    assertThatThrownBy(() -> client.fetchStoredIdentityProviderToken("apple", "user-token"))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("HTTP 403");
   }
 }

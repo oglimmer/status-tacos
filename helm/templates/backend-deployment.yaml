@@ -102,6 +102,23 @@ spec:
                   name: {{ include "status-tacos.fullname" . }}-keycloak-admin-secret
                   key: client-secret
             {{- end }}
+            - name: MONITOR_APPLESIGNIN_ENABLED
+              value: {{ .Values.backend.appleSignIn.enabled | quote }}
+            {{- if .Values.backend.appleSignIn.enabled }}
+            - name: MONITOR_APPLESIGNIN_IDENTITYPROVIDERALIAS
+              value: {{ .Values.backend.appleSignIn.identityProviderAlias | quote }}
+            - name: MONITOR_APPLESIGNIN_CLIENTID
+              value: {{ required "backend.appleSignIn.clientId is required" .Values.backend.appleSignIn.clientId | quote }}
+            - name: MONITOR_APPLESIGNIN_TEAMID
+              value: {{ required "backend.appleSignIn.teamId is required" .Values.backend.appleSignIn.teamId | quote }}
+            - name: MONITOR_APPLESIGNIN_KEYID
+              value: {{ required "backend.appleSignIn.keyId is required" .Values.backend.appleSignIn.keyId | quote }}
+            - name: MONITOR_APPLESIGNIN_PRIVATEKEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "status-tacos.fullname" . }}-apple-signin-secret
+                  key: private-key
+            {{- end }}
           {{- if .Values.backend.livenessProbe }}
           livenessProbe:
             {{- toYaml .Values.backend.livenessProbe | nindent 12 }}

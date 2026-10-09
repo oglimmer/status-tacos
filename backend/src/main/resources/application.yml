@@ -129,3 +129,10 @@ monitor:
     realm: "status-tacos"
     client-id: ""
     client-secret: ""
+  apple-sign-in:
+    enabled: false
+    identity-provider-alias: "apple"
+    client-id: ""
+    team-id: ""
+    key-id: ""
+    private-key: ""

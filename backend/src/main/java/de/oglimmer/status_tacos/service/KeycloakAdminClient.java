@@ -11,11 +11,15 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-/** Deletes users through the Keycloak Admin REST API, as the admin client's service account. */
+/**
+ * Keycloak calls for account deletion. User lookups and deletes go through the Keycloak Admin REST
+ * API, as the admin client's service account.
+ */
 @Slf4j
 @Service
 public class KeycloakAdminClient {
@@ -68,6 +72,82 @@ public class KeycloakAdminClient {
           "Keycloak refused to delete user " + userId + ": HTTP " + response.statusCode());
     }
     log.info("Deleted Keycloak user {}", userId);
+  }
+
+  /** True if the Keycloak user is linked to the identity provider, for example "apple". */
+  public boolean hasIdentityProviderLink(String userId, String identityProviderAlias) {
+    HttpRequest request =
+        HttpRequest.newBuilder(
+                URI.create(
+                    config.getBaseUrl()
+                        + "/admin/realms/"
+                        + encode(config.getRealm())
+                        + "/users/"
+                        + encode(userId)
+                        + "/federated-identity"))
+            .timeout(config.getTimeout())
+            .header("Authorization", "Bearer " + fetchAccessToken())
+            .GET()
+            .build();
+    HttpResponse<String> response = send(request);
+    if (response.statusCode() == 404) {
+      return false;
+    }
+    if (response.statusCode() != 200) {
+      throw new IllegalStateException(
+          "Keycloak refused to list the identity provider links of user "
+              + userId
+              + ": HTTP "
+              + response.statusCode());
+    }
+    try {
+      for (JsonNode link : objectMapper.readTree(response.body())) {
+        if (identityProviderAlias.equals(link.path("identityProvider").asText())) {
+          return true;
+        }
+      }
+      return false;
+    } catch (IOException e) {
+      throw new IllegalStateException("Keycloak identity provider links are not JSON", e);
+    }
+  }
+
+  /**
+   * The token response of the identity provider that Keycloak stored at the user's last login
+   * through it ("Store tokens" on the identity provider). Keycloak hands it out only to the user:
+   * the call uses the user's access token, which needs the role broker/read-token.
+   *
+   * @return empty if Keycloak stored no token for the user
+   */
+  public Optional<String> fetchStoredIdentityProviderToken(
+      String identityProviderAlias, String userAccessToken) {
+    HttpRequest request =
+        HttpRequest.newBuilder(
+                URI.create(
+                    config.getBaseUrl()
+                        + "/realms/"
+                        + encode(config.getRealm())
+                        + "/broker/"
+                        + encode(identityProviderAlias)
+                        + "/token"))
+            .timeout(config.getTimeout())
+            .header("Authorization", "Bearer " + userAccessToken)
+            .GET()
+            .build();
+    HttpResponse<String> response = send(request);
+    if (response.statusCode() == 200) {
+      return Optional.of(response.body());
+    }
+    if (response.statusCode() == 404) {
+      return Optional.empty();
+    }
+    throw new IllegalStateException(
+        "Keycloak refused to hand out the stored "
+            + identityProviderAlias
+            + " token: HTTP "
+            + response.statusCode()
+            + " "
+            + response.body());
   }
 
   private String fetchAccessToken() {

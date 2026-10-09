@@ -273,6 +273,35 @@ Users can delete their account in the web app and in the iOS app. The backend de
 
 If Keycloak refuses the delete, the backend deletes nothing and the user sees an error.
 
+## Sign in with Apple: Token Revocation
+
+Apple requires that account deletion revokes the user's Sign in with Apple tokens. The backend gets the tokens that Keycloak stored and sends them to Apple. It needs Keycloak admin access (section above) and the values of the Apple identity provider in Keycloak.
+
+1) In Keycloak, realm `status-tacos`:
+   - **Identity providers → apple**: **Store tokens** on.
+   - **Realm settings → User registration → Default roles → Assign role → Filter by clients**: assign `broker` / `read-token`. Keycloak hands out the stored Apple tokens only with the user's own access token, and only with this role.
+   - The clients `status-tacos-frontend` and `status-tacos-ios` must keep **Full scope allowed** on (tab **Client scopes → …-dedicated → Scope**), so the role is in their access tokens.
+
+2) Store the `.p8` key of the Apple identity provider as a Secret named `<release-name>-apple-signin-secret`, key `private-key`. With Sealed Secrets:
+   ```bash
+   kubectl -n "$NAMESPACE" create secret generic "$RELEASE-apple-signin-secret" \
+     --from-file=private-key=AuthKey_KEYID.p8 \
+     --dry-run=client -o yaml | kubeseal -n "$NAMESPACE" --format yaml > sealed-apple-signin-secret.yaml
+   kubectl apply -n "$NAMESPACE" -f sealed-apple-signin-secret.yaml
+   ```
+
+3) Turn it on in the values:
+   ```yaml
+   backend:
+     appleSignIn:
+       enabled: true
+       clientId: "de.oglimmer.statustacos.signin"   # the Services ID
+       teamId: "ABCDE12345"
+       keyId: "KEYID12345"
+   ```
+
+If Keycloak or Apple refuses, the backend deletes nothing and the user sees an error. A user without a stored Apple token (signed in before **Store tokens** was on) is deleted without revocation; the backend logs a warning.
+
 ## Troubleshooting
 
 ### Common Issues

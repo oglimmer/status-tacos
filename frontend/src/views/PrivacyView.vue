@@ -78,10 +78,12 @@ import LegalPage from '../components/LegalPage.vue'
     <h2>4. Sign-In</h2>
     <p>
       You sign in through our own login service at <code>id.oglimmer.de</code> (Keycloak, operated
-      by us). You can create a login with email and password, or sign in with Google or
-      Microsoft. If you choose Google or Microsoft, that provider authenticates you under its own
-      privacy policy and sends us your name, your email address and an account ID. We do not
-      receive your Google or Microsoft password.
+      by us). You can create a login with email and password, or sign in with Google, Microsoft
+      or Apple. If you choose one of them, that provider authenticates you under its own privacy
+      policy and sends us your name, your email address and an account ID. We do not receive your
+      password there. With Sign in with Apple you can hide your email address; we then receive an
+      Apple relay address that forwards our emails to you. Our login service stores the tokens
+      that Apple returns, so that we can revoke them when you delete your account.
     </p>
 
     <h2>5. Cookies and Local Storage</h2>
@@ -151,7 +153,7 @@ import LegalPage from '../components/LegalPage.vue'
       act as processors under Art. 28 GDPR and process data only on our instructions. We do not
       transfer data outside the EU/EEA unless adequate safeguards are in place. Separately from
       this, the recipients you choose in Section 7 (endpoints, webhooks, Microsoft Teams, Apple
-      for push alerts, and Google or Microsoft if you sign in with them) receive data as
+      for push alerts, and Google, Microsoft or Apple if you sign in with them) receive data as
       described there.
     </p>
 
@@ -196,8 +198,9 @@ import LegalPage from '../components/LegalPage.vue'
       You can delete your account at any time: in the web app with "Delete Account" at the top of
       the page, or in the iOS app under Settings → Delete Account. We then delete your login
       account, your user data, your push tokens and every tenant that only you belong to, with its
-      monitors, check results and alert contacts. Tenants that you share with other users stay
-      with them; we only remove you from them. If you cannot sign in any more, send an email to
+      monitors, check results and alert contacts. If you signed in with Apple, we also revoke your
+      Apple sign-in for Status Tacos. Tenants that you share with other users stay with them; we
+      only remove you from them. If you cannot sign in any more, send an email to
       <a href="mailto:oglimmer@gmail.com">oglimmer@gmail.com</a> from the email address of your
       account and we delete it for you.
     </p>
