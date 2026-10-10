@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { TimeframeType } from './TimeframeSwitcher.vue'
-import { downFractionColumns, formatUptime, getTimeframeLabel, parseUtc, timeWindow, uptimeLevel } from '../utils/uptime'
+import { checkedFromMs, downFractionColumns, formatUptime, getTimeframeLabel, parseUtc, timeWindow, uptimeLevel } from '../utils/uptime'
 
 interface StatusDownPeriod {
   start: string
@@ -16,6 +16,9 @@ interface StatusChartProps {
   // Window of the data (UTC, from the backend). Default: the timeframe until now.
   windowStart?: string
   windowEnd?: string
+  // First check and number of checks in the window: the time before the first check has no data.
+  firstCheckAt?: string
+  totalChecks?: number
   title?: string
 }
 
@@ -97,9 +100,25 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 
 const chartWindow = computed(() => timeWindow(props.timeframe, props.windowStart, props.windowEnd))
 
+const checkedFrom = computed(() =>
+  checkedFromMs(props.firstCheckAt, props.totalChecks, chartWindow.value)
+)
+
+// Width in pixels of the time before the first check (no data)
+const uncheckedWidth = computed(() => {
+  const { startMs, endMs } = chartWindow.value
+  if (checkedFrom.value === null) return chartWidth.value
+  return Math.round(((checkedFrom.value - startMs) / (endMs - startMs)) * chartWidth.value)
+})
+
 // Down share per pixel column: light yellow = a short part of the slot, dark red = the full slot
 const downColumns = computed(() =>
-  downFractionColumns(props.statusDownPeriods, chartWindow.value, chartWidth.value)
+  downFractionColumns(
+    props.statusDownPeriods,
+    chartWindow.value,
+    chartWidth.value,
+    checkedFrom.value ?? chartWindow.value.endMs
+  )
 )
 
 const slotDuration = computed(() => {
@@ -190,6 +209,10 @@ const formatDuration = (ms: number): string => {
       <div class="chart-main">
         <div class="chart-svg-container">
           <svg ref="svgEl" class="chart-svg" :viewBox="`0 0 ${chartWidth} 30`" preserveAspectRatio="none" shape-rendering="crispEdges">
+            <!-- Before the first check: no data -->
+            <rect v-if="uncheckedWidth > 0" class="no-data" x="0" y="0" :width="uncheckedWidth" height="30">
+              <title>No checks</title>
+            </rect>
             <!-- One column per pixel, colored by the share of its time slot that was down -->
             <rect
               v-for="column in downColumns"
@@ -356,6 +379,10 @@ const formatDuration = (ms: number): string => {
   background: linear-gradient(to bottom, #f8f9fa 0%, #ffffff 100%);
   border: 1px solid #e9ecef;
   border-radius: 4px;
+}
+
+.chart-svg .no-data {
+  fill: #dee2e6;
 }
 
 .chart-placeholder {

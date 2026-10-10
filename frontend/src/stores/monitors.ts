@@ -86,6 +86,8 @@ export interface ResponseTimeHistory {
   successfulChecks24h: number
   dataPoints: ResponseTimeDataPoint[]
   statusDownPeriods: StatusDownPeriod[]
+  // First check in the 24 hours. Missing when there are no checks, and from older servers.
+  firstCheckAt?: string
 }
 
 /**
@@ -109,6 +111,9 @@ export interface UptimeStats {
   p99ResponseTimeMs?: number
   responseTimeDataPoints: ResponseTimeDataPoint[]
   statusDownPeriods: StatusDownPeriod[]
+  // First check in the window: before it the monitor did not exist or was paused.
+  // Missing when there are no checks, and from older servers.
+  firstCheckAt?: string
 }
 
 export interface StatusDownPeriod {

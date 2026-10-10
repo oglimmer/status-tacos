@@ -84,13 +84,29 @@ export interface DownColumn {
 }
 
 /**
+ * Start of the checked part of the window. Before it the monitor did not exist or was paused.
+ * Null when there are no checks. An older server sends no first check: then the whole window
+ * counts as checked.
+ */
+export const checkedFromMs = (
+  firstCheckAt: string | null | undefined,
+  totalChecks: number | null | undefined,
+  window: TimeWindow
+): number | null => {
+  if (firstCheckAt) return Math.max(window.startMs, parseUtc(firstCheckAt).getTime())
+  return totalChecks === 0 ? null : window.startMs
+}
+
+/**
  * Splits the window into `columns` equal time slots (one per pixel) and gives the share of each
- * slot that was down. Slots without downtime are left out.
+ * slot that was down. The share counts only the checked time of a slot, from `checkedFrom` on.
+ * Slots without downtime are left out.
  */
 export const downFractionColumns = (
   periods: Array<{ start: string; end: string }>,
   window: TimeWindow,
-  columns: number
+  columns: number,
+  checkedFrom: number = window.startMs
 ): DownColumn[] => {
   const { startMs, endMs } = window
   const total = endMs - startMs
@@ -126,7 +142,9 @@ export const downFractionColumns = (
   const result: DownColumn[] = []
   downMs.forEach((ms, i) => {
     if (ms <= 0) return
-    const fraction = Math.min(1, ms / slotMs)
+    const slotStart = startMs + i * slotMs
+    const checked = slotStart + slotMs - Math.max(slotStart, checkedFrom)
+    const fraction = Math.min(1, ms / Math.max(checked, ms))
     const color = downFractionColor(fraction)
     const previous = result[result.length - 1]
     if (previous && previous.x + previous.width === i && previous.color === color) {

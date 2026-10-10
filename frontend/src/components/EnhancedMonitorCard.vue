@@ -22,6 +22,7 @@ interface ResponseTimeHistory {
   totalChecks24h?: number
   dataPoints?: Array<{ maxResponseTimeMs: number }>
   statusDownPeriods?: Array<{ start: string; end: string }>
+  firstCheckAt?: string
 }
 
 interface EnhancedMonitorCardProps {
@@ -215,6 +216,8 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
         <EnhancedStatusChart
           :status-down-periods="get24hStatusDownPeriods(responseTimeHistory)"
           :uptime-percentage="responseTimeHistory?.uptimePercentage24h"
+          :first-check-at="responseTimeHistory?.firstCheckAt"
+          :total-checks="responseTimeHistory?.totalChecks24h"
           :timeframe="'24h'"
         />
       </template>
@@ -229,6 +232,8 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
         <EnhancedStatusChart
           :status-down-periods="currentStats.statusDownPeriods"
           :uptime-percentage="currentStats.uptimePercentage"
+          :first-check-at="currentStats.firstCheckAt"
+          :total-checks="currentStats.totalChecks"
           :timeframe="selectedTimeframe"
           :window-start="currentStats.periodStart"
           :window-end="currentStats.periodEnd"

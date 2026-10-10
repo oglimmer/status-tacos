@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { downFractionColor, downFractionColumns, formatUptime, parseUtc, timeWindow, timeframeToPeriod, uptimeLevel } from './uptime'
+import { checkedFromMs, downFractionColor, downFractionColumns, formatUptime, parseUtc, timeWindow, timeframeToPeriod, uptimeLevel } from './uptime'
 
 describe('formatUptime', () => {
   it('rounds down', () => {
@@ -96,6 +96,33 @@ describe('downFractionColumns', () => {
       [0, 0.75],
       [9, 0.5]
     ])
+  })
+
+  it('counts only the checked time of a column', () => {
+    // A new monitor, down since its first check 15 minutes before the end: the last column is
+    // all down, not a quarter.
+    const columns = downFractionColumns(
+      [{ start: at(9, 45), end: at(10, 0) }],
+      window,
+      10,
+      parseUtc(at(9, 45)).getTime()
+    )
+    expect(columns.map(c => [c.x, c.width, c.fraction])).toEqual([[9, 1, 1]])
+  })
+})
+
+describe('checkedFromMs', () => {
+  const window = { startMs: Date.UTC(2026, 0, 1, 0), endMs: Date.UTC(2026, 0, 1, 10) }
+
+  it('starts at the first check, not before the window', () => {
+    expect(checkedFromMs('2026-01-01T03:00:00', 5, window)).toBe(Date.UTC(2026, 0, 1, 3))
+    expect(checkedFromMs('2025-12-31T23:00:00', 5, window)).toBe(window.startMs)
+  })
+
+  it('is null without checks, and the window start for an older server', () => {
+    expect(checkedFromMs(undefined, 0, window)).toBeNull()
+    expect(checkedFromMs(undefined, 5, window)).toBe(window.startMs)
+    expect(checkedFromMs(undefined, undefined, window)).toBe(window.startMs)
   })
 })
 
