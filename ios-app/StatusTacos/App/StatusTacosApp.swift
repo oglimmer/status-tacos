@@ -10,6 +10,7 @@ struct StatusTacosApp: App {
     @State private var router: NotificationRouter
 
     init() {
+        Brand.registerFonts()
         let settings = AppSettings()
         let tokenStore = KeychainTokenStore()
         AuthStore.clearTokensAfterInstall(tokenStore)
