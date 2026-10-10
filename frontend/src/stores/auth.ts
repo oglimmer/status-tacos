@@ -3,8 +3,13 @@ import { defineStore } from 'pinia'
 import { User, UserManager, WebStorageStateStore } from 'oidc-client-ts'
 import { apiService, type AccountDeletionResult, type CurrentUser } from '../services/api'
 
+const OIDC_AUTHORITY = 'https://id.oglimmer.de/realms/status-tacos'
+
+/** Keycloak's own account console: password, sessions and linked logins. */
+export const ACCOUNT_CONSOLE_URL = `${OIDC_AUTHORITY}/account`
+
 const oidcConfig = {
-  authority: 'https://id.oglimmer.de/realms/status-tacos',
+  authority: OIDC_AUTHORITY,
   client_id: 'status-tacos-frontend',
   redirect_uri: window.location.origin + '/callback',
   response_type: 'code',
