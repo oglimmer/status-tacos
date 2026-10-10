@@ -26,10 +26,16 @@ public class CheckRollupRepository {
   public static final String HOURLY = "hourly";
   public static final String DAILY = "daily";
 
-  /** Rows of one hour, from {@code check_rollup_hourly} or computed from raw check results. */
+  /**
+   * Rows of one hour, from {@code check_rollup_hourly} or computed from raw check results.
+   *
+   * <p>{@code firstCheckAt} is exact for raw rows. The hourly table does not store it, so there it
+   * is the bucket start.
+   */
   public record HourRow(
       int monitorId,
       LocalDateTime bucketStart,
+      LocalDateTime firstCheckAt,
       long totalChecks,
       long upChecks,
       long rtCount,
@@ -193,8 +199,9 @@ public class CheckRollupRepository {
   public List<HourRow> findHourly(
       Collection<Integer> monitorIds, LocalDateTime from, LocalDateTime to) {
     return jdbc.query(
-        "SELECT monitor_id, bucket_start, total_checks, up_checks, rt_count, rt_sum, rt_min,"
-            + " rt_max FROM check_rollup_hourly WHERE monitor_id IN (:ids)"
+        "SELECT monitor_id, bucket_start, bucket_start AS first_check_at, total_checks,"
+            + " up_checks, rt_count, rt_sum, rt_min, rt_max FROM check_rollup_hourly"
+            + " WHERE monitor_id IN (:ids)"
             + " AND bucket_start >= :from AND bucket_start < :to",
         range(from, to).addValue("ids", monitorIds),
         CheckRollupRepository::hourRow);
@@ -206,7 +213,7 @@ public class CheckRollupRepository {
     return jdbc.query(
         "SELECT monitor_id, "
             + HOUR_OF_CHECK
-            + " AS bucket_start, "
+            + " AS bucket_start, MIN(checked_at) AS first_check_at, "
             + RAW_AGGREGATES
             + " FROM check_results WHERE monitor_id IN (:ids)"
             + " AND checked_at >= :from AND checked_at < :to"
@@ -309,6 +316,7 @@ public class CheckRollupRepository {
     return new HourRow(
         rs.getInt("monitor_id"),
         rs.getObject("bucket_start", LocalDateTime.class),
+        rs.getObject("first_check_at", LocalDateTime.class),
         rs.getLong("total_checks"),
         rs.getLong("up_checks"),
         rs.getLong("rt_count"),

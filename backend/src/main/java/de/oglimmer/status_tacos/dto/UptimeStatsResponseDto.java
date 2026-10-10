@@ -34,4 +34,10 @@ public class UptimeStatsResponseDto {
   private Integer p99ResponseTimeMs;
   private List<ResponseTimeDataPointDto> responseTimeDataPoints;
   private List<StatusDownPeriodsDto> statusDownPeriods;
+
+  /**
+   * First check in the window, null when there are no checks. Before it the monitor did not exist
+   * or was paused. Exact for the last hours, else the start of its hour.
+   */
+  private LocalDateTime firstCheckAt;
 }

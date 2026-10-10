@@ -135,6 +135,11 @@ public class UptimeStatsService {
                   .responseTimeDataPoints(
                       chart(monitorHours, start, period.getChartIntervalMinutes()))
                   .statusDownPeriods(downPeriods.getOrDefault(monitor.getId(), List.of()))
+                  .firstCheckAt(
+                      monitorHours.stream()
+                          .map(HourRow::firstCheckAt)
+                          .min(Comparator.naturalOrder())
+                          .orElse(null))
                   .build();
             })
         .toList();
@@ -176,6 +181,11 @@ public class UptimeStatsService {
                   .successfulChecks24h((int) up)
                   .dataPoints(toDataPoints(maxByBucket))
                   .statusDownPeriods(downPeriods.getOrDefault(monitor.getId(), List.of()))
+                  .firstCheckAt(
+                      checks.stream()
+                          .map(CheckPoint::checkedAt)
+                          .min(Comparator.naturalOrder())
+                          .orElse(null))
                   .build();
             })
         .toList();

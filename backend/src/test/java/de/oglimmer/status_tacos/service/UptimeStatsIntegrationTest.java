@@ -243,6 +243,33 @@ class UptimeStatsIntegrationTest {
     assertThat(stats.getP99ResponseTimeMs()).isNull();
     assertThat(stats.getResponseTimeDataPoints()).isEmpty();
     assertThat(stats.getStatusDownPeriods()).isEmpty();
+    assertThat(stats.getFirstCheckAt()).isNull();
+  }
+
+  @Test
+  void stats_ofNewMonitor_startAtItsFirstCheck() {
+    rollupService.rollUp();
+    Monitor fresh = saveMonitor("Fresh", MonitorState.ACTIVE);
+    LocalDateTime first = NOW.minusMinutes(10);
+    insert(
+        fresh,
+        List.of(
+            new Check(first, false, null),
+            new Check(NOW.minusMinutes(5), false, null),
+            new Check(NOW.minusSeconds(15), false, null)));
+
+    UptimeStatsResponseDto stats =
+        statsService
+            .getStats(Set.of(tenant.getId()), fresh.getId(), StatsPeriod.SEVEN_DAYS)
+            .orElseThrow();
+    ResponseTimeHistoryResponseDto history =
+        statsService.getResponseTimeHistory24h(Set.of(tenant.getId()), fresh.getId()).orElseThrow();
+
+    // Before the first check the monitor did not exist: the downtime bar shows no data there.
+    assertThat(stats.getFirstCheckAt()).isEqualTo(first);
+    assertThat(history.getFirstCheckAt()).isEqualTo(first);
+    assertThat(stats.getStatusDownPeriods())
+        .containsExactly(StatusDownPeriodsDto.builder().start(first).end(NOW).build());
   }
 
   @Test
@@ -302,6 +329,11 @@ class UptimeStatsIntegrationTest {
           .as(period.name())
           .hasSize(period == StatsPeriod.SEVEN_DAYS ? 5 : 6)
           .isEqualTo(downPeriods(start, NOW));
+      // Exact from raw checks, the start of the hour from the hourly roll-ups.
+      LocalDateTime firstCheck = window.getFirst().at();
+      assertThat(stats.getFirstCheckAt())
+          .as(period.name())
+          .isBetween(firstCheck.truncatedTo(ChronoUnit.HOURS), firstCheck);
     }
 
     ResponseTimeHistoryResponseDto history =
@@ -315,6 +347,7 @@ class UptimeStatsIntegrationTest {
         .isEqualTo((int) window.stream().filter(Check::up).count());
     assertThat(history.getDataPoints()).isEqualTo(chart(window, start24h, 3));
     assertThat(history.getStatusDownPeriods()).isEqualTo(downPeriods(start24h, NOW));
+    assertThat(history.getFirstCheckAt()).isEqualTo(window.getFirst().at());
 
     // The dashboard reads all monitors in one request: same result
     assertThat(statsService.getResponseTimeHistory24hOfAllMonitors(Set.of(tenant.getId())))
@@ -435,13 +468,17 @@ class UptimeStatsIntegrationTest {
   }
 
   private void insert(List<Check> data) {
+    insert(monitor, data);
+  }
+
+  private void insert(Monitor target, List<Check> data) {
     jdbc.batchUpdate(
         "INSERT INTO check_results (monitor_id, tenant_id, checked_at, status_code,"
             + " response_time_ms, is_up) VALUES (?, ?, ?, ?, ?, ?)",
         data,
         5000,
         (ps, c) -> {
-          ps.setInt(1, monitor.getId());
+          ps.setInt(1, target.getId());
           ps.setInt(2, tenant.getId());
           ps.setObject(3, c.at());
           ps.setInt(4, c.up() ? 200 : 500);

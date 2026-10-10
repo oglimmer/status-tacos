@@ -2,6 +2,7 @@
 package de.oglimmer.status_tacos.dto;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -24,4 +25,7 @@ public class ResponseTimeHistoryResponseDto {
   private Integer successfulChecks24h;
   private List<ResponseTimeDataPointDto> dataPoints;
   private List<StatusDownPeriodsDto> statusDownPeriods;
+
+  /** First check in the 24 hours, null when there are no checks. */
+  private LocalDateTime firstCheckAt;
 }
