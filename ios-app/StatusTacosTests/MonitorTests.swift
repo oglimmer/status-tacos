@@ -138,5 +138,17 @@ struct PeriodSnapshotTests {
         #expect(snapshot.outages.map(\.duration) == [60, 200, 30])
         #expect(snapshot.totalDowntime == 290)
         #expect(snapshot.responseTimes == .init(average: 20, p99: 80, minimum: 10, maximum: 90))
+        #expect(snapshot.checkedFrom == t0)
+    }
+
+    @Test func newMonitorIsCheckedFromItsFirstCheck() throws {
+        let firstCheck = t0.addingTimeInterval(7 * 86_400 - 600)
+        let dto = UptimeStatsDTO(
+            monitorId: 1, periodType: .sevenDays, periodStart: t0, periodEnd: t0.addingTimeInterval(7 * 86_400),
+            intervalMinutes: 60, totalChecks: 40, successfulChecks: 0, uptimePercentage: 0,
+            minResponseTimeMs: nil, maxResponseTimeMs: nil, avgResponseTimeMs: nil, p99ResponseTimeMs: nil,
+            responseTimeDataPoints: [], statusDownPeriods: [], firstCheckAt: firstCheck)
+        let snapshot = try #require(PeriodSnapshot(stats: dto))
+        #expect(snapshot.checkedFrom == firstCheck)
     }
 }

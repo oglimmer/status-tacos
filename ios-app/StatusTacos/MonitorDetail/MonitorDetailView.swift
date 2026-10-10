@@ -314,7 +314,9 @@ struct MonitorDetailView: View {
         }
 
         Section {
-            DowntimeBar(periods: snapshot.downPeriods, start: snapshot.start, end: snapshot.end, height: 14)
+            DowntimeBar(
+                periods: snapshot.downPeriods, start: snapshot.start, end: snapshot.end,
+                checkedFrom: snapshot.checkedFrom, height: 14)
                 .padding(.vertical, 6)
             let outages = snapshot.outages
             if outages.isEmpty {

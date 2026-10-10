@@ -20,6 +20,8 @@ struct PeriodSnapshot: Sendable {
     let responseTimes: ResponseTimeSummary?
     let dataPoints: [ResponseTimeDataPoint]
     let downPeriods: [DownPeriod]
+    /// Start of the checked time, nil when there are no checks.
+    let checkedFrom: Date?
 
     struct ResponseTimeSummary: Sendable, Equatable {
         let average: Int?
@@ -38,6 +40,8 @@ struct PeriodSnapshot: Sendable {
         responseTimes = nil
         dataPoints = history.dataPoints ?? []
         downPeriods = history.statusDownPeriods ?? []
+        checkedFrom = DowntimeTimeline.checkedFrom(
+            firstCheckAt: history.firstCheckAt, totalChecks: history.totalChecks24h, start: start)
     }
 
     init?(stats: UptimeStatsDTO) {
@@ -52,6 +56,8 @@ struct PeriodSnapshot: Sendable {
             minimum: stats.minResponseTimeMs, maximum: stats.maxResponseTimeMs)
         dataPoints = stats.responseTimeDataPoints ?? []
         downPeriods = stats.statusDownPeriods ?? []
+        checkedFrom = DowntimeTimeline.checkedFrom(
+            firstCheckAt: stats.firstCheckAt, totalChecks: stats.totalChecks, start: start)
     }
 
     var totalDowntime: TimeInterval {

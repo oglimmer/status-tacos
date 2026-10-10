@@ -57,7 +57,7 @@ struct MonitorRow: View {
             if monitor.health != .paused, let window = monitor.weekWindow {
                 DowntimeBar(
                     periods: monitor.week?.statusDownPeriods ?? [],
-                    start: window.start, end: window.end, height: 6)
+                    start: window.start, end: window.end, checkedFrom: window.checkedFrom, height: 6)
             }
         }
         .padding(.vertical, 4)

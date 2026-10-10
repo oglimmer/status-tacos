@@ -96,6 +96,8 @@ struct ResponseTimeHistoryDTO: Decodable, Sendable {
     let successfulChecks24h: Int?
     let dataPoints: [ResponseTimeDataPoint]?
     let statusDownPeriods: [DownPeriod]?
+    /// Null when there are no checks, and from older servers.
+    var firstCheckAt: Date? = nil
 }
 
 /// Period names of the uptime stats API.
@@ -125,6 +127,9 @@ struct UptimeStatsDTO: Decodable, Sendable {
     let p99ResponseTimeMs: Int?
     let responseTimeDataPoints: [ResponseTimeDataPoint]?
     let statusDownPeriods: [DownPeriod]?
+    /// First check in the window: before it the monitor did not exist or was paused. Null when there
+    /// are no checks, and from older servers.
+    var firstCheckAt: Date? = nil
 }
 
 extension JSONDecoder {

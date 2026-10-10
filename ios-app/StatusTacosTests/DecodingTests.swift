@@ -101,6 +101,7 @@ struct DecodingTests {
         #expect(stats.periodType == .ninetyDays)
         #expect(stats.uptimePercentage == nil)
         #expect(stats.avgResponseTimeMs == nil)
+        #expect(stats.firstCheckAt == nil)
     }
 
     @Test func decodesResponseTimeHistory() throws {
@@ -108,9 +109,10 @@ struct DecodingTests {
         {"monitorId":7,"monitorName":"API","intervalMinutes":3,"totalDataPoints":2,
          "uptimePercentage24h":100.00,"totalChecks24h":5760,"successfulChecks24h":5760,
          "dataPoints":[{"timestamp":"2026-10-07T12:00:00","maxResponseTimeMs":95}],
-         "statusDownPeriods":[]}
+         "statusDownPeriods":[],"firstCheckAt":"2026-10-06T14:40:00"}
         """)
         #expect(history.uptimePercentage24h == 100)
+        #expect(history.firstCheckAt == utc(2026, 10, 6, 14, 40))
         #expect(history.dataPoints?.first?.timestamp == utc(2026, 10, 7, 12))
         #expect(history.statusDownPeriods?.isEmpty == true)
     }

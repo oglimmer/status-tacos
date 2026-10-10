@@ -13,12 +13,24 @@ enum DowntimeTimeline {
         var fraction: Double
     }
 
+    /// Start of the checked part of [start, end). Before it the bar shows no data.
+    /// - Returns: nil when there are no checks. An older server sends no first check: then the
+    ///   whole window counts as checked.
+    static func checkedFrom(firstCheckAt: Date?, totalChecks: Int?, start: Date) -> Date? {
+        if let firstCheckAt { return max(start, firstCheckAt) }
+        return totalChecks == 0 ? nil : start
+    }
+
     /// Splits [start, end) into `slots` equal parts and gives the down share of each part.
+    /// The share counts only the checked time of a part, from `checkedFrom` on.
     /// Parts without downtime are left out. Adjacent parts with the same color are merged.
-    static func columns(periods: [DownPeriod], start: Date, end: Date, slots: Int) -> [Column] {
+    static func columns(
+        periods: [DownPeriod], start: Date, end: Date, checkedFrom: Date? = nil, slots: Int
+    ) -> [Column] {
         let total = end.timeIntervalSince(start)
         guard total > 0, slots > 0 else { return [] }
         let slotLength = total / Double(slots)
+        let checkedStart = max(0, (checkedFrom ?? start).timeIntervalSince(start))
 
         var down = [Double](repeating: 0, count: slots)
         for (periodStart, periodEnd) in merged(periods, start: start, end: end) {
@@ -35,7 +47,9 @@ enum DowntimeTimeline {
 
         var result: [Column] = []
         for (i, seconds) in down.enumerated() where seconds > 0 {
-            let fraction = min(1, seconds / slotLength)
+            let slotStart = Double(i) * slotLength
+            let checked = slotStart + slotLength - max(slotStart, checkedStart)
+            let fraction = min(1, seconds / max(checked, seconds))
             if var previous = result.last, previous.index + previous.width == i,
                colorStop(previous.fraction) == colorStop(fraction) {
                 previous.width += 1
@@ -101,19 +115,30 @@ enum DowntimeTimeline {
     }
 }
 
-/// A bar over a time window: green when up, yellow to dark red by the share of downtime.
+/// A bar over a time window: grey before the first check, green when up, yellow to dark red by the
+/// share of downtime.
 struct DowntimeBar: View {
     let periods: [DownPeriod]
     let start: Date
     let end: Date
+    /// Start of the checked time. Nil: no checks, the whole bar is grey.
+    let checkedFrom: Date?
     var height: CGFloat = 8
 
     var body: some View {
         Canvas { context, size in
+            context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(.gray.opacity(0.2)))
+            guard let checkedFrom else { return }
+            let total = end.timeIntervalSince(start)
+            guard total > 0 else { return }
+            let checkedX = size.width * CGFloat(max(0, min(1, checkedFrom.timeIntervalSince(start) / total)))
+            context.fill(
+                Path(CGRect(x: checkedX, y: 0, width: size.width - checkedX, height: size.height)),
+                with: .color(.green.opacity(0.35)))
             let slots = max(1, Int(size.width.rounded(.down)))
             let slotWidth = size.width / CGFloat(slots)
-            context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(.green.opacity(0.35)))
-            for column in DowntimeTimeline.columns(periods: periods, start: start, end: end, slots: slots) {
+            for column in DowntimeTimeline.columns(
+                periods: periods, start: start, end: end, checkedFrom: checkedFrom, slots: slots) {
                 let rect = CGRect(
                     x: CGFloat(column.index) * slotWidth, y: 0,
                     width: CGFloat(column.width) * slotWidth, height: size.height)
@@ -128,6 +153,7 @@ struct DowntimeBar: View {
     }
 
     private var accessibilityValue: String {
+        guard checkedFrom != nil else { return "No checks" }
         let downtime = DowntimeTimeline.totalDowntime(periods: periods, start: start, end: end)
         return downtime > 0 ? "\(Format.duration(downtime)) down" : "No downtime"
     }

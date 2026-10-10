@@ -123,9 +123,11 @@ struct MonitorSummary: Identifiable, Sendable {
     }
 
     /// Window of the 7-day stats. The backend aligns the start to a full UTC hour.
-    var weekWindow: (start: Date, end: Date)? {
+    var weekWindow: (start: Date, end: Date, checkedFrom: Date?)? {
         guard let start = week?.periodStart, let end = week?.periodEnd, end > start else { return nil }
-        return (start, end)
+        let checkedFrom = DowntimeTimeline.checkedFrom(
+            firstCheckAt: week?.firstCheckAt, totalChecks: week?.totalChecks, start: start)
+        return (start, end, checkedFrom)
     }
 
     /// Joins the API results by monitor ID and sorts by health, then by name.

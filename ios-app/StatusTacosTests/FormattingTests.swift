@@ -98,6 +98,26 @@ struct DowntimeTimelineTests {
         #expect(columns.isEmpty)
     }
 
+    @Test func countsOnlyTheCheckedTimeOfASlot() {
+        // A new monitor, down since its first check 15 minutes before the end: the last slot is
+        // all down, not a quarter.
+        let columns = DowntimeTimeline.columns(
+            periods: [DownPeriod(start: at(9, 45), end: at(10))],
+            start: start, end: end, checkedFrom: at(9, 45), slots: 10)
+        #expect(columns == [.init(index: 9, width: 1, fraction: 1)])
+    }
+
+    @Test func checkedFromStartsAtTheFirstCheck() {
+        #expect(DowntimeTimeline.checkedFrom(firstCheckAt: at(3), totalChecks: 5, start: start) == at(3))
+        // Rolled-up hours can start before the window.
+        #expect(DowntimeTimeline.checkedFrom(firstCheckAt: at(-1), totalChecks: 5, start: start) == start)
+        // No checks: no data at all.
+        #expect(DowntimeTimeline.checkedFrom(firstCheckAt: nil, totalChecks: 0, start: start) == nil)
+        // An older server sends no first check: the whole window counts as checked.
+        #expect(DowntimeTimeline.checkedFrom(firstCheckAt: nil, totalChecks: 5, start: start) == start)
+        #expect(DowntimeTimeline.checkedFrom(firstCheckAt: nil, totalChecks: nil, start: start) == start)
+    }
+
     @Test func emptyWindowGivesNoColumns() {
         #expect(DowntimeTimeline.columns(periods: [], start: end, end: start, slots: 10).isEmpty)
         #expect(DowntimeTimeline.columns(periods: [], start: start, end: end, slots: 0).isEmpty)
