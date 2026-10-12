@@ -1,6 +1,7 @@
 /* Copyright (c) 2025 by oglimmer.com / Oliver Zimpasser. All rights reserved. */
 package de.oglimmer.status_tacos.config;
 
+import de.oglimmer.status_tacos.service.AllowedLoginValidator;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -10,7 +11,9 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
@@ -48,9 +51,13 @@ public class SecurityConfig {
 
   @Bean
   @Profile("!test") // Only create this bean when NOT in test profile
-  public JwtDecoder jwtDecoder() {
+  public JwtDecoder jwtDecoder(AllowedLoginValidator allowedLoginValidator) {
     if (jwkSetUri != null && !jwkSetUri.isEmpty()) {
-      return NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
+      NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
+      decoder.setJwtValidator(
+          new DelegatingOAuth2TokenValidator<>(
+              JwtValidators.createDefault(), allowedLoginValidator));
+      return decoder;
     }
     throw new IllegalStateException("JWK Set URI is not configured");
   }

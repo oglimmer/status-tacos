@@ -117,6 +117,9 @@ monitor:
       monitor-down: "Monitor '%s' is DOWN - Status: %d"
       monitor-up: "Monitor '%s' is UP again"
   app-url: ""
+  access:
+    allowed-logins: []
+    provider-claim: "identity_provider"
   apns:
     enabled: false
     team-id: ""

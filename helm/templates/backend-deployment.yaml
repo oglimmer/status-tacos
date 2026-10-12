@@ -72,6 +72,14 @@ spec:
               value: {{ .Values.backend.email.subjectPrefix | quote }}
             - name: MONITOR_APP_URL
               value: {{ .Values.backend.appUrl | default (printf "https://%s" (index .Values.ingress.hosts 0).host) | quote }}
+            {{- range $i, $login := .Values.backend.access.allowedLogins }}
+            - name: MONITOR_ACCESS_ALLOWEDLOGINS_{{ $i }}_EMAIL
+              value: {{ required "backend.access.allowedLogins[].email is required" $login.email | quote }}
+            - name: MONITOR_ACCESS_ALLOWEDLOGINS_{{ $i }}_PROVIDER
+              value: {{ required "backend.access.allowedLogins[].provider is required" $login.provider | quote }}
+            {{- end }}
+            - name: MONITOR_ACCESS_PROVIDERCLAIM
+              value: {{ .Values.backend.access.providerClaim | quote }}
             - name: MONITOR_APNS_ENABLED
               value: {{ .Values.backend.apns.enabled | quote }}
             {{- if .Values.backend.apns.enabled }}
