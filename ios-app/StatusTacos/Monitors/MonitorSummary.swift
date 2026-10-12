@@ -89,6 +89,7 @@ struct MonitorSummary: Identifiable, Sendable {
     let tenant: Tenant?
     let state: MonitorState
     let alertingThreshold: Int?
+    let createdAt: Date?
     let status: MonitorStatusDTO?
     let week: UptimeStatsDTO?
 
@@ -104,7 +105,7 @@ struct MonitorSummary: Identifiable, Sendable {
     func with(state: MonitorState) -> MonitorSummary {
         MonitorSummary(
             id: id, name: name, url: url, tenant: tenant, state: state,
-            alertingThreshold: alertingThreshold, status: status, week: week)
+            alertingThreshold: alertingThreshold, createdAt: createdAt, status: status, week: week)
     }
 
     var host: String { URL(string: url)?.host() ?? url }
@@ -145,6 +146,7 @@ struct MonitorSummary: Identifiable, Sendable {
                     tenant: monitor.tenant,
                     state: monitor.state,
                     alertingThreshold: monitor.alertingThreshold,
+                    createdAt: monitor.createdAt,
                     status: statusByID[monitor.id],
                     week: statsByID[monitor.id])
             }
@@ -152,12 +154,89 @@ struct MonitorSummary: Identifiable, Sendable {
     }
 }
 
-extension Array where Element == MonitorSummary {
-    func sortedForDisplay() -> [MonitorSummary] {
-        sorted { lhs, rhs in
-            if lhs.health != rhs.health { return lhs.health < rhs.health }
-            let byName = lhs.name.localizedStandardCompare(rhs.name)
-            return byName == .orderedSame ? lhs.id < rhs.id : byName == .orderedAscending
+/// Sort order of the monitor list. The raw value is stored in the user defaults.
+enum MonitorSort: String, CaseIterable, Sendable {
+    /// Grouped by health, down first.
+    case status
+    case name
+    /// The latest failed check.
+    case lastDown
+    /// Tenant name, then monitor name.
+    case tenant
+    case created
+
+    var title: String {
+        switch self {
+        case .status: "Status"
+        case .name: "Name"
+        case .lastDown: "Last downtime"
+        case .tenant: "Tenant, then name"
+        case .created: "Created"
         }
     }
+
+    var symbol: String {
+        switch self {
+        case .status: "heart.text.square"
+        case .name: "textformat"
+        case .lastDown: "exclamationmark.triangle"
+        case .tenant: "building.2"
+        case .created: "calendar"
+        }
+    }
+
+    /// The direction a sort starts with: dates show the newest first.
+    var startsAscending: Bool {
+        switch self {
+        case .lastDown, .created: false
+        case .status, .name, .tenant: true
+        }
+    }
+}
+
+extension MonitorSummary {
+    /// Monitors without a value for the sort come last: never down, no tenant, or an older server.
+    fileprivate func hasValue(for sort: MonitorSort) -> Bool {
+        switch sort {
+        case .status, .name: true
+        // Inactive monitors have no status.
+        case .lastDown: status?.lastDownAt != nil
+        case .tenant: tenant != nil
+        case .created: createdAt != nil
+        }
+    }
+
+    /// Ascending order by the sort alone. Ties go on by name.
+    fileprivate func compare(to other: MonitorSummary, by sort: MonitorSort) -> ComparisonResult {
+        switch sort {
+        case .status: comparison(health, other.health)
+        case .name: .orderedSame
+        case .lastDown: comparison(status?.lastDownAt ?? .distantPast, other.status?.lastDownAt ?? .distantPast)
+        case .tenant: (tenant?.name ?? "").localizedStandardCompare(other.tenant?.name ?? "")
+        case .created: comparison(createdAt ?? .distantPast, other.createdAt ?? .distantPast)
+        }
+    }
+}
+
+extension Array where Element == MonitorSummary {
+    func sortedForDisplay() -> [MonitorSummary] {
+        sorted(by: .status, ascending: true)
+    }
+
+    /// Sorts by the key, then by name, then by ID. Descending reverses all of it. Monitors without a
+    /// value for the key come last in both directions.
+    func sorted(by sort: MonitorSort, ascending: Bool) -> [MonitorSummary] {
+        sorted { lhs, rhs in
+            let lhsHasValue = lhs.hasValue(for: sort)
+            if lhsHasValue != rhs.hasValue(for: sort) { return lhsHasValue }
+            var order = lhs.compare(to: rhs, by: sort)
+            if order == .orderedSame { order = lhs.name.localizedStandardCompare(rhs.name) }
+            if order == .orderedSame { order = comparison(lhs.id, rhs.id) }
+            return order == (ascending ? .orderedAscending : .orderedDescending)
+        }
+    }
+}
+
+private func comparison<T: Comparable>(_ lhs: T, _ rhs: T) -> ComparisonResult {
+    lhs < rhs ? .orderedAscending : lhs > rhs ? .orderedDescending : .orderedSame
 }

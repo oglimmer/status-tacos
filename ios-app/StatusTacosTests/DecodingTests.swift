@@ -53,9 +53,11 @@ struct DecodingTests {
         #expect(monitors[0].state == .silent)
         #expect(monitors[0].tenant == Tenant(id: 1, name: "Default", code: "DEF"))
         #expect(monitors[0].alertingThreshold == 3)
+        #expect(monitors[0].createdAt == BackendDate.parse("2025-06-26T10:15:30.123"))
         // Unknown states and left-out fields do not break the list.
         #expect(monitors[1].state == .unknown)
         #expect(monitors[1].tenant == nil)
+        #expect(monitors[1].createdAt == nil)
     }
 
     @Test func decodesMonitorStatuses() throws {

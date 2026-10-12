@@ -8,6 +8,8 @@ struct MonitorListView: View {
     @State private var stateChangeError: String?
     /// 0 means all tenants.
     @AppStorage("monitorList.tenantFilter") private var tenantFilter = 0
+    @AppStorage("monitorList.sort") private var sort = MonitorSort.status
+    @AppStorage("monitorList.sortAscending") private var sortAscending = true
     @Environment(\.scenePhase) private var scenePhase
     @Environment(APIClient.self) private var api
 
@@ -41,22 +43,17 @@ struct MonitorListView: View {
                 }
             }
 
-            ForEach(MonitorHealth.allCases, id: \.self) { health in
-                let rows = visibleMonitors.filter { $0.health == health }
-                if !rows.isEmpty {
-                    Section {
-                        ForEach(rows) { monitor in
-                            NavigationLink(value: monitor.id) {
-                                MonitorRow(monitor: monitor, showsTenant: showsTenant,
-                                           isUpdating: store.updatingStateIDs.contains(monitor.id))
-                            }
-                            .swipeActions(edge: .trailing) { swipeActions(for: monitor) }
-                            .contextMenu { stateMenu(for: monitor) }
-                        }
-                    } header: {
-                        Text("\(health.title) (\(rows.count))")
+            let sorted = visibleMonitors.sorted(by: sort, ascending: sortAscending)
+            if sort == .status {
+                let healths = sortAscending ? MonitorHealth.allCases : MonitorHealth.allCases.reversed()
+                ForEach(healths, id: \.self) { health in
+                    let rows = sorted.filter { $0.health == health }
+                    if !rows.isEmpty {
+                        monitorSection(rows, title: "\(health.title) (\(rows.count))")
                     }
                 }
+            } else if !sorted.isEmpty {
+                monitorSection(sorted, title: "All monitors (\(sorted.count))")
             }
 
             if let lastUpdated = store.lastUpdated {
@@ -76,6 +73,9 @@ struct MonitorListView: View {
         .searchable(text: $searchText, prompt: "Name or URL")
         .refreshable { await store.refresh() }
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                sortMenu
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Notifications", systemImage: "bell.badge") { showsNotifications = true }
             }
@@ -92,6 +92,10 @@ struct MonitorListView: View {
             Button("OK") { stateChangeError = nil }
         } message: {
             Text(stateChangeError ?? "")
+        }
+        .onChange(of: sort) { _, newSort in
+            // A new sort starts in its usual direction, so "Last downtime" shows the latest first.
+            sortAscending = newSort.startsAscending
         }
         .onChange(of: store.tenants.map(\.id)) { _, ids in
             // The saved tenant may be gone (removed, or another user signed in).
@@ -124,6 +128,40 @@ struct MonitorListView: View {
         return filteredByTenant.filter {
             $0.name.localizedCaseInsensitiveContains(query) || $0.url.localizedCaseInsensitiveContains(query)
         }
+    }
+
+    private func monitorSection(_ rows: [MonitorSummary], title: String) -> some View {
+        Section {
+            ForEach(rows) { monitor in
+                NavigationLink(value: monitor.id) {
+                    MonitorRow(monitor: monitor, showsTenant: showsTenant,
+                               isUpdating: store.updatingStateIDs.contains(monitor.id))
+                }
+                .swipeActions(edge: .trailing) { swipeActions(for: monitor) }
+                .contextMenu { stateMenu(for: monitor) }
+            }
+        } header: {
+            Text(title)
+        }
+    }
+
+    // MARK: - Sorting
+
+    private var sortMenu: some View {
+        Menu {
+            Picker("Sort By", selection: $sort) {
+                ForEach(MonitorSort.allCases, id: \.self) { option in
+                    Label(option.title, systemImage: option.symbol).tag(option)
+                }
+            }
+            Picker("Order", selection: $sortAscending) {
+                Label("Ascending", systemImage: "arrow.up").tag(true)
+                Label("Descending", systemImage: "arrow.down").tag(false)
+            }
+        } label: {
+            Label("Sort", systemImage: "arrow.up.arrow.down")
+        }
+        .accessibilityValue("\(sort.title), \(sortAscending ? "ascending" : "descending")")
     }
 
     // MARK: - State changes

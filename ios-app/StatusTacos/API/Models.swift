@@ -58,6 +58,7 @@ struct MonitorDTO: Decodable, Sendable {
     let tenant: Tenant?
     let state: MonitorState
     let alertingThreshold: Int?
+    var createdAt: Date? = nil
 }
 
 /// GET /v1/monitor-statuses (only monitors that are ACTIVE or SILENT)

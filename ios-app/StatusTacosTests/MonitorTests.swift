@@ -2,14 +2,15 @@ import Foundation
 import Testing
 @testable import StatusTacos
 
-private func monitor(_ id: Int, _ name: String, state: MonitorState = .active, tenant: Tenant? = nil) -> MonitorDTO {
+private func monitor(_ id: Int, _ name: String, state: MonitorState = .active, tenant: Tenant? = nil,
+                     createdAt: Date? = nil) -> MonitorDTO {
     MonitorDTO(id: id, name: name, url: "https://\(name.lowercased()).example.com/health",
-               tenantId: tenant?.id, tenant: tenant, state: state, alertingThreshold: 3)
+               tenantId: tenant?.id, tenant: tenant, state: state, alertingThreshold: 3, createdAt: createdAt)
 }
 
-private func status(_ id: Int, _ type: StatusType) -> MonitorStatusDTO {
+private func status(_ id: Int, _ type: StatusType, lastDownAt: Date? = nil) -> MonitorStatusDTO {
     MonitorStatusDTO(monitorId: id, monitorName: nil, currentStatus: type, lastCheckedAt: nil, lastUpAt: nil,
-                     lastDownAt: nil, consecutiveFailures: nil, lastResponseTimeMs: 100, lastStatusCode: 200)
+                     lastDownAt: lastDownAt, consecutiveFailures: nil, lastResponseTimeMs: 100, lastStatusCode: 200)
 }
 
 private func stats(_ id: Int, uptime: Double?) -> UptimeStatsDTO {
@@ -62,6 +63,64 @@ struct MonitorSummaryTests {
         ])
     }
 
+    @Test func sortsByName() {
+        let merged = MonitorSummary.merge(
+            monitors: [monitor(1, "item 10"), monitor(2, "Beta"), monitor(3, "alpha", state: .inactive),
+                       monitor(4, "item 9")],
+            statuses: [status(1, .down), status(2, .up), status(4, .up)],
+            weekStats: [])
+        #expect(merged.sorted(by: .name, ascending: true).map(\.name) == ["alpha", "Beta", "item 9", "item 10"])
+        #expect(merged.sorted(by: .name, ascending: false).map(\.name) == ["item 10", "item 9", "Beta", "alpha"])
+    }
+
+    @Test func sortsByLastDowntimeWithNeverDownLast() {
+        let merged = MonitorSummary.merge(
+            monitors: [monitor(1, "Never"), monitor(2, "Old"), monitor(3, "Recent"), monitor(4, "Also never")],
+            statuses: [status(1, .up), status(2, .up, lastDownAt: Date(timeIntervalSince1970: 100)),
+                       status(3, .down, lastDownAt: Date(timeIntervalSince1970: 200))],
+            weekStats: [])
+        #expect(merged.sorted(by: .lastDown, ascending: false).map(\.name) == ["Recent", "Old", "Never", "Also never"])
+        #expect(merged.sorted(by: .lastDown, ascending: true).map(\.name) == ["Old", "Recent", "Also never", "Never"])
+    }
+
+    @Test func sortsByTenantThenName() {
+        let zeta = Tenant(id: 1, name: "Zeta", code: nil)
+        let alpha = Tenant(id: 2, name: "alpha", code: nil)
+        let merged = MonitorSummary.merge(
+            monitors: [monitor(1, "B", tenant: zeta), monitor(2, "A", tenant: zeta), monitor(3, "C", tenant: alpha),
+                       monitor(4, "A", tenant: alpha), monitor(5, "No tenant")],
+            statuses: [],
+            weekStats: [])
+        #expect(merged.sorted(by: .tenant, ascending: true).map(\.id) == [4, 3, 2, 1, 5])
+        #expect(merged.sorted(by: .tenant, ascending: false).map(\.id) == [1, 2, 3, 4, 5])
+    }
+
+    @Test func sortsByCreationTime() {
+        let merged = MonitorSummary.merge(
+            monitors: [monitor(1, "Middle", createdAt: Date(timeIntervalSince1970: 200)),
+                       monitor(2, "First", createdAt: Date(timeIntervalSince1970: 100)),
+                       monitor(3, "Last", createdAt: Date(timeIntervalSince1970: 300)),
+                       monitor(4, "Older server")],
+            statuses: [],
+            weekStats: [])
+        #expect(merged.sorted(by: .created, ascending: true).map(\.name) == ["First", "Middle", "Last", "Older server"])
+        #expect(merged.sorted(by: .created, ascending: false).map(\.name) == ["Last", "Middle", "First", "Older server"])
+    }
+
+    @Test func sortsByStatusInBothDirections() {
+        let merged = MonitorSummary.merge(
+            monitors: [monitor(1, "Up"), monitor(2, "Paused", state: .inactive), monitor(3, "Down"),
+                       monitor(4, "Pending")],
+            statuses: [status(1, .up), status(3, .down)],
+            weekStats: [])
+        #expect(merged.sorted(by: .status, ascending: true).map(\.name) == ["Down", "Pending", "Up", "Paused"])
+        #expect(merged.sorted(by: .status, ascending: false).map(\.name) == ["Paused", "Up", "Pending", "Down"])
+    }
+
+    @Test func datesStartWithTheNewest() {
+        #expect(MonitorSort.allCases.filter { !$0.startsAscending } == [.lastDown, .created])
+    }
+
     @Test func toleratesDuplicateResults() {
         let merged = MonitorSummary.merge(
             monitors: [monitor(1, "One")],
@@ -89,7 +148,7 @@ struct MonitorSummaryTests {
     ] as [(String, String?, String, String?)])
     func splitsURLIntoSchemeHostAndPath(url: String, scheme: String?, host: String, path: String?) {
         let summary = MonitorSummary(id: 1, name: "X", url: url, tenant: nil, state: .active,
-                                     alertingThreshold: nil, status: nil, week: nil)
+                                     alertingThreshold: nil, createdAt: nil, status: nil, week: nil)
         #expect(summary.urlParts.scheme == scheme)
         #expect(summary.urlParts.host == host)
         #expect(summary.urlParts.path == path)

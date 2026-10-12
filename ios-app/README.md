@@ -8,6 +8,7 @@ A native iPhone and iPad client for Status Tacos. It shows your monitors and the
 
 - Count of monitors that are down, up and paused.
 - Monitors grouped by health. Down monitors come first.
+- Sort button: status (the groups above), name, last downtime, tenant then name, or created. Ascending or descending. The app keeps your choice.
 - For each monitor: last response time (or the HTTP status when down), 7-day uptime, and a 7-day downtime bar.
 - For down monitors: when the monitor was last up and the number of failed checks.
 - Tenant selector at the top of the page. The counts and the list follow it.
