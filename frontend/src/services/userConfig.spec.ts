@@ -123,6 +123,37 @@ describe('UserConfigService', () => {
     })
   })
 
+  describe('monitor sort', () => {
+    it('should sort by name ascending by default', () => {
+      service = new UserConfigService()
+
+      expect(service.getMonitorSort()).toEqual({ key: 'name', direction: 'asc' })
+    })
+
+    it('should set monitor sort and persist to localStorage', () => {
+      service = new UserConfigService()
+      service.setMonitorSort({ key: 'lastDown', direction: 'desc' })
+
+      expect(service.getMonitorSort()).toEqual({ key: 'lastDown', direction: 'desc' })
+
+      const stored = JSON.parse(localStorage.getItem('status-tacos-user-config') || '{}')
+      expect(stored.monitorSort).toEqual({ key: 'lastDown', direction: 'desc' })
+      expect(new UserConfigService().getMonitorSort()).toEqual({ key: 'lastDown', direction: 'desc' })
+    })
+
+    it('should fall back to the default for an unknown stored sort', () => {
+      localStorage.setItem(
+        'status-tacos-user-config',
+        JSON.stringify({ tenantFilters: { monitors: 7 }, monitorSort: { key: 'size', direction: 'asc' } })
+      )
+
+      service = new UserConfigService()
+
+      expect(service.getMonitorSort()).toEqual({ key: 'name', direction: 'asc' })
+      expect(service.getMonitorTenantFilter()).toBe(7)
+    })
+  })
+
   describe('reset', () => {
     beforeEach(() => {
       service = new UserConfigService()
@@ -131,11 +162,13 @@ describe('UserConfigService', () => {
     it('should reset all filters to default values', () => {
       service.setMonitorTenantFilter(123)
       service.setAlertContactTenantFilter(456)
+      service.setMonitorSort({ key: 'created', direction: 'desc' })
 
       service.reset()
 
       expect(service.getMonitorTenantFilter()).toBeNull()
       expect(service.getAlertContactTenantFilter()).toBeNull()
+      expect(service.getMonitorSort()).toEqual({ key: 'name', direction: 'asc' })
     })
 
     it('should persist reset to localStorage', () => {

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import TenantFilter from './TenantFilter.vue'
 import NameFilter from './NameFilter.vue'
+import MonitorSortSelect from './MonitorSortSelect.vue'
+import type { MonitorSort } from '../utils/monitorSort'
 
 interface Tenant {
   id: number
@@ -20,12 +22,14 @@ defineProps<{
   selectedTenantId: number | null
   selectedStatusFilter: 'all' | 'up' | 'down' | 'active'
   selectedNameFilter: string
+  selectedSort: MonitorSort
 }>()
 
 defineEmits<{
   'update:selectedTenantId': [value: number | null]
   'update:selectedStatusFilter': [value: 'all' | 'up' | 'down' | 'active']
   'update:selectedNameFilter': [value: string]
+  'update:selectedSort': [value: MonitorSort]
 }>()
 </script>
 
@@ -79,6 +83,12 @@ defineEmits<{
         :model-value="selectedNameFilter"
         @update:model-value="$emit('update:selectedNameFilter', $event)"
         class="name-filter"
+      />
+
+      <MonitorSortSelect
+        :model-value="selectedSort"
+        @update:model-value="$emit('update:selectedSort', $event)"
+        class="sort-filter"
       />
     </div>
   </div>
@@ -163,13 +173,15 @@ defineEmits<{
 }
 
 .tenant-filter,
-.name-filter {
+.name-filter,
+.sort-filter {
   flex-shrink: 0;
 }
 
 
 .tenant-filter :deep(.filters),
-.name-filter :deep(.filters) {
+.name-filter :deep(.filters),
+.sort-filter :deep(.filters) {
   margin-bottom: 0;
 }
 
@@ -214,12 +226,14 @@ defineEmits<{
   }
 
   .tenant-filter,
-  .name-filter {
+  .name-filter,
+  .sort-filter {
     width: 100%;
   }
 
   .tenant-filter :deep(.filters select),
-  .name-filter :deep(.filters input) {
+  .name-filter :deep(.filters input),
+  .sort-filter :deep(.filters select) {
     flex: 1;
     min-width: 0;
     width: 100%;

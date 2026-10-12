@@ -1,15 +1,19 @@
+import { DEFAULT_MONITOR_SORT, isMonitorSort, type MonitorSort } from '../utils/monitorSort'
+
 interface UserConfig {
   tenantFilters: {
     monitors: number | null
     alertContacts: number | null
   }
+  monitorSort: MonitorSort
 }
 
 const DEFAULT_CONFIG: UserConfig = {
   tenantFilters: {
     monitors: null,
     alertContacts: null
-  }
+  },
+  monitorSort: DEFAULT_MONITOR_SORT
 }
 
 const CONFIG_KEY = 'status-tacos-user-config'
@@ -33,7 +37,9 @@ export class UserConfigService {
           tenantFilters: {
             ...DEFAULT_CONFIG.tenantFilters,
             ...(parsed.tenantFilters || {})
-          }
+          },
+          // An unknown sort (from a newer or broken config) falls back to the default
+          monitorSort: isMonitorSort(parsed.monitorSort) ? parsed.monitorSort : { ...DEFAULT_CONFIG.monitorSort }
         }
       }
     } catch (error) {
@@ -42,7 +48,8 @@ export class UserConfigService {
     return {
       tenantFilters: {
         ...DEFAULT_CONFIG.tenantFilters
-      }
+      },
+      monitorSort: { ...DEFAULT_CONFIG.monitorSort }
     }
   }
 
@@ -72,11 +79,21 @@ export class UserConfigService {
     this.saveToStorage()
   }
 
+  getMonitorSort(): MonitorSort {
+    return { ...this.config.monitorSort }
+  }
+
+  setMonitorSort(sort: MonitorSort): void {
+    this.config.monitorSort = { ...sort }
+    this.saveToStorage()
+  }
+
   reset(): void {
     this.config = {
       tenantFilters: {
         ...DEFAULT_CONFIG.tenantFilters
-      }
+      },
+      monitorSort: { ...DEFAULT_CONFIG.monitorSort }
     }
     this.saveToStorage()
   }

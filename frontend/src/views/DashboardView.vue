@@ -17,6 +17,7 @@ import EmptyState from '../components/EmptyState.vue'
 import type { CurrentUser } from '../services/api'
 import { userConfigService } from '../services/userConfig'
 import { timeframeToPeriod } from '../utils/uptime'
+import { sortMonitors, type MonitorSort } from '../utils/monitorSort'
 
 const authStore = useAuthStore()
 const monitorsStore = useMonitorsStore()
@@ -29,6 +30,7 @@ const currentUser = ref<CurrentUser | null>(null)
 const selectedTenantId = ref<number | null>(userConfigService.getMonitorTenantFilter())
 const selectedStatusFilter = ref<'all' | 'up' | 'down' | 'active'>('all')
 const selectedNameFilter = ref<string>('')
+const selectedSort = ref<MonitorSort>(userConfigService.getMonitorSort())
 const selectedTimeframe = ref<TimeframeType>('24h')
 const selectedViewMode = ref<ViewModeType>('default')
 const loadingUptimeStats = ref(new Set<number>())
@@ -66,6 +68,10 @@ const filteredMonitors = computed(() => {
 
   return monitors
 })
+
+const sortedMonitors = computed(() =>
+  sortMonitors(filteredMonitors.value, monitorsStore.getMonitorStatusById, selectedSort.value)
+)
 
 const toggleMonitorExpanded = async (monitorId: number) => {
   if (expandedMonitors.value.has(monitorId)) {
@@ -236,6 +242,10 @@ watch(selectedTenantId, (newValue) => {
   userConfigService.setMonitorTenantFilter(newValue)
 })
 
+watch(selectedSort, (newValue) => {
+  userConfigService.setMonitorSort(newValue)
+})
+
 // Watch for changes to selectedTimeframe and fetch data
 watch(selectedTimeframe, async (newTimeframe) => {
   await fetchUptimeStatsForTimeframe(newTimeframe)
@@ -270,9 +280,11 @@ onUnmounted(() => {
           :selected-tenant-id="selectedTenantId"
           :selected-status-filter="selectedStatusFilter"
           :selected-name-filter="selectedNameFilter"
+          :selected-sort="selectedSort"
           @update:selected-tenant-id="selectedTenantId = $event"
           @update:selected-status-filter="selectedStatusFilter = $event"
           @update:selected-name-filter="selectedNameFilter = $event"
+          @update:selected-sort="selectedSort = $event"
         />
 
         <LoadingState
@@ -295,7 +307,7 @@ onUnmounted(() => {
 
         <div v-else class="monitors-grid" :class="{ 'minimal-grid': selectedViewMode === 'minimal' }">
           <EnhancedMonitorCard
-            v-for="monitor in filteredMonitors"
+            v-for="monitor in sortedMonitors"
             :key="monitor.id"
             :monitor="monitor"
             :status="monitorsStore.getMonitorStatusById(monitor.id) || null"
