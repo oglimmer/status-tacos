@@ -7,6 +7,7 @@ import HttpHeadersInput from './HttpHeadersInput.vue'
 import SuccessCriteriaInput from './SuccessCriteriaInput.vue'
 import MonitorStateButton from './MonitorStateButton.vue'
 import type { CurrentUser } from '../services/api'
+import { ApiError } from '../services/apiError'
 
 const props = defineProps<{
   monitor?: MonitorResponse | null
@@ -213,7 +214,7 @@ const handleSubmit = async () => {
         try {
           await monitorsStore.moveMonitorToTenant(props.monitor.id, submitData.tenantId)
         } catch (err) {
-          error.value = err instanceof Error && err.message.includes('409')
+          error.value = err instanceof ApiError && err.status === 409
             ? 'Failed to move monitor. The target tenant already has a monitor with this URL.'
             : 'Failed to move monitor. Please try again.'
           console.error('Move monitor error:', err)

@@ -28,7 +28,8 @@ public class SecurityConfig {
   private String jwkSetUri;
 
   @Bean
-  public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+  public SecurityFilterChain filterChain(
+      HttpSecurity http, LoginNotAllowedEntryPoint loginNotAllowedEntryPoint) throws Exception {
     http.authorizeHttpRequests(
             authz ->
                 authz
@@ -40,7 +41,8 @@ public class SecurityConfig {
                     .authenticated()
                     .anyRequest()
                     .authenticated())
-        .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}))
+        .oauth2ResourceServer(
+            oauth2 -> oauth2.jwt(jwt -> {}).authenticationEntryPoint(loginNotAllowedEntryPoint))
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .cors(cors -> cors.configurationSource(corsConfigurationSource()))

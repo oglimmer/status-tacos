@@ -2,6 +2,8 @@ import { User } from 'oidc-client-ts'
 import type { AlertContactRequest, AlertContactResponse } from '../stores/alertContacts'
 import type { MonitorRequest, MonitorResponse } from '../stores/monitors'
 import { useAuthStore } from '../stores/auth'
+import { ApiError, friendlyMessage } from './apiError'
+import { showErrorToast } from './toasts'
 
 export interface Tenant {
   id: number
@@ -74,95 +76,106 @@ export class ApiService {
     }
   }
 
-  async get<T>(endpoint: string, user: User | null): Promise<T> {
-    const response = await fetch(`${this.getApiBaseUrl()}${endpoint}`, {
-      method: 'GET',
-      headers: this.getAuthHeaders(user)
-    })
+  private unauthorizedHandler: ((error: ApiError) => void) | null = null
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+  /** Called on every 401, for example to sign the user out. The auth store sets it. */
+  setUnauthorizedHandler(handler: (error: ApiError) => void) {
+    this.unauthorizedHandler = handler
+  }
+
+  /**
+   * Sends the request. On a network error or HTTP status >= 400 it shows a message to the user and
+   * throws an ApiError. A 401 goes to the unauthorized handler instead of a message.
+   */
+  private async request(endpoint: string, method: string, user: User | null, data?: unknown): Promise<Response> {
+    let headers: HeadersInit
+    try {
+      headers = this.getAuthHeaders(user)
+    } catch {
+      // No token (any more): the same as a 401 from the server
+      const error = new ApiError(friendlyMessage(401), 401)
+      this.handleUnauthorized(error)
+      throw error
+    }
+    const init: RequestInit = { method, headers }
+    if (data !== undefined) {
+      init.body = JSON.stringify(data)
     }
 
+    let response: Response
+    try {
+      response = await fetch(`${this.getApiBaseUrl()}${endpoint}`, init)
+    } catch (err) {
+      console.error(`Request to ${endpoint} failed:`, err)
+      const error = new ApiError(friendlyMessage(0), 0)
+      showErrorToast(error.message)
+      throw error
+    }
+
+    if (!response.ok) {
+      const body = await this.readErrorBody(response)
+      const error = new ApiError(friendlyMessage(response.status, body.message), response.status, body.error)
+      console.error(`Request to ${endpoint} failed: HTTP ${response.status}`, body)
+      if (response.status === 401) {
+        this.handleUnauthorized(error)
+      } else {
+        showErrorToast(error.message)
+      }
+      throw error
+    }
+
+    return response
+  }
+
+  private handleUnauthorized(error: ApiError) {
+    if (this.unauthorizedHandler) {
+      this.unauthorizedHandler(error)
+    } else {
+      showErrorToast(error.message)
+    }
+  }
+
+  private async readErrorBody(response: Response): Promise<{ error?: string; message?: string }> {
+    try {
+      const body = await response.json()
+      return {
+        error: typeof body?.error === 'string' ? body.error : undefined,
+        message: typeof body?.message === 'string' && body.message.trim() ? body.message : undefined,
+      }
+    } catch {
+      return {}
+    }
+  }
+
+  async get<T>(endpoint: string, user: User | null): Promise<T> {
+    const response = await this.request(endpoint, 'GET', user)
     return response.json()
   }
 
   async post<T, U>(endpoint: string, data: U, user: User | null): Promise<T> {
-    const response = await fetch(`${this.getApiBaseUrl()}${endpoint}`, {
-      method: 'POST',
-      headers: this.getAuthHeaders(user),
-      body: JSON.stringify(data)
-    })
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-
+    const response = await this.request(endpoint, 'POST', user, data)
     return response.json()
   }
 
   async postVoid<U>(endpoint: string, data: U, user: User | null): Promise<void> {
-    const response = await fetch(`${this.getApiBaseUrl()}${endpoint}`, {
-      method: 'POST',
-      headers: this.getAuthHeaders(user),
-      body: JSON.stringify(data)
-    })
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-
-    // Don't try to parse JSON for void responses
+    await this.request(endpoint, 'POST', user, data)
   }
 
   async put<T, U>(endpoint: string, data: U, user: User | null): Promise<T> {
-    const response = await fetch(`${this.getApiBaseUrl()}${endpoint}`, {
-      method: 'PUT',
-      headers: this.getAuthHeaders(user),
-      body: JSON.stringify(data)
-    })
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-
+    const response = await this.request(endpoint, 'PUT', user, data)
     return response.json()
   }
 
   async delete(endpoint: string, user: User | null): Promise<void> {
-    const response = await fetch(`${this.getApiBaseUrl()}${endpoint}`, {
-      method: 'DELETE',
-      headers: this.getAuthHeaders(user)
-    })
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
+    await this.request(endpoint, 'DELETE', user)
   }
 
   async deleteVoid(endpoint: string, user: User | null): Promise<void> {
-    const response = await fetch(`${this.getApiBaseUrl()}${endpoint}`, {
-      method: 'DELETE',
-      headers: this.getAuthHeaders(user)
-    })
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-
-    // Don't try to parse JSON for void responses
+    await this.request(endpoint, 'DELETE', user)
   }
 
   async patch<T>(endpoint: string, user: User | null): Promise<T> {
-    const response = await fetch(`${this.getApiBaseUrl()}${endpoint}`, {
-      method: 'PATCH',
-      headers: this.getAuthHeaders(user)
-    })
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-
+    const response = await this.request(endpoint, 'PATCH', user)
     return response.json()
   }
 
@@ -306,15 +319,7 @@ export class ApiService {
 
   /** Deletes the account of the signed-in user, with all tenants only they belong to. */
   async deleteAccount(user: User | null): Promise<AccountDeletionResult> {
-    const response = await fetch(`${this.getApiBaseUrl()}/users/me`, {
-      method: 'DELETE',
-      headers: this.getAuthHeaders(user)
-    })
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-
+    const response = await this.request('/users/me', 'DELETE', user)
     return response.json()
   }
 

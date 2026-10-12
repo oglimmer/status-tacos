@@ -16,6 +16,9 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class AllowedLoginValidator implements OAuth2TokenValidator<Jwt> {
 
+  /** OAuth2 error code of a token whose email + provider is not on the allow-list. */
+  public static final String ERROR_CODE = "login_not_allowed";
+
   private final AccessConfig config;
 
   @Override
@@ -25,7 +28,7 @@ public class AllowedLoginValidator implements OAuth2TokenValidator<Jwt> {
     }
     log.warn("Rejected login of subject {}: email and provider are not allowed", jwt.getSubject());
     return OAuth2TokenValidatorResult.failure(
-        new OAuth2Error("invalid_token", "This login is not allowed", null));
+        new OAuth2Error(ERROR_CODE, "This login is not allowed", null));
   }
 
   private boolean isAllowed(Jwt jwt) {

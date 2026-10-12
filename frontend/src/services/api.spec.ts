@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { ApiService } from './api'
+import { ApiError, LOGIN_NOT_ALLOWED } from './apiError'
+import { toasts } from './toasts'
 import type { User } from 'oidc-client-ts'
 
 describe('ApiService', () => {
@@ -162,7 +164,7 @@ describe('ApiService', () => {
           status: 502
         })
 
-        await expect(apiService.deleteAccount(mockUser)).rejects.toThrow('HTTP error! status: 502')
+        await expect(apiService.deleteAccount(mockUser)).rejects.toMatchObject({ status: 502 })
       })
     })
 
@@ -173,7 +175,7 @@ describe('ApiService', () => {
           status: 404
         })
 
-        await expect(apiService.get('/test', mockUser)).rejects.toThrow('HTTP error! status: 404')
+        await expect(apiService.get('/test', mockUser)).rejects.toMatchObject({ status: 404 })
       })
 
       it('should return parsed JSON on success', async () => {
@@ -206,7 +208,7 @@ describe('ApiService', () => {
           status: 400
         })
 
-        await expect(apiService.post('/test', { data: 'value' }, mockUser)).rejects.toThrow('HTTP error! status: 400')
+        await expect(apiService.post('/test', { data: 'value' }, mockUser)).rejects.toMatchObject({ status: 400 })
       })
 
       it('should send data and return parsed JSON on success', async () => {
@@ -242,7 +244,7 @@ describe('ApiService', () => {
           status: 403
         })
 
-        await expect(apiService.put('/test/1', { data: 'value' }, mockUser)).rejects.toThrow('HTTP error! status: 403')
+        await expect(apiService.put('/test/1', { data: 'value' }, mockUser)).rejects.toMatchObject({ status: 403 })
       })
 
       it('should send data and return parsed JSON on success', async () => {
@@ -267,7 +269,7 @@ describe('ApiService', () => {
           status: 500
         })
 
-        await expect(apiService.delete('/test/1', mockUser)).rejects.toThrow('HTTP error! status: 500')
+        await expect(apiService.delete('/test/1', mockUser)).rejects.toMatchObject({ status: 500 })
       })
 
       it('should complete successfully on ok response', async () => {
@@ -286,7 +288,7 @@ describe('ApiService', () => {
           status: 422
         })
 
-        await expect(apiService.patch('/test/1', mockUser)).rejects.toThrow('HTTP error! status: 422')
+        await expect(apiService.patch('/test/1', mockUser)).rejects.toMatchObject({ status: 422 })
       })
 
       it('should return parsed JSON on success', async () => {
@@ -301,6 +303,88 @@ describe('ApiService', () => {
 
         expect(result).toEqual(mockResponse)
       })
+    })
+  })
+
+  describe('error messages', () => {
+    const mockUser = {
+      access_token: 'test-token',
+      profile: {},
+      expired: false
+    } as unknown as User
+
+    beforeEach(() => {
+      Object.defineProperty(window, 'location', {
+        value: { hostname: 'localhost' },
+        writable: true,
+        configurable: true
+      })
+      toasts.splice(0)
+    })
+
+    it('shows a friendly message for a server error', async () => {
+      window.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) })
+
+      const error = (await apiService.get('/test', mockUser).catch((e) => e)) as ApiError
+
+      expect(error).toBeInstanceOf(ApiError)
+      expect(error.message).toBe('Something went wrong on our side. Try again later.')
+      expect(toasts.map((toast) => toast.message)).toEqual([error.message])
+    })
+
+    it('shows the same message only once at a time', async () => {
+      window.fetch = vi.fn().mockResolvedValue({ ok: false, status: 503 })
+
+      await apiService.get('/a', mockUser).catch(() => {})
+      await apiService.get('/b', mockUser).catch(() => {})
+
+      expect(toasts).toHaveLength(1)
+    })
+
+    it('uses the message of the server for a client error', async () => {
+      window.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: async () => ({ message: 'The token is not a valid APNs device token' })
+      })
+
+      await expect(apiService.post('/test', {}, mockUser)).rejects.toMatchObject({
+        status: 400,
+        message: 'The token is not a valid APNs device token'
+      })
+    })
+
+    it('shows a message when the server is not reachable', async () => {
+      window.fetch = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'))
+
+      await expect(apiService.get('/test', mockUser)).rejects.toMatchObject({ status: 0 })
+      expect(toasts[0]?.message).toContain('Cannot reach Status Tacos')
+    })
+
+    it('passes a 401 to the unauthorized handler with the error code, without a message', async () => {
+      const handler = vi.fn()
+      apiService.setUnauthorizedHandler(handler)
+      window.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: async () => ({ error: LOGIN_NOT_ALLOWED, message: 'not allowed' })
+      })
+
+      await expect(apiService.get('/test', mockUser)).rejects.toMatchObject({ status: 401 })
+
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ code: LOGIN_NOT_ALLOWED }))
+      expect(toasts).toHaveLength(0)
+    })
+
+    it('treats a missing token like a 401', async () => {
+      const handler = vi.fn()
+      apiService.setUnauthorizedHandler(handler)
+      window.fetch = vi.fn()
+
+      await expect(apiService.get('/test', null)).rejects.toMatchObject({ status: 401 })
+
+      expect(handler).toHaveBeenCalled()
+      expect(fetch).not.toHaveBeenCalled()
     })
   })
 

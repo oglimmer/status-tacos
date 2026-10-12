@@ -2,6 +2,7 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { User, UserManager, WebStorageStateStore } from 'oidc-client-ts'
 import { apiService, type AccountDeletionResult, type CurrentUser } from '../services/api'
+import { LOGIN_NOT_ALLOWED, type ApiError } from '../services/apiError'
 
 const OIDC_AUTHORITY = 'https://id.oglimmer.de/realms/status-tacos'
 
@@ -20,6 +21,33 @@ const oidcConfig = {
   automaticSilentRenew: true,
   checkSessionInterval: 3000,
   monitorSession: true,
+}
+
+const SIGN_IN_NOTICE_KEY = 'status-tacos-sign-in-notice'
+
+/** Why the app signed the user out. The landing page shows it after the redirect. */
+export interface SignInNotice {
+  reason: 'not_allowed' | 'session_ended'
+  email?: string
+}
+
+/** Returns the notice once, then forgets it. */
+export function takeSignInNotice(): SignInNotice | null {
+  try {
+    const stored = sessionStorage.getItem(SIGN_IN_NOTICE_KEY)
+    sessionStorage.removeItem(SIGN_IN_NOTICE_KEY)
+    return stored ? (JSON.parse(stored) as SignInNotice) : null
+  } catch {
+    return null
+  }
+}
+
+function saveSignInNotice(notice: SignInNotice) {
+  try {
+    sessionStorage.setItem(SIGN_IN_NOTICE_KEY, JSON.stringify(notice))
+  } catch {
+    // Without storage the landing page shows no notice
+  }
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -143,6 +171,42 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+
+  let isSigningOut = false
+
+  /**
+   * The server refused the token (HTTP 401). Signs the user out and sends them to the landing page,
+   * which tells them why. Parallel requests all fail with 401, so only the first one acts.
+   */
+  const handleUnauthorized = async (apiError: ApiError) => {
+    if (isSigningOut) {
+      return
+    }
+    isSigningOut = true
+    const notAllowed = apiError.code === LOGIN_NOT_ALLOWED
+    saveSignInNotice({
+      reason: notAllowed ? 'not_allowed' : 'session_ended',
+      email: user.value?.profile?.email,
+    })
+    localStorage.removeItem('status-tacos-user-config')
+
+    if (notAllowed) {
+      // End the session at the identity provider too. Else the next sign-in silently uses the same
+      // account again, and the user cannot pick another one.
+      try {
+        await userManager.signoutRedirect()
+        return
+      } catch (err) {
+        console.error('Logout of a not allowed user failed:', err)
+      }
+    }
+
+    await userManager.removeUser()
+    user.value = null
+    window.location.assign('/')
+  }
+
+  apiService.setUnauthorizedHandler(handleUnauthorized)
 
   userManager.events.addUserLoaded((loadedUser) => {
     user.value = loadedUser

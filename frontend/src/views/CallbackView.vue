@@ -2,11 +2,14 @@
 import { onMounted, ref } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useRouter } from 'vue-router'
+import { ApiError, LOGIN_NOT_ALLOWED } from '../services/apiError'
 
 const authStore = useAuthStore()
 const router = useRouter()
 const isProcessing = ref(true)
 const error = ref<string | null>(null)
+// The app signs a not allowed user out and sends them to the landing page by itself
+const isLeaving = ref(false)
 
 onMounted(async () => {
   try {
@@ -14,7 +17,14 @@ onMounted(async () => {
     await authStore.handleCallback()
     router.push('/monitors')
   } catch (err) {
-    error.value = 'Authentication failed. Please try again.'
+    if (err instanceof ApiError && err.code === LOGIN_NOT_ALLOWED) {
+      error.value = 'This account is not allowed to use Status Tacos. We sign you out now.'
+      isLeaving.value = true
+    } else if (err instanceof ApiError) {
+      error.value = err.message
+    } else {
+      error.value = 'Sign-in failed. Please try again.'
+    }
     console.error('Callback processing error:', err)
   } finally {
     isProcessing.value = false
@@ -32,9 +42,10 @@ onMounted(async () => {
       </div>
 
       <div v-else-if="error" class="error-state">
-        <h2>Authentication Failed</h2>
+        <h2>Sign-in failed</h2>
         <p>{{ error }}</p>
-        <button @click="router.push('/')" class="btn btn-primary">
+        <div v-if="isLeaving" class="spinner"></div>
+        <button v-else @click="router.push('/')" class="btn btn-primary">
           Return to Home
         </button>
       </div>

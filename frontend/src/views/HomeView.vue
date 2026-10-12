@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import '../assets/brand.css'
 import SiteFooter from '../components/SiteFooter.vue'
-import { useAuthStore } from '../stores/auth'
+import { takeSignInNotice, useAuthStore } from '../stores/auth'
 import { useRoute, useRouter } from 'vue-router'
 
 const authStore = useAuthStore()
@@ -11,6 +11,9 @@ const route = useRoute()
 
 // Set by the account deletion: "all" or "data" (the login account at the provider still exists).
 const accountDeleted = route.query.accountDeleted as string | undefined
+
+// Set when the server refused the login and the app signed the user out
+const signInNotice = takeSignInNotice()
 
 const handleLogin = () => {
   authStore.login()
@@ -114,6 +117,16 @@ const events = [
             Your Status Tacos data is deleted. Your login account at the identity provider still
             exists. Delete it there.
           </template>
+        </p>
+        <div v-if="signInNotice?.reason === 'not_allowed'" class="notice notice-error" role="alert">
+          <strong>This account is not allowed to use Status Tacos.</strong>
+          <p class="notice-detail">
+            You signed in<template v-if="signInNotice.email"> as {{ signInNotice.email }}</template>.
+            Sign in with another account, or ask the owner of this Status Tacos for access.
+          </p>
+        </div>
+        <p v-else-if="signInNotice?.reason === 'session_ended'" class="notice" role="status">
+          Your session has ended. Please sign in again.
         </p>
         <p v-if="authStore.error" class="notice notice-error" role="alert">
           Sign-in failed: {{ authStore.error }}
@@ -334,6 +347,10 @@ const events = [
   border-radius: 0.6rem;
   background: var(--paper);
   font-size: 1rem;
+}
+
+.notice-detail {
+  margin: 0.25rem 0 0;
 }
 
 .notice-error {
