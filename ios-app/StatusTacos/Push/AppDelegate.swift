@@ -43,12 +43,18 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         [.banner, .list, .sound]
     }
 
+    /// Not the async variant: it calls the completion handler off the main thread, and UIKit then
+    /// stops the app with an assertion.
     nonisolated func userNotificationCenter(
-        _ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse
-    ) async {
-        guard let monitorID = PushPayload.monitorID(from: response.notification.request.content.userInfo) else {
-            return
+        _ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping @Sendable () -> Void
+    ) {
+        let monitorID = PushPayload.monitorID(from: response.notification.request.content.userInfo)
+        DispatchQueue.main.async {
+            if let monitorID {
+                Self.router?.open(monitorID: monitorID)
+            }
+            completionHandler()
         }
-        await MainActor.run { Self.router?.open(monitorID: monitorID) }
     }
 }
