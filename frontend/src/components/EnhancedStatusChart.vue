@@ -98,7 +98,17 @@ onMounted(() => {
 
 onBeforeUnmount(() => resizeObserver?.disconnect())
 
-const chartWindow = computed(() => timeWindow(props.timeframe, props.windowStart, props.windowEnd))
+// "Now" of a window without backend bounds. Date.now() is not reactive, so the window moves
+// only when new data arrives. Else a page left open for hours keeps its old window.
+const dataLoadedAt = ref(Date.now())
+watch(
+  () => [props.statusDownPeriods, props.firstCheckAt, props.totalChecks],
+  () => { dataLoadedAt.value = Date.now() }
+)
+
+const chartWindow = computed(() =>
+  timeWindow(props.timeframe, props.windowStart, props.windowEnd, dataLoadedAt.value)
+)
 
 const checkedFrom = computed(() =>
   checkedFromMs(props.firstCheckAt, props.totalChecks, chartWindow.value)
