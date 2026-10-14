@@ -10,6 +10,7 @@ import de.oglimmer.status_tacos.persistence.MonitorState;
 import de.oglimmer.status_tacos.persistence.User;
 import de.oglimmer.status_tacos.repository.AlertContactRepository;
 import de.oglimmer.status_tacos.repository.AlertHistoryRepository;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -40,6 +41,10 @@ public class AlertService {
   private final Optional<JavaMailSender> javaMailSender;
   private final TeamsNotificationService teamsNotificationService;
   private final PushNotificationService pushNotificationService;
+
+  /** Same clock as the checks, so sent_at and outage_started_at can be compared. */
+  private final Clock clock;
+
   private final RestTemplate restTemplate = restTemplateWithTimeouts();
 
   /** A webhook that does not answer must not block the alert thread. */
@@ -64,9 +69,10 @@ public class AlertService {
       return;
     }
 
-    if (isDownAlertUnresolved(monitor)) {
+    if (isDownAlertSentForOutage(monitor, outageStart)) {
       log.debug(
-          "DOWN alert already sent for monitor {} and no UP alert since then", monitor.getId());
+          "DOWN alert already sent for monitor {} in this outage and no UP alert since then",
+          monitor.getId());
       return;
     }
 
@@ -148,20 +154,36 @@ public class AlertService {
 
   /** true if the last DOWN alert of the monitor has no UP alert after it. */
   private boolean isDownAlertUnresolved(Monitor monitor) {
-    Optional<AlertHistory> lastDownAlert =
-        alertHistoryRepository.findTopByMonitorIdAndTenantIdAndAlertTypeOrderBySentAtDesc(
-            monitor.getId(), monitor.getTenantId(), AlertHistory.AlertType.down);
-    if (lastDownAlert.isEmpty()) {
-      return false;
-    }
+    return lastAlert(monitor, AlertHistory.AlertType.down)
+        .filter(down -> !hasUpAlertAfter(monitor, down))
+        .isPresent();
+  }
 
-    Optional<AlertHistory> lastUpAlert =
-        alertHistoryRepository.findTopByMonitorIdAndTenantIdAndAlertTypeOrderBySentAtDesc(
-            monitor.getId(), monitor.getTenantId(), AlertHistory.AlertType.up);
+  /**
+   * true if a DOWN alert was sent in this outage and has no UP alert after it.
+   *
+   * <p>A DOWN alert sent before the outage started belongs to an earlier outage. Its UP alert was
+   * lost (for example the webhook was down for more than the recovery window, or the contact did
+   * not exist at that time). Such an old alert must not mute this outage. The first DOWN alert of
+   * an outage is sent at least the alerting threshold (15 s or more) after the outage started, so
+   * the second precision of sent_at in the database does not matter here.
+   */
+  private boolean isDownAlertSentForOutage(Monitor monitor, LocalDateTime outageStart) {
+    return lastAlert(monitor, AlertHistory.AlertType.down)
+        .filter(down -> outageStart == null || !down.getSentAt().isBefore(outageStart))
+        .filter(down -> !hasUpAlertAfter(monitor, down))
+        .isPresent();
+  }
 
-    return lastUpAlert
-        .map(up -> !up.getSentAt().isAfter(lastDownAlert.get().getSentAt()))
-        .orElse(true);
+  private Optional<AlertHistory> lastAlert(Monitor monitor, AlertHistory.AlertType type) {
+    return alertHistoryRepository.findTopByMonitorIdAndTenantIdAndAlertTypeOrderBySentAtDesc(
+        monitor.getId(), monitor.getTenantId(), type);
+  }
+
+  private boolean hasUpAlertAfter(Monitor monitor, AlertHistory downAlert) {
+    return lastAlert(monitor, AlertHistory.AlertType.up)
+        .map(up -> up.getSentAt().isAfter(downAlert.getSentAt()))
+        .orElse(false);
   }
 
   private TeamsAlert monitorAlert(
@@ -446,7 +468,7 @@ public class AlertService {
         "down".equals(alertType) ? AlertHistory.AlertType.down : AlertHistory.AlertType.up);
     alertHistory.setEmailSentTo(
         sentTo.length() <= MAX_SENT_TO_LENGTH ? sentTo : sentTo.substring(0, MAX_SENT_TO_LENGTH));
-    alertHistory.setSentAt(LocalDateTime.now());
+    alertHistory.setSentAt(LocalDateTime.now(clock));
     alertHistoryRepository.save(alertHistory);
   }
 

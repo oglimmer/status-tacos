@@ -2,12 +2,15 @@
 package de.oglimmer.status_tacos.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.mockito.Mockito.lenient;
 
 import de.oglimmer.status_tacos.persistence.*;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
@@ -65,7 +68,8 @@ class MonitorExecutionServiceTest {
             taskExecutor,
             alertExecutor,
             applicationContext,
-            0L); // no start spread: checks start at once
+            0L, // no start spread: checks start at once
+            Duration.ofSeconds(30));
 
     // Mock applicationContext.getBean() to return the service instance for self-reference
     // Use lenient() because not all tests use this stubbing
@@ -515,6 +519,32 @@ class MonitorExecutionServiceTest {
         .outageStartedAt(CHECKED_AT.minusSeconds(secondsAgo))
         .consecutiveFailures(3)
         .build();
+  }
+
+  @Test
+  void aRunMustEndBeforeTheNextRunStarts() {
+    // 15 s interval: start spread 3.75 s plus total timeout 15 s is too long, 10 s fits
+    assertThatThrownBy(() -> service(15_000L, Duration.ofSeconds(15)).validateTiming())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("18750 ms")
+        .hasMessageContaining("monitor.http.total-timeout");
+    assertThatCode(() -> service(15_000L, Duration.ofSeconds(10)).validateTiming())
+        .doesNotThrowAnyException();
+  }
+
+  private MonitorExecutionService service(long checkIntervalMs, Duration totalTimeout) {
+    return new MonitorExecutionService(
+        httpClientService,
+        checkResultService,
+        monitorStatusService,
+        monitorService,
+        tenantService,
+        alertService,
+        taskExecutor,
+        alertExecutor,
+        applicationContext,
+        checkIntervalMs,
+        totalTimeout);
   }
 
   @Test

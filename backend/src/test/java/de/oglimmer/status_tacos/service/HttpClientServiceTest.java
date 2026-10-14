@@ -5,6 +5,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -32,8 +37,7 @@ class HttpClientServiceTest {
             Duration.ofSeconds(2), // total timeout
             DataSize.ofBytes(1024), // max body size
             Duration.ofMillis(500), // regex timeout
-            200, // max connections
-            20 // max per route
+            200 // max connections
             );
   }
 
@@ -244,6 +248,67 @@ class HttpClientServiceTest {
     assertThat(toString).contains("200");
     assertThat(toString).contains("150");
     assertThat(toString).contains("true");
+  }
+
+  @Test
+  void serviceUnavailableIsNotRetried() {
+    // HttpClient would by default send the GET once more after 1 s and report the 200
+    mockWebServer.enqueue(new MockResponse().setResponseCode(503));
+    mockWebServer.enqueue(new MockResponse().setResponseCode(200).setBody("ok"));
+
+    HttpClientService.HttpCheckResult result = check(baseUrl);
+
+    assertThat(result.getIsUp()).isFalse();
+    assertThat(result.getStatusCode()).isEqualTo(503);
+    assertThat(mockWebServer.getRequestCount()).isEqualTo(1);
+  }
+
+  @Test
+  void manyChecksOfOneHostRunAtTheSameTime() throws Exception {
+    // 25 checks of one host, each 3 s. With a limit of 20 connections per host, 5 checks would
+    // wait for a connection longer than the connection request timeout (1 s) and be DOWN.
+    int checks = 25;
+    HttpClientService service =
+        new HttpClientService(
+            Duration.ofSeconds(1),
+            Duration.ofSeconds(10),
+            Duration.ofSeconds(10),
+            DataSize.ofBytes(1024),
+            Duration.ofMillis(500),
+            200);
+    for (int i = 0; i < checks; i++) {
+      mockWebServer.enqueue(
+          new MockResponse()
+              .setResponseCode(200)
+              .setBody("ok")
+              .setHeadersDelay(3, TimeUnit.SECONDS));
+    }
+    ExecutorService pool = Executors.newFixedThreadPool(checks);
+    try {
+      List<Future<HttpClientService.HttpCheckResult>> results = new ArrayList<>();
+      for (int i = 0; i < checks; i++) {
+        results.add(
+            pool.submit(
+                () -> service.performHealthCheck(baseUrl, null, null, null, null, null, null)));
+      }
+      for (Future<HttpClientService.HttpCheckResult> result : results) {
+        HttpClientService.HttpCheckResult checkResult = result.get(20, TimeUnit.SECONDS);
+        assertThat(checkResult.getErrorMessage()).isNull();
+        assertThat(checkResult.getIsUp()).isTrue();
+      }
+    } finally {
+      pool.shutdownNow();
+      service.cleanup();
+    }
+  }
+
+  @Test
+  void aUrlThatCanNotBeSentIsDownWithoutARequest() {
+    HttpClientService.HttpCheckResult result = check("http://exa mple.com/health");
+
+    assertThat(result.getIsUp()).isFalse();
+    assertThat(result.getErrorMessage()).startsWith("Invalid URL: ");
+    assertThat(mockWebServer.getRequestCount()).isZero();
   }
 
   private HttpClientService.HttpCheckResult check(String url) {

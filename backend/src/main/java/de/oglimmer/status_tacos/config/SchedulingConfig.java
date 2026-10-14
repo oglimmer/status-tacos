@@ -25,9 +25,6 @@ public class SchedulingConfig {
   @Value("${monitor.threading.max-pool-size:50}")
   private int maxPoolSize;
 
-  @Value("${monitor.threading.queue-capacity:100}")
-  private int queueCapacity;
-
   @Value("${monitor.threading.scheduler-pool-size:5}")
   private int schedulerPoolSize;
 
@@ -51,20 +48,22 @@ public class SchedulingConfig {
    * Runs the HTTP checks. A ThreadPoolExecutor only starts more than the core threads when the
    * queue is full, so core size = max size: up to maxPoolSize checks run at the same time. Idle
    * threads stop after 60 s.
+   *
+   * <p>The queue has no limit. A run queues at most one check per monitor, and the next run waits
+   * for this one, so the queue can not grow without end. With a limit, a full queue would run the
+   * check on the thread that submits it (CallerRunsPolicy). The delayed starts all share one JDK
+   * thread, so every other start would then wait for that check. The policy stays for the one case
+   * left, a check submitted after shutdown: the run waiting for it still ends.
    */
   @Bean(name = "taskExecutor")
   public Executor taskExecutor() {
-    log.info(
-        "Creating task executor with pool size: {}, queue capacity: {}",
-        maxPoolSize,
-        queueCapacity);
+    log.info("Creating task executor with pool size: {}", maxPoolSize);
 
     ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
     executor.setCorePoolSize(maxPoolSize);
     executor.setMaxPoolSize(maxPoolSize);
     executor.setAllowCoreThreadTimeOut(true);
     executor.setKeepAliveSeconds(60);
-    executor.setQueueCapacity(queueCapacity);
     executor.setThreadNamePrefix("monitor-exec-");
     executor.setWaitForTasksToCompleteOnShutdown(true);
     executor.setAwaitTerminationSeconds(60);

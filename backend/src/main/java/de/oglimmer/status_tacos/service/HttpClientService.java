@@ -40,7 +40,8 @@ import org.springframework.util.unit.DataSize;
  *
  * <p>Each check opens a new connection, so the response time always holds DNS, TCP connect and TLS
  * handshake, and DNS or certificate changes show up at the next check. A check never takes longer
- * than the total timeout and never reads more than the max body size.
+ * than the total timeout and never reads more than the max body size. A check is one request: a
+ * failed request is not tried again, so a 503 or a connection reset is reported as it happened.
  */
 @Service
 @Slf4j
@@ -61,15 +62,18 @@ public class HttpClientService {
       @Value("${monitor.http.total-timeout:30s}") Duration totalTimeout,
       @Value("${monitor.http.max-body-size:2MB}") DataSize maxBodySize,
       @Value("${monitor.http.regex-timeout:1s}") Duration regexTimeout,
-      @Value("${monitor.http.max-connections:200}") int maxConnections,
-      @Value("${monitor.http.max-per-route:20}") int maxPerRoute) {
+      @Value("${monitor.http.max-connections:200}") int maxConnections) {
     this.totalTimeout = totalTimeout;
     this.maxBodyBytes = (int) Math.min(Integer.MAX_VALUE - 1, maxBodySize.toBytes());
     this.userRegex = new UserRegex(regexTimeout);
 
+    // Connections are not reused, so these limits only cap the checks that run at the same time.
+    // The check thread pool (monitor.threading.max-pool-size) is the real cap and must be smaller
+    // than maxConnections. No extra limit per host: many monitors of one host would otherwise wait
+    // for each other and the wait would be saved as DOWN, although the host is fine.
     this.connectionManager = new PoolingHttpClientConnectionManager();
     this.connectionManager.setMaxTotal(maxConnections);
-    this.connectionManager.setDefaultMaxPerRoute(maxPerRoute);
+    this.connectionManager.setDefaultMaxPerRoute(maxConnections);
     // The TCP connect timeout must be set here. Without it an unreachable host blocks for the OS
     // default (60-120+ seconds). The socket timeout is the max wait between two reads.
     this.connectionManager.setDefaultConnectionConfig(
@@ -88,6 +92,9 @@ public class HttpClientService {
                     .build())
             // A monitor measures the full path of a new visitor: no keep-alive between checks.
             .setConnectionReuseStrategy((request, response, context) -> false)
+            // By default HttpClient sends a GET once more after 1 s on most I/O errors and on a
+            // 429 or 503 response. That hides a real failure and adds 1 s to the response time.
+            .disableAutomaticRetries()
             .build();
 
     this.deadlineScheduler =
@@ -100,13 +107,12 @@ public class HttpClientService {
 
     log.info(
         "HttpClientService initialized with connect timeout: {}, request timeout: {}, total timeout:"
-            + " {}, max body size: {} bytes, max connections: {}, max per route: {}",
+            + " {}, max body size: {} bytes, max connections: {}",
         connectTimeout,
         requestTimeout,
         totalTimeout,
         maxBodyBytes,
-        maxConnections,
-        maxPerRoute);
+        maxConnections);
   }
 
   @PreDestroy
@@ -130,11 +136,15 @@ public class HttpClientService {
       Double prometheusMinValue,
       Double prometheusMaxValue) {
     long startTime = System.nanoTime();
-    HttpGet request = new HttpGet(url);
-    request.setHeader("User-Agent", "StatusTacos-Monitor/1.0");
-    request.setHeader("Accept", "*/*");
-    if (customHeaders != null) {
-      customHeaders.forEach(request::setHeader);
+    HttpGet request;
+    try {
+      request = buildRequest(url, customHeaders);
+    } catch (IllegalArgumentException e) {
+      // A URL that can not be sent is a failed check like any other, not an error of ours: no
+      // stack trace at every check
+      String errorMessage = "Invalid URL: " + e.getMessage();
+      log.debug("Check failed for {}: {}", url, errorMessage);
+      return failedResult(url, startTime, errorMessage);
     }
 
     // The socket timeout only limits the wait between two reads. A server that sends the body
@@ -205,6 +215,16 @@ public class HttpClientService {
     } finally {
       deadline.cancel(false);
     }
+  }
+
+  private static HttpGet buildRequest(String url, Map<String, String> customHeaders) {
+    HttpGet request = new HttpGet(url);
+    request.setHeader("User-Agent", "StatusTacos-Monitor/1.0");
+    request.setHeader("Accept", "*/*");
+    if (customHeaders != null) {
+      customHeaders.forEach(request::setHeader);
+    }
+    return request;
   }
 
   private record Body(String text, boolean truncated) {}

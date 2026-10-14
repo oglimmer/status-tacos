@@ -17,25 +17,23 @@ import org.springframework.stereotype.Service;
     matchIfMissing = true)
 public class ScheduledMonitorService {
 
-  private final MonitorExecutionService monitorExecutionService;
+  /** The check job first fires this long after start-up. */
+  public static final long INITIAL_DELAY_MS = 5000;
+
+  private final MonitorCheckJob monitorCheckJob;
   private final CheckRollupService checkRollupService;
+  private final SchedulerHeartbeat heartbeat;
 
-  // One replica runs the checks. lockAtLeastFor keeps a second replica out of the same interval.
-  @Scheduled(initialDelay = 5000, fixedRateString = "${monitor.scheduling.check-interval:60000}")
-  @SchedulerLock(name = "monitor-checks", lockAtLeastFor = "PT10S", lockAtMostFor = "PT2M")
+  /**
+   * Fires on every replica. The heartbeat is the sign of life of this instance's scheduler (see
+   * SchedulerHealthIndicator). The job itself runs on one replica only (see MonitorCheckJob).
+   */
+  @Scheduled(
+      initialDelay = INITIAL_DELAY_MS,
+      fixedRateString = "${monitor.scheduling.check-interval:60000}")
   public void executeAllMonitorChecks() {
-    log.debug("Starting scheduled monitor checks");
-
-    try {
-      long startTime = System.currentTimeMillis();
-      monitorExecutionService.executeAllActiveMonitors();
-      long duration = System.currentTimeMillis() - startTime;
-
-      log.debug("Completed scheduled monitor checks in {}ms", duration);
-
-    } catch (Exception e) {
-      log.error("Error during scheduled monitor checks: {}", e.getMessage(), e);
-    }
+    heartbeat.checksFired();
+    monitorCheckJob.run();
   }
 
   @Scheduled(

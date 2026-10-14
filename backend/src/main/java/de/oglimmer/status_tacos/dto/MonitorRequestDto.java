@@ -2,6 +2,7 @@
 package de.oglimmer.status_tacos.dto;
 
 import de.oglimmer.status_tacos.persistence.MonitorState;
+import de.oglimmer.status_tacos.validation.HttpUrl;
 import de.oglimmer.status_tacos.validation.MultipleOf15;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -24,6 +25,7 @@ public class MonitorRequestDto {
   private String name;
 
   @NotBlank(message = "URL is required")
+  @HttpUrl
   @Size(max = 2048, message = "URL must not exceed 2048 characters")
   private String url;
 

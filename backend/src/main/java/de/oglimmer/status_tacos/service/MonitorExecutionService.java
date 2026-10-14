@@ -6,6 +6,7 @@ import de.oglimmer.status_tacos.persistence.Monitor;
 import de.oglimmer.status_tacos.persistence.MonitorState;
 import de.oglimmer.status_tacos.persistence.MonitorStatus;
 import de.oglimmer.status_tacos.persistence.Tenant;
+import jakarta.annotation.PostConstruct;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -43,6 +44,9 @@ public class MonitorExecutionService {
   private final Executor alertExecutor;
   private final ApplicationContext applicationContext;
 
+  private final long checkIntervalMs;
+  private final long totalTimeoutMs;
+
   /** The checks of one run start spread over this time, not all at the same moment. */
   private final long startSpreadMs;
 
@@ -59,7 +63,8 @@ public class MonitorExecutionService {
       @Qualifier("taskExecutor") Executor taskExecutor,
       @Qualifier("alertExecutor") Executor alertExecutor,
       ApplicationContext applicationContext,
-      @Value("${monitor.scheduling.check-interval:60000}") long checkIntervalMs) {
+      @Value("${monitor.scheduling.check-interval:60000}") long checkIntervalMs,
+      @Value("${monitor.http.total-timeout:30s}") Duration totalTimeout) {
     this.httpClientService = httpClientService;
     this.checkResultService = checkResultService;
     this.monitorStatusService = monitorStatusService;
@@ -69,8 +74,32 @@ public class MonitorExecutionService {
     this.taskExecutor = taskExecutor;
     this.alertExecutor = alertExecutor;
     this.applicationContext = applicationContext;
-    // A quarter of the interval: the run (spread + slowest check) should end before the next one
+    this.checkIntervalMs = checkIntervalMs;
+    this.totalTimeoutMs = totalTimeout.toMillis();
+    // A quarter of the interval: the run (spread + slowest check) must end before the next one
     this.startSpreadMs = checkIntervalMs / 4;
+  }
+
+  /**
+   * A run takes the start spread plus the slowest check, and the slowest check takes the total
+   * timeout. The run must end before the next run starts: the scheduler fires at a fixed rate but
+   * never two runs at once, so a run that is too long moves every monitor away from its interval.
+   */
+  @PostConstruct
+  void validateTiming() {
+    long longestRunMs = startSpreadMs + totalTimeoutMs;
+    if (longestRunMs >= checkIntervalMs) {
+      throw new IllegalStateException(
+          "A run of all checks can take "
+              + longestRunMs
+              + " ms (start spread "
+              + startSpreadMs
+              + " ms, a quarter of monitor.scheduling.check-interval, plus monitor.http.total-timeout "
+              + totalTimeoutMs
+              + " ms) but must end before the next run starts after monitor.scheduling.check-interval "
+              + checkIntervalMs
+              + " ms");
+    }
   }
 
   private MonitorExecutionService getSelf() {
@@ -263,7 +292,11 @@ public class MonitorExecutionService {
     }
   }
 
-  /** Starts the check after the fixed offset of the monitor, so each monitor keeps its interval. */
+  /**
+   * Starts the check after the fixed offset of the monitor, so each monitor keeps its interval. The
+   * delay runs on the one JDK delay thread, which only queues the check: the queue of taskExecutor
+   * has no limit, so the thread is never held by a check.
+   */
   private Executor startExecutor(Monitor monitor) {
     long offset = startOffsetMs(monitor.getId(), startSpreadMs);
     return offset > 0

@@ -84,8 +84,7 @@ monitor:
     connect-timeout: "5s"
     request-timeout: "10s"
     max-connections: 100
-    max-per-route: 20
-    total-timeout: "15s"
+    total-timeout: "10s"
     max-body-size: "2MB"
     regex-timeout: "1s"
   scheduling:
@@ -95,7 +94,6 @@ monitor:
     rollup-interval: 60000
   threading:
     max-pool-size: 50
-    queue-capacity: 100
     scheduler-pool-size: 5
   cleanup:
     retention-days: 7

@@ -124,11 +124,16 @@ const validateForm = (): boolean => {
     return false
   }
 
-  // Basic URL validation
+  // Basic URL validation. The backend has the same rule: http or https, with a host.
+  let parsedUrl: URL
   try {
-    new URL(form.value.url)
+    parsedUrl = new URL(form.value.url)
   } catch {
     error.value = 'Please enter a valid URL'
+    return false
+  }
+  if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+    error.value = 'The URL must start with http:// or https://'
     return false
   }
 

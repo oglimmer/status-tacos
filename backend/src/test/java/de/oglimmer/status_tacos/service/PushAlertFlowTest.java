@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -26,6 +27,7 @@ import de.oglimmer.status_tacos.repository.MonitorRepository;
 import de.oglimmer.status_tacos.repository.PushDeviceRepository;
 import de.oglimmer.status_tacos.repository.TenantRepository;
 import de.oglimmer.status_tacos.repository.UserRepository;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
@@ -62,6 +64,7 @@ class PushAlertFlowTest {
   @Autowired private CheckResultRepository checkResultRepository;
   @Autowired private PushDeviceRepository pushDeviceRepository;
   @Autowired private AlertHistoryRepository alertHistoryRepository;
+  @Autowired private Clock clock;
 
   private Tenant tenant;
   private Tenant otherTenant;
@@ -117,6 +120,32 @@ class PushAlertFlowTest {
     alertService.handleMonitorUp(shop, check(shop, true), OUTAGE_START);
 
     verify(apnsClient).send(any(), argThat(message -> message.title().equals("Up again: Shop")));
+  }
+
+  @Test
+  void laterDownChecksOfTheSameOutageSendNoSecondAlert() {
+    savePushAlert(true, Set.of());
+    LocalDateTime outageStart = LocalDateTime.now(clock).minusMinutes(1);
+
+    alertService.handleMonitorDown(shop, check(shop, false), outageStart);
+    alertService.handleMonitorDown(shop, check(shop, false), outageStart);
+
+    verify(apnsClient, times(1))
+        .send(any(), argThat(message -> message.title().equals("Down: Shop")));
+  }
+
+  @Test
+  void aLostUpAlertDoesNotMuteTheNextOutage() {
+    savePushAlert(true, Set.of());
+    alertService.handleMonitorDown(shop, check(shop, false), OUTAGE_START);
+    // The monitor came up, but its UP alert never went out (webhook down, contact missing, ...).
+    // The DOWN alert above is older than the next outage, so it must not count for it.
+    LocalDateTime nextOutageStart = LocalDateTime.now(clock).plusHours(1);
+
+    alertService.handleMonitorDown(shop, check(shop, false), nextOutageStart);
+
+    verify(apnsClient, times(2))
+        .send(any(), argThat(message -> message.title().equals("Down: Shop")));
   }
 
   @Test
