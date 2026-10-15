@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import { User, UserManager, WebStorageStateStore } from 'oidc-client-ts'
+import { ErrorResponse, User, UserManager, WebStorageStateStore } from 'oidc-client-ts'
 import { apiService, type AccountDeletionResult, type CurrentUser } from '../services/api'
 import { LOGIN_NOT_ALLOWED, type ApiError } from '../services/apiError'
 
@@ -19,9 +19,13 @@ const oidcConfig = {
   userStore: new WebStorageStateStore({ store: window.localStorage }),
   useRefreshToken: true,
   automaticSilentRenew: true,
-  checkSessionInterval: 3000,
-  monitorSession: true,
+  // The offline token (offline_access) keeps the user signed in for 30 days, longer than the
+  // Keycloak browser session. So do not watch that browser session.
+  monitorSession: false,
 }
+
+/** Refresh the access token when it is valid for less than this. */
+const MIN_TOKEN_LIFETIME_SECONDS = 30
 
 const SIGN_IN_NOTICE_KEY = 'status-tacos-sign-in-notice'
 
@@ -58,33 +62,48 @@ export const useAuthStore = defineStore('auth', () => {
 
   const userManager = new UserManager(oidcConfig)
 
+  let refreshing: Promise<User | null> | null = null
+
+  /**
+   * Returns the user with an access token that stays valid for some more seconds. Uses the refresh
+   * token when necessary. Returns null when there is no session, or Keycloak ended it. Throws on
+   * other errors (for example no network after sleep): the session stays for the next try.
+   */
+  const getFreshUser = async (): Promise<User | null> => {
+    const stored = await userManager.getUser()
+    if (!stored) {
+      return null
+    }
+    if ((stored.expires_in ?? 0) > MIN_TOKEN_LIFETIME_SECONDS) {
+      return stored
+    }
+    // Parallel requests share one refresh
+    refreshing ??= userManager.signinSilent().finally(() => {
+      refreshing = null
+    })
+    try {
+      const refreshed = await refreshing
+      user.value = refreshed
+      return refreshed
+    } catch (err) {
+      if (err instanceof ErrorResponse) {
+        console.log('[Auth] Keycloak refused the refresh token, the session has ended', err)
+        await userManager.removeUser()
+        user.value = null
+        return null
+      }
+      throw err
+    }
+  }
+
   const initAuth = async () => {
     isLoading.value = true
     error.value = null
 
     try {
-      const existingUser = await userManager.getUser()
-      console.log('[Auth] Existing user from OIDC:', existingUser)
-      console.log('[Auth] User expired?', existingUser?.expired)
-
-      if (existingUser && !existingUser.expired) {
-        console.log('[Auth] Using existing non-expired user')
-        user.value = existingUser
-      } else if (existingUser && existingUser.expired) {
-        console.log('[Auth] User is expired, attempting refresh')
-        try {
-          const refreshedUser = await userManager.signinSilent()
-          console.log('[Auth] Successfully refreshed user token')
-          user.value = refreshedUser
-        } catch {
-          console.log('[Auth] Refresh failed, clearing user')
-          await userManager.removeUser()
-          user.value = null
-        }
-      } else {
-        console.log('[Auth] No valid authentication found')
-      }
+      user.value = await getFreshUser()
     } catch (err) {
+      user.value = null
       error.value = 'Failed to initialize authentication'
       console.error('Auth initialization error:', err)
     } finally {
@@ -157,7 +176,9 @@ export const useAuthStore = defineStore('auth', () => {
       return renewedUser
     } catch (err) {
       console.error('Token renewal failed:', err)
-      user.value = null
+      if (err instanceof ErrorResponse) {
+        user.value = null
+      }
       throw err
     }
   }
@@ -207,6 +228,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   apiService.setUnauthorizedHandler(handleUnauthorized)
+  apiService.setUserProvider(getFreshUser)
 
   userManager.events.addUserLoaded((loadedUser) => {
     user.value = loadedUser
@@ -216,8 +238,9 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
   })
 
+  // A sleeping laptop or a background tab can miss the automatic renew. Then refresh now.
   userManager.events.addAccessTokenExpired(() => {
-    user.value = null
+    getFreshUser().catch((err) => console.error('Token refresh after expiry failed:', err))
   })
 
   return {

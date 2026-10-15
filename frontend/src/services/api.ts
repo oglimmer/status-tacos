@@ -77,6 +77,7 @@ export class ApiService {
   }
 
   private unauthorizedHandler: ((error: ApiError) => void) | null = null
+  private userProvider: (() => Promise<User | null>) | null = null
 
   /** Called on every 401, for example to sign the user out. The auth store sets it. */
   setUnauthorizedHandler(handler: (error: ApiError) => void) {
@@ -84,10 +85,28 @@ export class ApiService {
   }
 
   /**
+   * Gives the signed-in user with a valid access token, and refreshes the token when necessary.
+   * The auth store sets it.
+   */
+  setUserProvider(provider: () => Promise<User | null>) {
+    this.userProvider = provider
+  }
+
+  /**
    * Sends the request. On a network error or HTTP status >= 400 it shows a message to the user and
    * throws an ApiError. A 401 goes to the unauthorized handler instead of a message.
    */
   private async request(endpoint: string, method: string, user: User | null, data?: unknown): Promise<Response> {
+    if (this.userProvider) {
+      try {
+        user = await this.userProvider()
+      } catch (err) {
+        console.error(`Token refresh before ${endpoint} failed:`, err)
+        const error = new ApiError(friendlyMessage(0), 0)
+        showErrorToast(error.message)
+        throw error
+      }
+    }
     let headers: HeadersInit
     try {
       headers = this.getAuthHeaders(user)

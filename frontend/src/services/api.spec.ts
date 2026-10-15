@@ -386,6 +386,47 @@ describe('ApiService', () => {
       expect(handler).toHaveBeenCalled()
       expect(fetch).not.toHaveBeenCalled()
     })
+
+    it('sends the token of the user provider, not the stale one', async () => {
+      const freshUser = { ...mockUser, access_token: 'fresh-token' } as unknown as User
+      apiService.setUserProvider(async () => freshUser)
+      window.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) })
+
+      await apiService.get('/test', mockUser)
+
+      expect(fetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: 'Bearer fresh-token' })
+        })
+      )
+    })
+
+    it('treats an ended session from the user provider like a 401', async () => {
+      const handler = vi.fn()
+      apiService.setUnauthorizedHandler(handler)
+      apiService.setUserProvider(async () => null)
+      window.fetch = vi.fn()
+
+      await expect(apiService.get('/test', mockUser)).rejects.toMatchObject({ status: 401 })
+
+      expect(handler).toHaveBeenCalled()
+      expect(fetch).not.toHaveBeenCalled()
+    })
+
+    it('keeps the session when the token refresh has no network', async () => {
+      const handler = vi.fn()
+      apiService.setUnauthorizedHandler(handler)
+      apiService.setUserProvider(async () => {
+        throw new TypeError('Failed to fetch')
+      })
+      window.fetch = vi.fn()
+
+      await expect(apiService.get('/test', mockUser)).rejects.toMatchObject({ status: 0 })
+
+      expect(handler).not.toHaveBeenCalled()
+      expect(toasts[0]?.message).toContain('Cannot reach Status Tacos')
+    })
   })
 
   describe('query parameter construction', () => {
