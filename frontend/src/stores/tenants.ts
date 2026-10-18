@@ -68,7 +68,7 @@ export const useTenantsStore = defineStore('tenants', () => {
     }
   }
 
-  async function updateTenant(id: number, request: Omit<TenantRequest, 'code'>) {
+  async function updateTenant(id: number, request: TenantRequest) {
     isLoading.value = true
     error.value = null
 

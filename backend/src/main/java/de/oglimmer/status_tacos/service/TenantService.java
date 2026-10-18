@@ -9,8 +9,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,14 +22,25 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class TenantService {
 
+  /** The code is the path of the public status page: /{code}/status. */
+  private static final Pattern CODE_PATTERN = Pattern.compile("[a-zA-Z0-9_-]{1,50}");
+
+  /** A code that is not valid or that another tenant has. The message is for the user. */
+  public static class InvalidTenantCodeException extends RuntimeException {
+    public InvalidTenantCodeException(String message) {
+      super(message);
+    }
+  }
+
   private final TenantRepository tenantRepository;
   private final UserRepository userRepository;
 
   public Tenant createTenant(String name, String code, String description) {
     log.info("Creating new tenant with code: {}", code);
 
+    checkCodeFormat(code);
     if (tenantRepository.existsByCode(code)) {
-      throw new IllegalArgumentException("Tenant with code '" + code + "' already exists");
+      throw codeTaken(code);
     }
 
     Tenant tenant =
@@ -54,7 +67,11 @@ public class TenantService {
     return tenantRepository.findAllActive();
   }
 
-  public Tenant updateTenant(Integer id, String name, String description) {
+  /**
+   * @param code the new code, or null to keep it. A new code moves the public status page to the
+   *     new URL. The old URL then gives 404.
+   */
+  public Tenant updateTenant(Integer id, String name, String code, String description) {
     log.info("Updating tenant ID: {}", id);
 
     Tenant tenant =
@@ -62,10 +79,35 @@ public class TenantService {
             .findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Tenant not found with ID: " + id));
 
+    if (code != null && !code.equals(tenant.getCode())) {
+      checkCodeFormat(code);
+      // The column can compare without case, so look for another tenant, not for the code
+      if (tenantRepository.findByCode(code).filter(t -> !t.getId().equals(id)).isPresent()) {
+        throw codeTaken(code);
+      }
+      log.info("Changing code of tenant ID {} from {} to {}", id, tenant.getCode(), code);
+      tenant.setCode(code);
+    }
     tenant.setName(name);
     tenant.setDescription(description);
 
-    return tenantRepository.save(tenant);
+    try {
+      // Flush here, so a parallel change to the same code fails with a clear message
+      return tenantRepository.saveAndFlush(tenant);
+    } catch (DataIntegrityViolationException e) {
+      throw codeTaken(code);
+    }
+  }
+
+  private static void checkCodeFormat(String code) {
+    if (code == null || !CODE_PATTERN.matcher(code).matches()) {
+      throw new InvalidTenantCodeException(
+          "The code must have 1 to 50 letters, numbers, hyphens or underscores.");
+    }
+  }
+
+  private static InvalidTenantCodeException codeTaken(String code) {
+    return new InvalidTenantCodeException("Another tenant already has the code '" + code + "'.");
   }
 
   public Tenant toggleTenantStatus(Integer id) {

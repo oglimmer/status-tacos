@@ -388,9 +388,10 @@ export class ApiService {
     return this.post<Tenant, TenantRequest>('/tenants', data, user)
   }
 
-  async updateTenant(id: number, data: Omit<TenantRequest, 'code'>): Promise<Tenant> {
+  /** A new code moves the public status page to /<code>/status. The old URL then gives 404. */
+  async updateTenant(id: number, data: TenantRequest): Promise<Tenant> {
     const user = await this.getAuthenticatedUser()
-    return this.put<Tenant, Omit<TenantRequest, 'code'>>(`/tenants/${id}`, data, user)
+    return this.put<Tenant, TenantRequest>(`/tenants/${id}`, data, user)
   }
 
   async toggleTenantStatus(id: number): Promise<Tenant> {

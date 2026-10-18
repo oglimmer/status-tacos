@@ -13,6 +13,7 @@ import de.oglimmer.status_tacos.service.TenantService;
 import de.oglimmer.status_tacos.service.UserTenantResolver;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -106,7 +107,8 @@ public class TenantController {
 
     try {
       Tenant tenant =
-          tenantService.updateTenant(id, requestDto.getName(), requestDto.getDescription());
+          tenantService.updateTenant(
+              id, requestDto.getName(), requestDto.getCode(), requestDto.getDescription());
       return ResponseEntity.ok(convertToDto(tenant));
     } catch (IllegalArgumentException e) {
       log.warn("Failed to update tenant: {}", e.getMessage());
@@ -190,6 +192,14 @@ public class TenantController {
       log.warn("Failed to remove user from tenant: {}", e.getMessage());
       return ResponseEntity.badRequest().build();
     }
+  }
+
+  /** An invalid or taken code. The frontend shows the message. */
+  @ExceptionHandler(TenantService.InvalidTenantCodeException.class)
+  public ResponseEntity<Map<String, String>> invalidCode(
+      TenantService.InvalidTenantCodeException e) {
+    return ResponseEntity.badRequest()
+        .body(Map.of("error", "invalid_tenant_code", "message", e.getMessage()));
   }
 
   private TenantResponseDto convertToDto(Tenant tenant) {

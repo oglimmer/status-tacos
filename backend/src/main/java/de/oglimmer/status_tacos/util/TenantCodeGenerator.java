@@ -18,6 +18,8 @@ public class TenantCodeGenerator {
     if (baseCode.isEmpty()) {
       baseCode = "user";
     }
+    // Room for the suffix "-" + 8 chars in the 50 chars of the column
+    baseCode = baseCode.substring(0, Math.min(baseCode.length(), 41));
 
     // Try the base code first
     if (!tenantService.tenantExists(baseCode)) {

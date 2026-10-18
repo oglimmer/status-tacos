@@ -168,6 +168,53 @@ class StatusPageControllerTest {
 
   @Test
   @WithMockUser
+  void newTenantCode_movesThePublicPage() throws Exception {
+    String oldUrl = pageUrl();
+    String newCode = "acme-status" + System.nanoTime() % 1_000_000;
+
+    mockMvc
+        .perform(
+            put("/v1/tenants/" + tenant.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Acme\",\"code\":\"" + newCode + "\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value(newCode));
+
+    mockMvc.perform(get(oldUrl)).andExpect(status().isNotFound());
+    mockMvc
+        .perform(get("/v1/public/" + newCode + "/status/page"))
+        .andExpect(status().isOk())
+        .andExpect(content().string(containsString("Public API")));
+  }
+
+  @Test
+  @WithMockUser
+  void takenOrInvalidTenantCode_isRejectedWithAMessage() throws Exception {
+    Tenant other =
+        tenantRepository.save(
+            Tenant.builder().name("Other").code("other" + System.nanoTime() % 1_000_000).build());
+
+    mockMvc
+        .perform(
+            put("/v1/tenants/" + tenant.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Acme\",\"code\":\"" + other.getCode() + "\"}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.message").value(containsString("already has the code")));
+
+    mockMvc
+        .perform(
+            put("/v1/tenants/" + tenant.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Acme\",\"code\":\"a/b\"}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.message").value(containsString("letters, numbers")));
+
+    mockMvc.perform(get(pageUrl())).andExpect(status().isOk());
+  }
+
+  @Test
+  @WithMockUser
   void invalidCss_isRejectedWithAMessage() throws Exception {
     mockMvc
         .perform(

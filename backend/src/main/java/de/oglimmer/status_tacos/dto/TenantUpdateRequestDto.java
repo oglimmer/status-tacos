@@ -18,6 +18,10 @@ public class TenantUpdateRequestDto {
   @Size(max = 100, message = "Name must not exceed 100 characters")
   private String name;
 
+  /** Null keeps the code. A new code moves the public status page to a new URL. */
+  @Size(max = 50, message = "Code must not exceed 50 characters")
+  private String code;
+
   @Size(max = 500, message = "Description must not exceed 500 characters")
   private String description;
 

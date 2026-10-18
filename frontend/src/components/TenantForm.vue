@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useTenantsStore } from '../stores/tenants'
 import type { Tenant, TenantRequest } from '../services/api'
 import FormModal from './FormModal.vue'
@@ -27,6 +27,9 @@ const error = ref<string | null>(null)
 const title = props.tenant ? 'Edit Tenant' : 'Add New Tenant'
 const isEditing = !!props.tenant
 
+/** The public status page is at /<code>/status, so a new code breaks the old link. */
+const codeChanged = computed(() => isEditing && form.value.code !== props.tenant?.code)
+
 onMounted(() => {
   if (props.tenant) {
     form.value = {
@@ -45,12 +48,7 @@ const handleSubmit = async () => {
 
   try {
     if (isEditing && props.tenant) {
-      // For editing, we don't send the code (it can't be changed)
-      const updateData = {
-        name: form.value.name,
-        description: form.value.description
-      }
-      await tenantsStore.updateTenant(props.tenant.id, updateData)
+      await tenantsStore.updateTenant(props.tenant.id, form.value)
     } else {
       await tenantsStore.createTenant(form.value)
     }
@@ -95,13 +93,19 @@ const handleClose = () => {
           v-model="form.code"
           type="text"
           required
-          :disabled="isSubmitting || isEditing"
-          :placeholder="isEditing ? 'Code cannot be changed' : 'Enter unique tenant code'"
+          :disabled="isSubmitting"
+          placeholder="Enter unique tenant code"
+          maxlength="50"
           pattern="[a-zA-Z0-9\-_]+"
           title="Only letters, numbers, hyphens, and underscores are allowed"
         />
-        <small v-if="!isEditing" class="form-help">
-          Only letters, numbers, hyphens, and underscores are allowed
+        <small class="form-help">
+          Only letters, numbers, hyphens, and underscores are allowed.
+          Your public status page is at <code>/{{ form.code || 'code' }}/status</code>.
+        </small>
+        <small v-if="codeChanged" class="form-warning">
+          The old status page link <code>/{{ tenant?.code }}/status</code> stops working.
+          Update all links and embedded pages.
         </small>
       </div>
 
@@ -181,6 +185,13 @@ const handleClose = () => {
   display: block;
   margin-top: 0.25rem;
   color: #6c757d;
+  font-size: 0.875rem;
+}
+
+.form-warning {
+  display: block;
+  margin-top: 0.25rem;
+  color: #b45309;
   font-size: 0.875rem;
 }
 
