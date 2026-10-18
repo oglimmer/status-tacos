@@ -1,1 +1,4 @@
 .DS_Store
+
+# Customer-specific status page themes (not for this public repo)
+docs/status-page-themes/
