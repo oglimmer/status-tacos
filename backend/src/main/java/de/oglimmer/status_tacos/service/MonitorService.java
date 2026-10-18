@@ -46,6 +46,7 @@ public class MonitorService {
             .prometheusMinValue(requestDto.getPrometheusMinValue())
             .prometheusMaxValue(requestDto.getPrometheusMaxValue())
             .alertingThreshold(requestDto.getAlertingThreshold())
+            .showOnPublicPage(Boolean.TRUE.equals(requestDto.getShowOnPublicPage()))
             .build();
 
     Monitor savedMonitor = monitorRepository.save(monitor);
@@ -127,6 +128,7 @@ public class MonitorService {
     existingMonitor.setPrometheusMinValue(requestDto.getPrometheusMinValue());
     existingMonitor.setPrometheusMaxValue(requestDto.getPrometheusMaxValue());
     existingMonitor.setAlertingThreshold(requestDto.getAlertingThreshold());
+    existingMonitor.setShowOnPublicPage(Boolean.TRUE.equals(requestDto.getShowOnPublicPage()));
 
     Monitor updatedMonitor = monitorRepository.save(existingMonitor);
     log.info("Monitor updated: {}", updatedMonitor.getId());

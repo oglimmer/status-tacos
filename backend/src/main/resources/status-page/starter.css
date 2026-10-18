@@ -1,0 +1,20 @@
+/* Your brand. These variables change the default template. Delete what you do not need. */
+:root {
+  --bg: #f4f6fb;
+  --surface: #ffffff;
+  --brand: #1d4ed8;
+  --brand-text: #ffffff;
+  --accent: transparent;
+  --text: #0f172a;
+  --text-muted: #475569;
+  --border: #cbd5e1;
+  --up: #16a34a;
+  --down: #dc2626;
+  --unknown: #94a3b8;
+  --radius: 0.75rem;
+  --font: system-ui, sans-serif;
+  /* --logo: url(https://example.com/logo.svg); */
+  /* --logo-width: 8rem; */
+}
+
+/* Any other CSS works too. It always wins over the base styles. */

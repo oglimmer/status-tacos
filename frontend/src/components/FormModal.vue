@@ -1,6 +1,8 @@
 <script setup lang="ts">
 defineProps<{
   title: string
+  // For editors that need the room, for example the status page editor
+  wide?: boolean
 }>()
 
 defineEmits<{
@@ -9,20 +11,23 @@ defineEmits<{
 </script>
 
 <template>
-  <div class="modal-overlay" @click="$emit('close')">
-    <div class="modal-content" @click.stop>
-      <div class="modal-header">
-        <h2>{{ title }}</h2>
-        <button @click="$emit('close')" class="close-btn" type="button">
-          ×
-        </button>
-      </div>
+  <!-- In body: a parent with backdrop-filter (the dashboard card) would hold position: fixed -->
+  <Teleport to="body">
+    <div class="modal-overlay" @click="$emit('close')">
+      <div class="modal-content" :class="{ wide }" @click.stop>
+        <div class="modal-header">
+          <h2>{{ title }}</h2>
+          <button @click="$emit('close')" class="close-btn" type="button">
+            ×
+          </button>
+        </div>
 
-      <div class="modal-body">
-        <slot />
+        <div class="modal-body">
+          <slot />
+        </div>
       </div>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -47,6 +52,32 @@ defineEmits<{
   max-height: 90vh;
   overflow-y: auto;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* The wide modal fills the window height. Its body gives the space to the content, which keeps
+   its own buttons in view. */
+.modal-content.wide {
+  max-width: 1400px;
+  width: 96%;
+  height: 92vh;
+  height: 92dvh;
+  max-height: none;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-content.wide .modal-header {
+  flex: none;
+  padding: 0.75rem 1.5rem;
+}
+
+.modal-content.wide .modal-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 1.5rem;
 }
 
 .modal-header {

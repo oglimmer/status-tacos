@@ -28,6 +28,7 @@ public class MonitorResponseDto {
   private Double prometheusMinValue;
   private Double prometheusMaxValue;
   private Integer alertingThreshold;
+  private Boolean showOnPublicPage;
   private LocalDateTime createdAt;
   private LocalDateTime updatedAt;
 }

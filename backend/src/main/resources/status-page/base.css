@@ -1,0 +1,122 @@
+/*
+ * Base styles of the public status pages. They sit in the cascade layer "base". The CSS of the
+ * tenant sits in the layer "tenant", so it always wins, with any selector. Most brands only need
+ * to set the variables in :root.
+ */
+:root {
+  --bg: #e9f2ee;
+  --surface: #f8fbf9;
+  --brand: #33ada4;
+  --brand-text: #102e2a;
+  --accent: #f2b53c;
+  --text: #102e2a;
+  --text-muted: #3d5a55;
+  --border: #102e2a;
+  --up: #2e8b47;
+  --down: #d2412b;
+  --unknown: #9aa9a6;
+  --radius: 1rem;
+  --width: 48rem;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --heading-font: var(--font);
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  /* A logo: --logo: url(https://example.com/logo.svg); --logo-width: 8rem; */
+  --logo: none;
+  --logo-width: 0;
+  --logo-height: 2.5rem;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1f1c;
+    --surface: #142b27;
+    --brand: #1f6f69;
+    --brand-text: #e9f2ee;
+    --text: #e9f2ee;
+    --text-muted: #a9c2bd;
+    --border: #3d5a55;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 1.0625rem;
+  line-height: 1.5;
+}
+
+.page { min-height: 100vh; display: flex; flex-direction: column; }
+
+.masthead {
+  background: var(--brand);
+  color: var(--brand-text);
+  padding: 1.25rem max(1rem, calc((100% - var(--width)) / 2)) 5rem;
+}
+
+.brand { display: flex; align-items: center; gap: 0.75rem; font-weight: 700; }
+
+.logo {
+  width: var(--logo-width);
+  height: var(--logo-height);
+  background: var(--logo) no-repeat left center / contain;
+}
+
+.title {
+  font-family: var(--heading-font);
+  font-size: clamp(2.2rem, 7vw, 3.5rem);
+  line-height: 1;
+  margin: 2rem 0 0.75rem;
+  text-shadow: 0.06em 0.06em 0 var(--accent);
+}
+
+.summary { margin: 0; font-size: 1.2rem; font-weight: 700; }
+
+.sheet {
+  width: min(var(--width), 100% - 2rem);
+  margin: -3rem auto 2rem;
+  padding: clamp(1rem, 3vw, 2rem);
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.monitors { list-style: none; margin: 0; padding: 0; }
+
+.monitor { display: flex; align-items: center; gap: 1rem; padding: 0.9rem 0; }
+
+.monitor + .monitor { border-top: 1px solid color-mix(in srgb, var(--border) 20%, transparent); }
+
+.dot {
+  flex: none;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: var(--unknown);
+}
+
+.monitor-up .dot { background: var(--up); }
+.monitor-down .dot { background: var(--down); }
+
+.monitor-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+.monitor-name { font-weight: 700; overflow-wrap: anywhere; }
+
+.monitor-state { font-size: 0.95rem; color: var(--text-muted); }
+
+.monitor-down .monitor-state { color: var(--down); font-weight: 700; }
+
+.monitor-uptime { flex: none; display: flex; flex-direction: column; align-items: flex-end; }
+
+.uptime-value { font-family: var(--mono); }
+
+.uptime-label, .footer { font-size: 0.8rem; color: var(--text-muted); }
+
+.empty { margin: 0; color: var(--text-muted); }
+
+.footer { margin-top: auto; padding: 1rem; text-align: center; }

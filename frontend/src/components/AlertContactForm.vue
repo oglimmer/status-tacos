@@ -247,211 +247,214 @@ const handleClose = () => {
 </script>
 
 <template>
-  <div class="modal-overlay" @click="handleClose">
-    <div class="modal-content" @click.stop>
-      <div class="modal-header">
-        <h2>{{ props.contact ? 'Edit Alert Contact' : 'Add Alert Contact' }}</h2>
-        <button @click="handleClose" class="close-btn" type="button">
-          ×
-        </button>
-      </div>
-
-      <form @submit.prevent="handleSubmit" class="alert-contact-form">
-        <div class="form-group">
-          <label for="type">Alert Type *</label>
-          <select id="type" v-model="form.type" required>
-            <option value="EMAIL">Email</option>
-            <option value="HTTP">HTTP Webhook</option>
-            <option value="TEAMS">Microsoft Teams</option>
-          </select>
+  <!-- In body: a parent with backdrop-filter (the dashboard card) would hold position: fixed -->
+  <Teleport to="body">
+    <div class="modal-overlay" @click="handleClose">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h2>{{ props.contact ? 'Edit Alert Contact' : 'Add Alert Contact' }}</h2>
+          <button @click="handleClose" class="close-btn" type="button">
+            ×
+          </button>
         </div>
 
-        <div class="form-group">
-          <label for="name">Name (Optional)</label>
-          <input
-            id="name"
-            v-model="form.name"
-            type="text"
-            placeholder="e.g., Primary Admin"
-          />
-        </div>
-
-        <div v-if="form.type === 'EMAIL'" class="form-group">
-          <label for="email">Email Address *</label>
-          <input
-            id="email"
-            v-model="form.value"
-            type="email"
-            placeholder="alerts@example.com"
-            required
-          />
-        </div>
-
-        <div v-if="form.type === 'HTTP'" class="form-group">
-          <label for="url">Webhook URL *</label>
-          <input
-            id="url"
-            v-model="form.value"
-            type="url"
-            placeholder="https://example.com/webhook"
-            required
-          />
-          <small class="form-help-text">
-            Supports variables: &#123;&#123;MONITOR_NAME&#125;&#125;, &#123;&#123;MONITOR_URL&#125;&#125;, &#123;&#123;TENANT_NAME&#125;&#125;, &#123;&#123;STATUS_CODE&#125;&#125;, &#123;&#123;RESPONSE_BODY&#125;&#125;,&#123;&#123;ALERT_TYPE&#125;&#125;, &#123;&#123;TIMESTAMP&#125;&#125;
-          </small>
-        </div>
-
-        <div v-if="form.type === 'TEAMS'" class="form-group">
-          <label for="teamsUrl">Teams Workflow URL *</label>
-          <input
-            id="teamsUrl"
-            v-model="form.value"
-            type="url"
-            placeholder="https://….powerplatform.com/…/triggers/manual/paths/invoke?…"
-            required
-          />
-          <small class="form-help-text">
-            In Teams, open the channel, select "…" → Workflows → "Send webhook alerts to a channel",
-            and copy the URL here. Keep the URL secret: everybody with it can post to the channel.
-            Each alert is a card with the monitor, URL, reason, status code, response time,
-            down since / downtime and links to the monitored URL and Status Tacos.
-          </small>
-        </div>
-
-        <div v-if="form.type === 'HTTP'" class="form-group">
-          <label for="method">HTTP Method</label>
-          <select id="method" v-model="form.httpMethod">
-            <option value="GET">GET</option>
-            <option value="POST">POST</option>
-          </select>
-        </div>
-
-        <div v-if="form.type === 'HTTP' && form.httpMethod === 'POST'" class="form-group">
-          <label for="contentType">Content Type</label>
-          <select id="contentType" v-model="form.httpContentType">
-            <option value="application/json">JSON (application/json)</option>
-            <option value="text/plain">Plain Text (text/plain)</option>
-          </select>
-        </div>
-
-        <div v-if="form.type === 'HTTP' && form.httpMethod === 'POST'" class="form-group">
-          <label for="body">Request Body</label>
-          <textarea
-            id="body"
-            v-model="form.httpBody"
-            placeholder="Request body content with variables"
-            rows="4"
-          ></textarea>
-          <small class="form-help-text">
-            Supports the same variables as URL. Leave empty for no body.
-          </small>
-        </div>
-
-        <div v-if="form.type === 'HTTP'" class="form-group">
-          <label>Custom Headers</label>
-          <div class="headers-container">
-            <div v-for="item in headerItems" :key="item.id" class="header-row">
-              <input
-                :value="item.key"
-                @input="updateHeaderKey(item.id, ($event.target as HTMLInputElement).value)"
-                placeholder="Header name"
-                class="header-key"
-                maxlength="100"
-              />
-              <input
-                :value="item.value"
-                @input="updateHeaderValue(item.id, ($event.target as HTMLInputElement).value)"
-                placeholder="Header value"
-                class="header-value"
-                maxlength="200"
-              />
-              <button @click="removeHeader(item.id)" type="button" class="remove-header-btn">×</button>
-            </div>
-            <button @click="addHeader" type="button" class="add-header-btn">+ Add Header</button>
+        <form @submit.prevent="handleSubmit" class="alert-contact-form">
+          <div class="form-group">
+            <label for="type">Alert Type *</label>
+            <select id="type" v-model="form.type" required>
+              <option value="EMAIL">Email</option>
+              <option value="HTTP">HTTP Webhook</option>
+              <option value="TEAMS">Microsoft Teams</option>
+            </select>
           </div>
-          <small class="form-help-text">
-            Header values support the same variables as URL.
-          </small>
-        </div>
 
-        <div v-if="currentUser && currentUser.tenants.length > 1" class="form-group">
-          <label for="tenant">Tenant *</label>
-          <select
-            id="tenant"
-            v-model="selectedTenantId"
-            :disabled="!!props.contact"
-            required
-          >
-            <option v-for="tenant in currentUser.tenants" :key="tenant.id" :value="tenant.id">
-              {{ tenant.name }}
-            </option>
-          </select>
-          <small v-if="props.contact" class="form-help-text">
-            Tenant cannot be changed when editing
-          </small>
-        </div>
+          <div class="form-group">
+            <label for="name">Name (Optional)</label>
+            <input
+              id="name"
+              v-model="form.name"
+              type="text"
+              placeholder="e.g., Primary Admin"
+            />
+          </div>
 
-        <div class="form-group">
-          <label>Send Alerts For</label>
-          <label class="checkbox-label">
-            <input v-model="form.allMonitors" type="radio" :value="true" name="scope" />
-            All monitors of the tenant
-          </label>
-          <label class="checkbox-label">
-            <input v-model="form.allMonitors" type="radio" :value="false" name="scope" />
-            Only selected monitors
-          </label>
-          <div v-if="!form.allMonitors" class="monitor-list">
-            <div v-if="monitorsLoading" class="monitor-list-empty">Loading monitors…</div>
-            <div v-else-if="tenantMonitors.length === 0" class="monitor-list-empty">
-              This tenant has no monitors yet.
+          <div v-if="form.type === 'EMAIL'" class="form-group">
+            <label for="email">Email Address *</label>
+            <input
+              id="email"
+              v-model="form.value"
+              type="email"
+              placeholder="alerts@example.com"
+              required
+            />
+          </div>
+
+          <div v-if="form.type === 'HTTP'" class="form-group">
+            <label for="url">Webhook URL *</label>
+            <input
+              id="url"
+              v-model="form.value"
+              type="url"
+              placeholder="https://example.com/webhook"
+              required
+            />
+            <small class="form-help-text">
+              Supports variables: &#123;&#123;MONITOR_NAME&#125;&#125;, &#123;&#123;MONITOR_URL&#125;&#125;, &#123;&#123;TENANT_NAME&#125;&#125;, &#123;&#123;STATUS_CODE&#125;&#125;, &#123;&#123;RESPONSE_BODY&#125;&#125;,&#123;&#123;ALERT_TYPE&#125;&#125;, &#123;&#123;TIMESTAMP&#125;&#125;
+            </small>
+          </div>
+
+          <div v-if="form.type === 'TEAMS'" class="form-group">
+            <label for="teamsUrl">Teams Workflow URL *</label>
+            <input
+              id="teamsUrl"
+              v-model="form.value"
+              type="url"
+              placeholder="https://….powerplatform.com/…/triggers/manual/paths/invoke?…"
+              required
+            />
+            <small class="form-help-text">
+              In Teams, open the channel, select "…" → Workflows → "Send webhook alerts to a channel",
+              and copy the URL here. Keep the URL secret: everybody with it can post to the channel.
+              Each alert is a card with the monitor, URL, reason, status code, response time,
+              down since / downtime and links to the monitored URL and Status Tacos.
+            </small>
+          </div>
+
+          <div v-if="form.type === 'HTTP'" class="form-group">
+            <label for="method">HTTP Method</label>
+            <select id="method" v-model="form.httpMethod">
+              <option value="GET">GET</option>
+              <option value="POST">POST</option>
+            </select>
+          </div>
+
+          <div v-if="form.type === 'HTTP' && form.httpMethod === 'POST'" class="form-group">
+            <label for="contentType">Content Type</label>
+            <select id="contentType" v-model="form.httpContentType">
+              <option value="application/json">JSON (application/json)</option>
+              <option value="text/plain">Plain Text (text/plain)</option>
+            </select>
+          </div>
+
+          <div v-if="form.type === 'HTTP' && form.httpMethod === 'POST'" class="form-group">
+            <label for="body">Request Body</label>
+            <textarea
+              id="body"
+              v-model="form.httpBody"
+              placeholder="Request body content with variables"
+              rows="4"
+            ></textarea>
+            <small class="form-help-text">
+              Supports the same variables as URL. Leave empty for no body.
+            </small>
+          </div>
+
+          <div v-if="form.type === 'HTTP'" class="form-group">
+            <label>Custom Headers</label>
+            <div class="headers-container">
+              <div v-for="item in headerItems" :key="item.id" class="header-row">
+                <input
+                  :value="item.key"
+                  @input="updateHeaderKey(item.id, ($event.target as HTMLInputElement).value)"
+                  placeholder="Header name"
+                  class="header-key"
+                  maxlength="100"
+                />
+                <input
+                  :value="item.value"
+                  @input="updateHeaderValue(item.id, ($event.target as HTMLInputElement).value)"
+                  placeholder="Header value"
+                  class="header-value"
+                  maxlength="200"
+                />
+                <button @click="removeHeader(item.id)" type="button" class="remove-header-btn">×</button>
+              </div>
+              <button @click="addHeader" type="button" class="add-header-btn">+ Add Header</button>
             </div>
-            <label
-              v-for="monitor in tenantMonitors"
-              :key="monitor.id"
-              class="checkbox-label monitor-option"
+            <small class="form-help-text">
+              Header values support the same variables as URL.
+            </small>
+          </div>
+
+          <div v-if="currentUser && currentUser.tenants.length > 1" class="form-group">
+            <label for="tenant">Tenant *</label>
+            <select
+              id="tenant"
+              v-model="selectedTenantId"
+              :disabled="!!props.contact"
+              required
             >
-              <input v-model="form.monitorIds" type="checkbox" :value="monitor.id" />
-              <span class="monitor-option-text">
-                <span>{{ monitor.name }}</span>
-                <small>{{ monitor.url }}</small>
-              </span>
+              <option v-for="tenant in currentUser.tenants" :key="tenant.id" :value="tenant.id">
+                {{ tenant.name }}
+              </option>
+            </select>
+            <small v-if="props.contact" class="form-help-text">
+              Tenant cannot be changed when editing
+            </small>
+          </div>
+
+          <div class="form-group">
+            <label>Send Alerts For</label>
+            <label class="checkbox-label">
+              <input v-model="form.allMonitors" type="radio" :value="true" name="scope" />
+              All monitors of the tenant
+            </label>
+            <label class="checkbox-label">
+              <input v-model="form.allMonitors" type="radio" :value="false" name="scope" />
+              Only selected monitors
+            </label>
+            <div v-if="!form.allMonitors" class="monitor-list">
+              <div v-if="monitorsLoading" class="monitor-list-empty">Loading monitors…</div>
+              <div v-else-if="tenantMonitors.length === 0" class="monitor-list-empty">
+                This tenant has no monitors yet.
+              </div>
+              <label
+                v-for="monitor in tenantMonitors"
+                :key="monitor.id"
+                class="checkbox-label monitor-option"
+              >
+                <input v-model="form.monitorIds" type="checkbox" :value="monitor.id" />
+                <span class="monitor-option-text">
+                  <span>{{ monitor.name }}</span>
+                  <small>{{ monitor.url }}</small>
+                </span>
+              </label>
+            </div>
+            <small v-if="!form.allMonitors" class="form-help-text">
+              New monitors are not added to this contact automatically.
+            </small>
+          </div>
+
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input
+                v-model="form.isActive"
+                type="checkbox"
+              />
+              <span class="checkmark"></span>
+              Contact is active
             </label>
           </div>
-          <small v-if="!form.allMonitors" class="form-help-text">
-            New monitors are not added to this contact automatically.
-          </small>
-        </div>
 
-        <div class="form-group">
-          <label class="checkbox-label">
-            <input
-              v-model="form.isActive"
-              type="checkbox"
-            />
-            <span class="checkmark"></span>
-            Contact is active
-          </label>
-        </div>
+          <div v-if="error" class="error-message">
+            {{ error }}
+          </div>
 
-        <div v-if="error" class="error-message">
-          {{ error }}
-        </div>
-
-        <div class="form-actions">
-          <button type="button" @click="handleClose" class="btn btn-cancel">
-            Cancel
-          </button>
-          <button type="submit" :disabled="isSubmitting" class="btn btn-primary">
-            {{ isSubmitting
-              ? (props.contact ? 'Updating...' : 'Creating...')
-              : (props.contact ? 'Update Alert Contact' : 'Create Alert Contact')
-            }}
-          </button>
-        </div>
-      </form>
+          <div class="form-actions">
+            <button type="button" @click="handleClose" class="btn btn-cancel">
+              Cancel
+            </button>
+            <button type="submit" :disabled="isSubmitting" class="btn btn-primary">
+              {{ isSubmitting
+                ? (props.contact ? 'Updating...' : 'Creating...')
+                : (props.contact ? 'Update Alert Contact' : 'Create Alert Contact')
+              }}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <style scoped>

@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useTenantsStore } from '../stores/tenants'
 import type { Tenant } from '../services/api'
 import UserManagement from './UserManagement.vue'
+import StatusPageEditor from './StatusPageEditor.vue'
 
 defineProps<{
   tenant: Tenant
@@ -15,6 +16,7 @@ defineEmits<{
 
 const tenantsStore = useTenantsStore()
 const showUserManagement = ref(false)
+const showStatusPageEditor = ref(false)
 
 const formatDate = (dateString: string) => {
   return new Date(dateString).toLocaleDateString()
@@ -73,6 +75,9 @@ const handleToggleUserManagement = async (tenant: Tenant) => {
       >
         {{ showUserManagement ? 'Hide Users' : 'Manage Users' }}
       </button>
+      <button @click="showStatusPageEditor = true" class="btn btn-sm btn-outline">
+        Status Page
+      </button>
       <button
         @click="$emit('toggle-status', tenant.id)"
         class="btn btn-sm"
@@ -89,6 +94,12 @@ const handleToggleUserManagement = async (tenant: Tenant) => {
       :is-loading="tenantsStore.isLoadingUsers"
       @assign-user="(email) => tenantsStore.assignUserToTenant(tenant.id, email)"
       @remove-user="(email) => tenantsStore.removeUserFromTenant(tenant.id, email)"
+    />
+
+    <StatusPageEditor
+      v-if="showStatusPageEditor"
+      :tenant="tenant"
+      @close="showStatusPageEditor = false"
     />
   </div>
 </template>

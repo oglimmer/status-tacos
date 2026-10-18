@@ -56,6 +56,46 @@ export interface Monitor {
   updatedAt: string
 }
 
+/** One monitor on the public status page. Timestamps are UTC without a zone suffix. */
+export interface PublicMonitorStatus {
+  name: string
+  // Missing when the monitor has no check yet
+  currentStatus?: 'up' | 'down'
+  // Start of the current outage. Missing when the monitor is up.
+  downSince?: string
+  // Rounded down. Missing when there are no checks in the 90 days.
+  uptimePercentage90d?: number
+}
+
+/** The public status page of one tenant. */
+export interface PublicStatusPage {
+  tenantName: string
+  monitors: PublicMonitorStatus[]
+}
+
+/** The look of the public status page of a tenant. */
+export interface StatusPageLook {
+  // Mustache template of the page body. Blank or missing: the default template.
+  htmlTemplate?: string | null
+  // Blank or missing: no tenant CSS
+  css?: string | null
+}
+
+export interface StatusPageConfig extends StatusPageLook {
+  // Missing when the tenant never saved a look
+  updatedAt?: string | null
+  defaultHtmlTemplate: string
+  baseCss: string
+  starterCss: string
+}
+
+/** On an invalid template or CSS, html is missing and error tells why. */
+export interface StatusPagePreview {
+  html?: string | null
+  error?: string | null
+  removed: string[]
+}
+
 export class ApiService {
   private getApiBaseUrl(): string {
     const hostname = window.location.hostname
@@ -164,6 +204,26 @@ export class ApiService {
     } catch {
       return {}
     }
+  }
+
+  /**
+   * The public status page of a tenant. No sign-in, and no error message: the page shows its own.
+   * An unknown tenant code gives an ApiError with status 404.
+   */
+  async getPublicStatusPage(tenantCode: string): Promise<PublicStatusPage> {
+    const response = await fetch(`${this.getApiBaseUrl()}/public/${encodeURIComponent(tenantCode)}/status`)
+    if (!response.ok) {
+      throw new ApiError(friendlyMessage(response.status), response.status)
+    }
+    return response.json()
+  }
+
+  /**
+   * The URL of the branded status page (HTML). The server sends it with a sandbox CSP, so show it
+   * in a frame or open it directly; any site may embed it.
+   */
+  publicStatusPageUrl(tenantCode: string): string {
+    return `${this.getApiBaseUrl()}/public/${encodeURIComponent(tenantCode)}/status/page`
   }
 
   async get<T>(endpoint: string, user: User | null): Promise<T> {
@@ -283,6 +343,27 @@ export class ApiService {
   async sendTestNotification(id: number): Promise<void> {
     const user = await this.getAuthenticatedUser()
     return this.postVoid(`/alert-contacts/${id}/test`, null, user)
+  }
+
+  // Status page look methods
+  async getStatusPage(tenantId: number): Promise<StatusPageConfig> {
+    const user = await this.getAuthenticatedUser()
+    return this.get<StatusPageConfig>(`/tenants/${tenantId}/status-page`, user)
+  }
+
+  async saveStatusPage(tenantId: number, look: StatusPageLook): Promise<StatusPageConfig> {
+    const user = await this.getAuthenticatedUser()
+    return this.put<StatusPageConfig, StatusPageLook>(`/tenants/${tenantId}/status-page`, look, user)
+  }
+
+  async resetStatusPage(tenantId: number): Promise<void> {
+    const user = await this.getAuthenticatedUser()
+    return this.deleteVoid(`/tenants/${tenantId}/status-page`, user)
+  }
+
+  async previewStatusPage(tenantId: number, look: StatusPageLook): Promise<StatusPagePreview> {
+    const user = await this.getAuthenticatedUser()
+    return this.post<StatusPagePreview, StatusPageLook>(`/tenants/${tenantId}/status-page/preview`, look, user)
   }
 
   // Tenant methods

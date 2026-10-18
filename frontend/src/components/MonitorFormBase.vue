@@ -36,7 +36,8 @@ const form = ref<MonitorRequest>({
   prometheusKey: '',
   prometheusMinValue: undefined,
   prometheusMaxValue: undefined,
-  alertingThreshold: 30
+  alertingThreshold: 30,
+  showOnPublicPage: false
 })
 
 const isSubmitting = ref(false)
@@ -45,6 +46,12 @@ const currentUser = ref<CurrentUser | null>(null)
 const isInitializing = ref(true)
 
 const isEditMode = computed(() => !!props.monitor)
+
+// The public status page of the selected tenant
+const publicPagePath = computed(() => {
+  const code = currentUser.value?.tenants.find((t) => t.id === form.value.tenantId)?.code
+  return code ? `/${encodeURIComponent(code)}/status` : null
+})
 
 const isTenantChanged = computed(
   () => isEditMode.value && !!props.monitor && form.value.tenantId !== props.monitor.tenant.id
@@ -81,7 +88,8 @@ const initializeForm = () => {
       prometheusKey: props.monitor.prometheusKey || '',
       prometheusMinValue: props.monitor.prometheusMinValue,
       prometheusMaxValue: props.monitor.prometheusMaxValue,
-      alertingThreshold: props.monitor.alertingThreshold
+      alertingThreshold: props.monitor.alertingThreshold,
+      showOnPublicPage: props.monitor.showOnPublicPage ?? false
     }
   } else {
     // Reset form for new monitor
@@ -97,7 +105,8 @@ const initializeForm = () => {
       prometheusKey: '',
       prometheusMinValue: undefined,
       prometheusMaxValue: undefined,
-      alertingThreshold: 30
+      alertingThreshold: 30,
+      showOnPublicPage: false
     }
   }
   isInitializing.value = false
@@ -331,6 +340,19 @@ const handleClose = () => {
           required
         />
         <small class="field-note">Must be a multiple of 15 seconds (minimum: 15)</small>
+      </div>
+
+      <div class="form-group">
+        <label class="checkbox-label" for="show-on-public-page">
+          <input id="show-on-public-page" v-model="form.showOnPublicPage" type="checkbox" />
+          Show on the public status page
+        </label>
+        <small class="field-note">
+          Anyone can see the
+          <router-link v-if="publicPagePath" :to="publicPagePath" target="_blank">public status page</router-link>
+          <template v-else>public status page</template>
+          of the tenant without sign-in. It shows only the name, the current status and the 90-day uptime.
+        </small>
       </div>
 
       <div class="form-group">

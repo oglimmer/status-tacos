@@ -85,6 +85,11 @@ public class Monitor {
   @Builder.Default
   private Integer alertingThreshold = 30;
 
+  /** The public status page (no sign-in) shows the name, status and 90-day uptime. */
+  @Column(name = "show_on_public_page", nullable = false)
+  @Builder.Default
+  private Boolean showOnPublicPage = false;
+
   @Column(name = "created_at", nullable = false, updatable = false)
   private LocalDateTime createdAt;
 

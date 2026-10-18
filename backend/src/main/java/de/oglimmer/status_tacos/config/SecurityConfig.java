@@ -7,9 +7,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -27,7 +30,31 @@ public class SecurityConfig {
   @Value("${spring.security.oauth2.resourceserver.jwt.jwk-set-uri:}")
   private String jwkSetUri;
 
+  /**
+   * The public status pages: no sign-in, and no bearer token check, so a stale token in a browser
+   * cannot break them. Any site may embed the HTML page in a frame: its own CSP header allows it
+   * and puts it in a sandbox, so X-Frame-Options is off here. The controller sets Cache-Control.
+   */
   @Bean
+  @Order(1)
+  public SecurityFilterChain publicStatusFilterChain(HttpSecurity http) throws Exception {
+    http.securityMatcher("/v1/public/**")
+        .authorizeHttpRequests(
+            authz -> authz.requestMatchers(HttpMethod.GET).permitAll().anyRequest().denyAll())
+        .headers(
+            headers ->
+                headers
+                    .frameOptions(HeadersConfigurer.FrameOptionsConfig::disable)
+                    .cacheControl(HeadersConfigurer.CacheControlConfig::disable))
+        .sessionManagement(
+            session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+        .csrf(AbstractHttpConfigurer::disable);
+    return http.build();
+  }
+
+  @Bean
+  @Order(2)
   public SecurityFilterChain filterChain(
       HttpSecurity http, LoginNotAllowedEntryPoint loginNotAllowedEntryPoint) throws Exception {
     http.authorizeHttpRequests(

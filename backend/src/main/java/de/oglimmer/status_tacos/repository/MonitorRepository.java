@@ -80,6 +80,12 @@ public interface MonitorRepository extends JpaRepository<Monitor, Integer> {
       "SELECT m FROM Monitor m JOIN FETCH m.tenant LEFT JOIN FETCH m.monitorStatus WHERE m.tenantId IN :tenantIds")
   List<Monitor> findByTenantIdInWithStatusAndTenant(@Param("tenantIds") Set<Integer> tenantIds);
 
+  /** Monitors on the public status page of the tenant. Paused monitors are not on it. */
+  @Query(
+      "SELECT m FROM Monitor m LEFT JOIN FETCH m.monitorStatus WHERE m.tenantId = :tenantId"
+          + " AND m.showOnPublicPage = true AND m.state IN ('ACTIVE', 'SILENT') ORDER BY m.name")
+  List<Monitor> findShownOnPublicPageWithStatus(@Param("tenantId") Integer tenantId);
+
   // Bulk delete. It does not load the monitor's check results etc. into memory. The ON DELETE
   // CASCADE foreign keys in the database remove the child rows.
   @Modifying

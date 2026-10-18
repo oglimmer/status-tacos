@@ -53,4 +53,6 @@ public class MonitorRequestDto {
   @MultipleOf15(message = "Alerting threshold must be a multiple of 15 seconds")
   @Builder.Default
   private Integer alertingThreshold = 30;
+
+  @Builder.Default private Boolean showOnPublicPage = false;
 }

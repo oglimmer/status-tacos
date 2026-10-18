@@ -18,6 +18,7 @@ export interface MonitorRequest {
   prometheusMinValue?: number
   prometheusMaxValue?: number
   alertingThreshold?: number
+  showOnPublicPage?: boolean
 }
 
 export interface MonitorResponse {
@@ -42,6 +43,8 @@ export interface MonitorResponse {
   prometheusMinValue?: number
   prometheusMaxValue?: number
   alertingThreshold: number
+  // Missing from older servers
+  showOnPublicPage?: boolean
   createdAt: string
   updatedAt: string
 }

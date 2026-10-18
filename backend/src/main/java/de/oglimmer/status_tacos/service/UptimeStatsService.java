@@ -96,6 +96,38 @@ public class UptimeStatsService {
     return monitors.isEmpty() ? List.of() : computeHistory24h(monitors);
   }
 
+  /**
+   * Only the uptime of the monitors in the period, for the public status page. It reads the hourly
+   * counts and nothing else.
+   *
+   * @return uptime by monitor ID; no entry when a monitor has no checks in the period
+   */
+  public Map<Integer, BigDecimal> getUptimePercentages(
+      Collection<Monitor> monitors, StatsPeriod period) {
+    if (monitors.isEmpty()) {
+      return Map.of();
+    }
+    LocalDateTime now = LocalDateTime.now(clock);
+    LocalDateTime start = period.windowStart(now);
+    List<Integer> ids = monitors.stream().map(Monitor::getId).toList();
+    LocalDateTime hourly = readWatermarks(start, now).hourly();
+
+    List<HourRow> hours = new ArrayList<>(rollupRepository.findHourly(ids, start, hourly));
+    hours.addAll(rollupRepository.aggregateRawByHour(ids, hourly, now));
+    Map<Integer, BigDecimal> result = new HashMap<>();
+    groupBy(hours, HourRow::monitorId)
+        .forEach(
+            (id, rows) -> {
+              Totals totals = new Totals();
+              rows.forEach(totals::add);
+              BigDecimal uptime = uptimePercentage(totals.up, totals.total);
+              if (uptime != null) {
+                result.put(id, uptime);
+              }
+            });
+    return result;
+  }
+
   private List<UptimeStatsResponseDto> computeStats(List<Monitor> monitors, StatsPeriod period) {
     LocalDateTime now = LocalDateTime.now(clock);
     LocalDateTime start = period.windowStart(now);

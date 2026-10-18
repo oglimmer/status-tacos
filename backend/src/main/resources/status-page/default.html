@@ -1,0 +1,42 @@
+<div class="page">
+  <header class="masthead">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"></span>
+      <span class="tenant">{{tenantName}}</span>
+    </div>
+    <h1 class="title">Status</h1>
+    {{#hasMonitors}}
+    <p class="summary {{#anyDown}}summary-down{{/anyDown}}{{^anyDown}}summary-up{{/anyDown}}">{{headline}}</p>
+    {{/hasMonitors}}
+  </header>
+
+  <main class="sheet">
+    {{#hasMonitors}}
+    <ul class="monitors">
+      {{#monitors}}
+      <li class="monitor monitor-{{status}}">
+        <span class="dot" aria-hidden="true"></span>
+        <div class="monitor-main">
+          <span class="monitor-name">{{name}}</span>
+          <span class="monitor-state">
+            {{#isDown}}{{#downSince}}Down since <time datetime="{{downSinceIso}}">{{downSince}}</time> ({{downFor}}){{/downSince}}{{^downSince}}Down{{/downSince}}{{/isDown}}
+            {{^isDown}}{{statusLabel}}{{/isDown}}
+          </span>
+        </div>
+        <div class="monitor-uptime">
+          <span class="uptime-value uptime-{{uptimeLevel}}">{{uptime90d}}</span>
+          <span class="uptime-label">90-day uptime</span>
+        </div>
+      </li>
+      {{/monitors}}
+    </ul>
+    {{/hasMonitors}}
+    {{^hasMonitors}}
+    <p class="empty">No public monitors.</p>
+    {{/hasMonitors}}
+  </main>
+
+  <footer class="footer">
+    Updated <time datetime="{{updatedAtIso}}">{{updatedAt}}</time>
+  </footer>
+</div>
