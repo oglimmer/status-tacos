@@ -22,4 +22,7 @@ public class StatusPagePreviewDto {
 
   /** Tags and attributes that the cleaning removed from the template. */
   private List<String> removed;
+
+  /** Names that the CSS or template uses as {@code asset:<name>}, but there is no such file. */
+  private List<String> unknownAssets;
 }

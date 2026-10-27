@@ -19,6 +19,7 @@ import de.oglimmer.status_tacos.persistence.MonitorStatus;
 import de.oglimmer.status_tacos.persistence.Tenant;
 import de.oglimmer.status_tacos.repository.MonitorRepository;
 import de.oglimmer.status_tacos.repository.TenantRepository;
+import de.oglimmer.status_tacos.repository.TenantStatusPageAssetRepository;
 import de.oglimmer.status_tacos.repository.TenantStatusPageRepository;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -29,6 +30,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.autoconfigure.web.ServerProperties;
 
 class PublicStatusServiceTest {
 
@@ -52,6 +54,8 @@ class PublicStatusServiceTest {
             tenantRepository,
             monitorRepository,
             statusPageRepository,
+            mock(TenantStatusPageAssetRepository.class),
+            new ServerProperties(),
             uptimeStatsService,
             renderer,
             clock);

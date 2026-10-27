@@ -22,6 +22,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import lombok.Getter;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Attribute;
@@ -49,6 +51,9 @@ import org.springframework.stereotype.Component;
  *       steps above lets something through.
  * </ul>
  *
+ * <p>Files that the tenant uploaded (fonts, images) are {@code asset:<name>} in the CSS and the
+ * template. The server writes their URL in its place, so the page needs no third-party host.
+ *
  * <p>The base CSS is in the cascade layer {@code base}, the CSS of the tenant in the layer {@code
  * tenant}. A later layer always wins, so tenant CSS needs no {@code !important} or long selectors.
  */
@@ -58,13 +63,23 @@ public class StatusPageRenderer {
   public static final int MAX_TEMPLATE_LENGTH = 64 * 1024;
   public static final int MAX_CSS_LENGTH = 64 * 1024;
 
+  /**
+   * The name of an uploaded file. It has no quotes, brackets or spaces, so it ends a URL cleanly.
+   */
+  public static final String ASSET_NAME = "[A-Za-z0-9][A-Za-z0-9._-]{0,99}";
+
+  private static final Pattern ASSET_REFERENCE = Pattern.compile("asset:(" + ASSET_NAME + ")");
+
   /** The page refreshes itself; it cannot use scripts. The data is cached for 30 seconds. */
   static final int REFRESH_SECONDS = 60;
 
-  /** Images and fonts from any https URL (for logos and brand fonts), nothing else from outside. */
+  /**
+   * Images and fonts from the uploaded files ('self') or any https URL (for logos and brand fonts),
+   * nothing else from outside.
+   */
   private static final String POLICY =
-      "default-src 'none'; style-src 'unsafe-inline'; img-src https: data:; font-src https: data:;"
-          + " base-uri 'none'; form-action 'none'";
+      "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' https: data:;"
+          + " font-src 'self' https: data:; base-uri 'none'; form-action 'none'";
 
   /** Header of the public page. Any site may embed the page in a frame. */
   public static final String CONTENT_SECURITY_POLICY =
@@ -107,24 +122,63 @@ public class StatusPageRenderer {
     this.compiledDefault = compiler.compile(defaultTemplate);
   }
 
-  /** A full HTML document. The cleaning removed {@code removed}: tags and attributes. */
-  public record Rendered(String html, Set<String> removed) {}
+  /**
+   * A full HTML document. The cleaning removed {@code removed}: tags and attributes. The CSS or
+   * template uses {@code unknownAssets} as {@code asset:<name>}, but there is no such file.
+   */
+  public record Rendered(String html, Set<String> removed, Set<String> unknownAssets) {}
+
+  /** Renders without uploaded files. */
+  public Rendered render(
+      PublicStatusPageDto page, String htmlTemplate, String css, boolean refresh) {
+    return render(page, htmlTemplate, css, Map.of(), refresh);
+  }
 
   /**
    * @param htmlTemplate null for the default template
    * @param css null for no tenant CSS
+   * @param assetUrls the URL of each uploaded file, by name
    * @param refresh true for the public page, false for the preview in the editor
    * @throws IllegalArgumentException with a message for the user if the template or CSS is invalid
    */
   public Rendered render(
-      PublicStatusPageDto page, String htmlTemplate, String css, boolean refresh) {
+      PublicStatusPageDto page,
+      String htmlTemplate,
+      String css,
+      Map<String, String> assetUrls,
+      boolean refresh) {
     validateCss(css);
     Template template = htmlTemplate == null ? compiledDefault : compile(htmlTemplate);
     String body = execute(template, page);
     String cleanBody =
         Jsoup.clean(body, "", SAFELIST, new Document.OutputSettings().prettyPrint(false));
+    Set<String> unknownAssets = new LinkedHashSet<>();
+    String finalBody = resolveAssets(cleanBody, assetUrls, unknownAssets);
+    String finalCss = css == null ? null : resolveAssets(css, assetUrls, unknownAssets);
     return new Rendered(
-        document(page.getTenantName(), cleanBody, css, refresh), findRemoved(body, cleanBody));
+        document(page.getTenantName(), finalBody, finalCss, refresh),
+        findRemoved(body, cleanBody),
+        unknownAssets);
+  }
+
+  /**
+   * Writes the URL in place of each {@code asset:<name>}. Runs after the cleaning; the URLs come
+   * from the server and have no characters that could leave an attribute or the style element.
+   */
+  private static String resolveAssets(
+      String text, Map<String, String> assetUrls, Set<String> unknownAssets) {
+    Matcher matcher = ASSET_REFERENCE.matcher(text);
+    StringBuilder result = new StringBuilder(text.length());
+    while (matcher.find()) {
+      String url = assetUrls.get(matcher.group(1));
+      if (url == null) {
+        unknownAssets.add(matcher.group(1));
+        url = matcher.group();
+      }
+      matcher.appendReplacement(result, Matcher.quoteReplacement(url));
+    }
+    matcher.appendTail(result);
+    return result.toString();
   }
 
   /**
@@ -397,7 +451,7 @@ public class StatusPageRenderer {
         .addAttributes("details", "open")
         .addAttributes("ol", "start", "reversed")
         .addProtocols("a", "href", "http", "https", "mailto", "#")
-        .addProtocols("img", "src", "https", "data");
+        .addProtocols("img", "src", "https", "data", "asset");
   }
 
   private static String resource(String path) {

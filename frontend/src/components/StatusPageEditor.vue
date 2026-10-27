@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import FormModal from './FormModal.vue'
-import { apiService, type StatusPageConfig, type Tenant } from '../services/api'
+import { apiService, type StatusPageAsset, type StatusPageConfig, type Tenant } from '../services/api'
 import { showErrorToast } from '../services/toasts'
 
 const props = defineProps<{
@@ -12,7 +12,7 @@ const emit = defineEmits<{
   close: []
 }>()
 
-type Tab = 'template' | 'css' | 'reference'
+type Tab = 'template' | 'css' | 'files' | 'reference'
 
 const PREVIEW_DELAY_MS = 400
 
@@ -26,6 +26,10 @@ const device = ref<'desktop' | 'mobile'>('desktop')
 const previewHtml = ref('')
 const previewError = ref<string | null>(null)
 const removed = ref<string[]>([])
+const unknownAssets = ref<string[]>([])
+const assets = ref<StatusPageAsset[]>([])
+const isUploading = ref(false)
+const copiedAsset = ref<string | null>(null)
 const isSaving = ref(false)
 const loadError = ref<string | null>(null)
 const copied = ref(false)
@@ -62,6 +66,7 @@ const refreshPreview = async () => {
     if (run !== previewRun) return // An older answer after a newer request
     previewError.value = result.error ?? null
     removed.value = result.removed
+    unknownAssets.value = result.unknownAssets ?? []
     if (result.html) previewHtml.value = result.html
   } catch (err) {
     console.error('Status page preview failed:', err)
@@ -101,6 +106,51 @@ const resetToDefault = async () => {
     isSaving.value = false
   }
 }
+
+// Uploads one file after the other; a failed file shows a toast, the others still upload.
+const uploadAssets = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const files = Array.from(input.files ?? [])
+  input.value = ''
+  if (!files.length) return
+  isUploading.value = true
+  try {
+    for (const file of files) {
+      try {
+        await apiService.uploadStatusPageAsset(props.tenant.id, file)
+      } catch (err) {
+        console.error(`Uploading ${file.name} failed:`, err)
+      }
+    }
+    assets.value = await apiService.getStatusPageAssets(props.tenant.id)
+    await refreshPreview()
+  } finally {
+    isUploading.value = false
+  }
+}
+
+const deleteAsset = async (name: string) => {
+  try {
+    await apiService.deleteStatusPageAsset(props.tenant.id, name)
+    assets.value = assets.value.filter(a => a.name !== name)
+    await refreshPreview()
+  } catch (err) {
+    console.error(`Deleting ${name} failed:`, err)
+  }
+}
+
+const copyReference = async (asset: StatusPageAsset) => {
+  try {
+    await navigator.clipboard.writeText(asset.reference)
+    copiedAsset.value = asset.name
+    setTimeout(() => (copiedAsset.value = null), 2000)
+  } catch {
+    showErrorToast('Could not copy. Select the text and copy it by hand.')
+  }
+}
+
+const formatSize = (bytes: number) =>
+  bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(bytes < 10240 ? 1 : 0)} KB`
 
 const startFromDefaultTemplate = () => {
   if (config.value) htmlTemplate.value = config.value.defaultHtmlTemplate
@@ -143,7 +193,12 @@ const onKeydown = (event: KeyboardEvent) => {
 onMounted(async () => {
   window.addEventListener('keydown', onKeydown)
   try {
-    applyConfig(await apiService.getStatusPage(props.tenant.id))
+    const [value, files] = await Promise.all([
+      apiService.getStatusPage(props.tenant.id),
+      apiService.getStatusPageAssets(props.tenant.id)
+    ])
+    applyConfig(value)
+    assets.value = files
     await refreshPreview()
   } catch (err) {
     console.error('Loading the status page failed:', err)
@@ -204,6 +259,7 @@ const CSS_VARIABLES = [
           <div class="tabs" role="tablist">
             <button type="button" role="tab" :aria-selected="tab === 'css'" :class="{ active: tab === 'css' }" @click="tab = 'css'">CSS</button>
             <button type="button" role="tab" :aria-selected="tab === 'template'" :class="{ active: tab === 'template' }" @click="tab = 'template'">HTML template</button>
+            <button type="button" role="tab" :aria-selected="tab === 'files'" :class="{ active: tab === 'files' }" @click="tab = 'files'">Files</button>
             <button type="button" role="tab" :aria-selected="tab === 'reference'" :class="{ active: tab === 'reference' }" @click="tab = 'reference'">Reference</button>
           </div>
 
@@ -242,6 +298,43 @@ const CSS_VARIABLES = [
             ></textarea>
           </div>
 
+          <div v-show="tab === 'files'" class="tab-body files">
+            <p class="hint">
+              Fonts and images for your page. This server hosts them, so the browsers of your visitors
+              contact no other host. Use a file as <code>asset:</code> and its name:
+              <code>url(asset:inter.woff2)</code> in the CSS, <code>&lt;img src="asset:logo.svg"&gt;</code> in the template.
+            </p>
+            <label class="btn btn-outline btn-sm upload" :class="{ disabled: isUploading }">
+              {{ isUploading ? 'Uploading…' : 'Upload files' }}
+              <input
+                type="file"
+                multiple
+                accept=".woff2,.woff,.ttf,.otf,.png,.jpg,.jpeg,.gif,.webp,.avif,.svg,.ico"
+                :disabled="isUploading"
+                @change="uploadAssets"
+              />
+            </label>
+            <p v-if="!assets.length" class="hint">No files yet.</p>
+            <table v-else class="asset-list">
+              <tbody>
+                <tr v-for="asset in assets" :key="asset.name">
+                  <td><code>{{ asset.reference }}</code></td>
+                  <td class="size">{{ formatSize(asset.size) }}</td>
+                  <td class="actions">
+                    <button type="button" class="link-btn" @click="copyReference(asset)">
+                      {{ copiedAsset === asset.name ? 'Copied' : 'Copy' }}
+                    </button>
+                    <button type="button" class="link-btn danger" @click="deleteAsset(asset.name)">Delete</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="hint">
+              A file with the same name replaces the old one. Fonts: woff2, woff, ttf, otf. Images: png, jpg,
+              gif, webp, avif, svg, ico. At most 1 MB per file, 20 files and 5 MB in total.
+            </p>
+          </div>
+
           <div v-show="tab === 'reference'" class="tab-body reference">
             <h3>Template data</h3>
             <table>
@@ -257,7 +350,8 @@ const CSS_VARIABLES = [
             <h3>Rules</h3>
             <ul>
               <li>No scripts. The page runs in a sandbox, and the server removes scripts, event handlers, forms and frames.</li>
-              <li>Images and fonts load from <code>https:</code> URLs or <code>data:</code> URLs. A logo: <code>--logo: url(https://…/logo.svg); --logo-width: 8rem;</code></li>
+              <li>Images and fonts load from your uploaded files (<code>asset:name</code>), <code>https:</code> URLs or <code>data:</code> URLs. A logo: <code>--logo: url(asset:logo.svg); --logo-width: 8rem;</code></li>
+              <li>Prefer uploaded files: an <code>https:</code> URL of another host (a font CDN, for example) sends the IP address of each visitor to that host.</li>
               <li>Links can go to <code>https:</code>, <code>http:</code> and <code>mailto:</code> addresses.</li>
               <li>The CSS cannot contain the character <code>&lt;</code>. Template and CSS: at most 64 KB each.</li>
               <li>The page reloads itself every 60 seconds. Times are in UTC.</li>
@@ -276,6 +370,9 @@ const CSS_VARIABLES = [
           <div v-if="previewError" class="error-message">{{ previewError }}</div>
           <div v-if="removed.length" class="warning-message">
             Removed for safety: {{ removed.join(', ') }}
+          </div>
+          <div v-if="unknownAssets.length" class="warning-message">
+            No such file: {{ unknownAssets.map(name => `asset:${name}`).join(', ') }}. Upload it in the Files tab.
           </div>
           <div class="preview-stage" :class="device">
             <!-- No allow-* flags: no scripts, opaque origin -->
@@ -443,6 +540,62 @@ const CSS_VARIABLES = [
   outline: none;
   border-color: #007bff;
   box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.files {
+  font-size: 0.85rem;
+  overflow-y: auto;
+  gap: 0.5rem;
+}
+
+.upload {
+  position: relative;
+  align-self: flex-start;
+  overflow: hidden;
+}
+
+.upload input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.upload.disabled {
+  opacity: 0.6;
+}
+
+.upload:focus-within {
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.asset-list {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.asset-list td {
+  padding: 0.35rem 0.5rem 0.35rem 0;
+  border-bottom: 1px solid #f1f3f5;
+  word-break: break-all;
+}
+
+.asset-list .size {
+  color: #6c757d;
+  white-space: nowrap;
+}
+
+.asset-list .actions {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.asset-list .actions .link-btn + .link-btn {
+  margin-left: 0.75rem;
+}
+
+.link-btn.danger {
+  color: #dc3545;
 }
 
 .reference {

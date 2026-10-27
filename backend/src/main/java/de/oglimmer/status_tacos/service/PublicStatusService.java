@@ -11,8 +11,11 @@ import de.oglimmer.status_tacos.persistence.Tenant;
 import de.oglimmer.status_tacos.persistence.TenantStatusPage;
 import de.oglimmer.status_tacos.repository.MonitorRepository;
 import de.oglimmer.status_tacos.repository.TenantRepository;
+import de.oglimmer.status_tacos.repository.TenantStatusPageAssetRepository;
+import de.oglimmer.status_tacos.repository.TenantStatusPageAssetRepository.AssetInfo;
 import de.oglimmer.status_tacos.repository.TenantStatusPageRepository;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -20,9 +23,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.web.ServerProperties;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.UriUtils;
 
 /**
  * The public status page of a tenant: its monitors with {@code showOnPublicPage}, as data and as
@@ -40,6 +46,8 @@ public class PublicStatusService {
   private final TenantRepository tenantRepository;
   private final MonitorRepository monitorRepository;
   private final TenantStatusPageRepository statusPageRepository;
+  private final TenantStatusPageAssetRepository assetRepository;
+  private final ServerProperties serverProperties;
   private final UptimeStatsService uptimeStatsService;
   private final StatusPageRenderer renderer;
   private final Clock clock;
@@ -68,6 +76,30 @@ public class PublicStatusService {
   /** The data of the page, for the preview in the editor. */
   public PublicStatusPageDto getPageData(Tenant tenant) {
     return cached(tenant).page();
+  }
+
+  /**
+   * The URL of each uploaded file of the tenant, by name. The path starts at the root of the host
+   * that serves the page, so it works on the public page, in a frame on any site and in the editor.
+   * The hash in the URL changes with the file, so browsers can keep a file for a long time.
+   */
+  public Map<String, String> getAssetUrls(Tenant tenant) {
+    String contextPath = serverProperties.getServlet().getContextPath();
+    String base =
+        (contextPath == null ? "" : contextPath)
+            + "/v1/public/"
+            + UriUtils.encodePathSegment(tenant.getCode(), StandardCharsets.UTF_8)
+            + "/status/assets/";
+    return assetRepository.findByTenantIdOrderByName(tenant.getId()).stream()
+        .collect(
+            Collectors.toMap(
+                AssetInfo::getName,
+                a -> base + a.getName() + "?v=" + PublicStatusService.version(a.getSha256())));
+  }
+
+  /** The part of the hash that the URL of a file uses. */
+  static String version(String sha256) {
+    return sha256.substring(0, 16);
   }
 
   /** Call it when the look of the page changes. Other instances see it after {@link #CACHE_TTL}. */
@@ -101,7 +133,7 @@ public class PublicStatusService {
     String template = look.map(TenantStatusPage::getHtmlTemplate).orElse(null);
     String css = look.map(TenantStatusPage::getCss).orElse(null);
     try {
-      return renderer.render(page, template, css, true).html();
+      return renderer.render(page, template, css, getAssetUrls(tenant), true).html();
     } catch (IllegalArgumentException e) {
       // Saved looks are checked, so only a stricter check of a newer version gets here.
       log.warn("Status page of tenant {} is invalid, using the default: {}", tenant.getId(), e);

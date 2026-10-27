@@ -1,6 +1,7 @@
 /* Copyright (c) 2025 by oglimmer.com / Oliver Zimpasser. All rights reserved. */
 package de.oglimmer.status_tacos.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.when;
@@ -19,6 +20,7 @@ import de.oglimmer.status_tacos.persistence.Monitor;
 import de.oglimmer.status_tacos.persistence.Tenant;
 import de.oglimmer.status_tacos.repository.MonitorRepository;
 import de.oglimmer.status_tacos.repository.TenantRepository;
+import de.oglimmer.status_tacos.service.StatusPageAssetService;
 import de.oglimmer.status_tacos.service.UptimeStatsService;
 import de.oglimmer.status_tacos.service.UserTenantResolver;
 import org.junit.jupiter.api.BeforeEach;
@@ -223,6 +225,97 @@ class StatusPageControllerTest {
                 .content("{\"css\":\"</style><script>x()</script>\"}"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.message").value(containsString("<")));
+  }
+
+  private static final byte[] FONT = {'w', 'O', 'F', '2', 1, 2, 3};
+
+  private String assetsUrl() {
+    return "/v1/tenants/" + tenant.getId() + "/status-page/assets";
+  }
+
+  @Test
+  @WithMockUser
+  void asset_isServedFromThisHost_andUsedOnThePage() throws Exception {
+    mockMvc
+        .perform(put(assetsUrl() + "/inter.woff2").content(FONT))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.contentType").value("font/woff2"))
+        .andExpect(jsonPath("$.size").value(FONT.length))
+        .andExpect(jsonPath("$.reference").value("asset:inter.woff2"));
+    mockMvc
+        .perform(get(assetsUrl()))
+        .andExpect(jsonPath("$.length()").value(1))
+        .andExpect(jsonPath("$[0].name").value("inter.woff2"));
+
+    mockMvc
+        .perform(
+            put("/v1/tenants/" + tenant.getId() + "/status-page")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"css\":\"@font-face { src: url(asset:inter.woff2); }\"}"))
+        .andExpect(status().isOk());
+    String html = mockMvc.perform(get(pageUrl())).andReturn().getResponse().getContentAsString();
+    String assetPath = "/v1/public/" + tenant.getCode() + "/status/assets/inter.woff2";
+    // The page needs the path with the context path, MockMvc the path without it.
+    assertThat(html).contains("url(/api" + assetPath + "?v=").doesNotContain("asset:inter.woff2");
+    String url =
+        html.substring(html.indexOf(assetPath), html.indexOf(")", html.indexOf(assetPath)));
+
+    // The page is in a sandbox, so the browser loads the font with CORS and the origin "null".
+    mockMvc
+        .perform(get(url).header("Origin", "null"))
+        .andExpect(status().isOk())
+        .andExpect(content().bytes(FONT))
+        .andExpect(content().contentType("font/woff2"))
+        .andExpect(header().string("Access-Control-Allow-Origin", "null"))
+        .andExpect(header().string("Cache-Control", containsString("immutable")))
+        .andExpect(header().string("Content-Security-Policy", containsString("sandbox")))
+        .andExpect(header().string("X-Content-Type-Options", "nosniff"));
+    mockMvc
+        .perform(get(assetPath))
+        .andExpect(status().isOk())
+        .andExpect(header().string("Cache-Control", not(containsString("immutable"))));
+  }
+
+  @Test
+  @WithMockUser
+  void asset_wrongTypeOrNameOrSize_isRejectedWithAMessage() throws Exception {
+    mockMvc
+        .perform(put(assetsUrl() + "/page.html").content("<script>".getBytes()))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.message").value(containsString("Allowed files")));
+    mockMvc
+        .perform(put(assetsUrl() + "/.hidden.png").content(FONT))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.message").value(containsString("file name")));
+    mockMvc
+        .perform(
+            put(assetsUrl() + "/big.png")
+                .content(new byte[StatusPageAssetService.MAX_FILE_BYTES + 1]))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.message").value(containsString("bigger than")));
+  }
+
+  @Test
+  @WithMockUser
+  void asset_delete_removesItFromThePublicPath() throws Exception {
+    mockMvc.perform(put(assetsUrl() + "/logo.svg").content(FONT)).andExpect(status().isOk());
+    String assetPath = "/v1/public/" + tenant.getCode() + "/status/assets/logo.svg";
+    mockMvc.perform(get(assetPath)).andExpect(status().isOk());
+
+    mockMvc.perform(delete(assetsUrl() + "/logo.svg")).andExpect(status().isNoContent());
+
+    mockMvc.perform(get(assetPath)).andExpect(status().isNotFound());
+    mockMvc.perform(delete(assetsUrl() + "/logo.svg")).andExpect(status().isNotFound());
+  }
+
+  @Test
+  @WithMockUser
+  void asset_ofOtherTenant_isForbidden() throws Exception {
+    mockMvc
+        .perform(
+            put("/v1/tenants/" + (tenant.getId() + 1000) + "/status-page/assets/a.png")
+                .content(FONT))
+        .andExpect(status().isForbidden());
   }
 
   @Test

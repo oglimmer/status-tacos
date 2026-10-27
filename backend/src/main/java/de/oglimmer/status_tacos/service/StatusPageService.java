@@ -78,13 +78,23 @@ public class StatusPageService {
     try {
       renderer.validate(template, css);
       StatusPageRenderer.Rendered rendered =
-          renderer.render(publicStatusService.getPageData(tenant), template, css, false);
+          renderer.render(
+              publicStatusService.getPageData(tenant),
+              template,
+              css,
+              publicStatusService.getAssetUrls(tenant),
+              false);
       return StatusPagePreviewDto.builder()
           .html(rendered.html())
           .removed(List.copyOf(rendered.removed()))
+          .unknownAssets(List.copyOf(rendered.unknownAssets()))
           .build();
     } catch (IllegalArgumentException e) {
-      return StatusPagePreviewDto.builder().error(e.getMessage()).removed(List.of()).build();
+      return StatusPagePreviewDto.builder()
+          .error(e.getMessage())
+          .removed(List.of())
+          .unknownAssets(List.of())
+          .build();
     }
   }
 

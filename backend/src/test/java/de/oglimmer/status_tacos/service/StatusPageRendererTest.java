@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class StatusPageRendererTest {
@@ -78,6 +79,23 @@ class StatusPageRendererTest {
     String html = renderer.render(PAGE, null, ":root { --brand: #ff6600; }", false).html();
 
     assertThat(html).contains("@layer tenant {\n:root { --brand: #ff6600; }\n}");
+  }
+
+  @Test
+  void assetReferences_becomeUrls_andUnknownNamesAreReported() {
+    Map<String, String> urls =
+        Map.of("inter.woff2", "/api/v1/public/acme/status/assets/inter.woff2?v=1");
+    String template = "<img src=\"asset:inter.woff2\" alt=\"logo\"><img src=\"asset:missing.png\">";
+    String css = "@font-face { src: url(asset:inter.woff2) format(\"woff2\"); }";
+
+    StatusPageRenderer.Rendered rendered = renderer.render(PAGE, template, css, urls, false);
+
+    assertThat(rendered.html())
+        .contains("<img src=\"/api/v1/public/acme/status/assets/inter.woff2?v=1\" alt=\"logo\">")
+        .contains("src: url(/api/v1/public/acme/status/assets/inter.woff2?v=1) format")
+        .contains("font-src 'self' https: data:");
+    assertThat(rendered.unknownAssets()).containsExactly("missing.png");
+    assertThat(rendered.removed()).isEmpty();
   }
 
   @Test

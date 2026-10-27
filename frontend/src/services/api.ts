@@ -94,6 +94,18 @@ export interface StatusPagePreview {
   html?: string | null
   error?: string | null
   removed: string[]
+  // Names used as asset:<name> without an uploaded file
+  unknownAssets?: string[]
+}
+
+/** A font or image of the status page. The server hosts it, so the page needs no other host. */
+export interface StatusPageAsset {
+  name: string
+  contentType: string
+  size: number
+  updatedAt?: string | null
+  // What to write in the CSS or template, for example asset:inter.woff2
+  reference: string
 }
 
 export class ApiService {
@@ -157,7 +169,11 @@ export class ApiService {
       throw error
     }
     const init: RequestInit = { method, headers }
-    if (data !== undefined) {
+    if (data instanceof Blob) {
+      // A file upload: the body is the file itself
+      init.headers = { ...(headers as Record<string, string>), 'Content-Type': data.type || 'application/octet-stream' }
+      init.body = data
+    } else if (data !== undefined) {
       init.body = JSON.stringify(data)
     }
 
@@ -364,6 +380,26 @@ export class ApiService {
   async previewStatusPage(tenantId: number, look: StatusPageLook): Promise<StatusPagePreview> {
     const user = await this.getAuthenticatedUser()
     return this.post<StatusPagePreview, StatusPageLook>(`/tenants/${tenantId}/status-page/preview`, look, user)
+  }
+
+  async getStatusPageAssets(tenantId: number): Promise<StatusPageAsset[]> {
+    const user = await this.getAuthenticatedUser()
+    return this.get<StatusPageAsset[]>(`/tenants/${tenantId}/status-page/assets`, user)
+  }
+
+  /** Adds the file, or replaces the file with the same name. */
+  async uploadStatusPageAsset(tenantId: number, file: File): Promise<StatusPageAsset> {
+    const user = await this.getAuthenticatedUser()
+    return this.put<StatusPageAsset, File>(
+      `/tenants/${tenantId}/status-page/assets/${encodeURIComponent(file.name)}`,
+      file,
+      user
+    )
+  }
+
+  async deleteStatusPageAsset(tenantId: number, name: string): Promise<void> {
+    const user = await this.getAuthenticatedUser()
+    return this.deleteVoid(`/tenants/${tenantId}/status-page/assets/${encodeURIComponent(name)}`, user)
   }
 
   // Tenant methods

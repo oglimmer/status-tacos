@@ -1,11 +1,17 @@
 /* Copyright (c) 2025 by oglimmer.com / Oliver Zimpasser. All rights reserved. */
 package de.oglimmer.status_tacos.controller;
 
+import de.oglimmer.status_tacos.dto.StatusPageAssetDto;
 import de.oglimmer.status_tacos.dto.StatusPageConfigDto;
 import de.oglimmer.status_tacos.dto.StatusPagePreviewDto;
 import de.oglimmer.status_tacos.dto.StatusPageRequestDto;
+import de.oglimmer.status_tacos.service.StatusPageAssetService;
 import de.oglimmer.status_tacos.service.StatusPageService;
 import de.oglimmer.status_tacos.service.UserTenantResolver;
+import jakarta.servlet.http.HttpServletRequest;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +28,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class TenantStatusPageController {
 
   private final StatusPageService statusPageService;
+  private final StatusPageAssetService assetService;
   private final UserTenantResolver userTenantResolver;
 
   @GetMapping
@@ -52,7 +59,37 @@ public class TenantStatusPageController {
     return statusPageService.preview(id, request);
   }
 
-  /** An invalid template or CSS. The frontend shows the message. */
+  @GetMapping("/assets")
+  public List<StatusPageAssetDto> listAssets(@PathVariable Integer id) {
+    checkAccess(id);
+    return assetService.list(id);
+  }
+
+  /** The body is the file itself. A file with the same name is replaced. */
+  @PutMapping("/assets/{name}")
+  public StatusPageAssetDto saveAsset(
+      @PathVariable Integer id, @PathVariable String name, HttpServletRequest request)
+      throws IOException {
+    checkAccess(id);
+    byte[] data;
+    // One byte more than allowed is enough to tell that the file is too big.
+    try (InputStream in = request.getInputStream()) {
+      data = in.readNBytes(StatusPageAssetService.MAX_FILE_BYTES + 1);
+    }
+    log.info("Saving the status page file {} of tenant {}", name, id);
+    return assetService.save(id, name, data);
+  }
+
+  @DeleteMapping("/assets/{name}")
+  public ResponseEntity<Void> deleteAsset(@PathVariable Integer id, @PathVariable String name) {
+    checkAccess(id);
+    log.info("Deleting the status page file {} of tenant {}", name, id);
+    return assetService.delete(id, name)
+        ? ResponseEntity.noContent().build()
+        : ResponseEntity.notFound().build();
+  }
+
+  /** An invalid template, CSS or file. The frontend shows the message. */
   @ExceptionHandler(IllegalArgumentException.class)
   public ResponseEntity<Map<String, String>> invalid(IllegalArgumentException e) {
     return ResponseEntity.badRequest()
