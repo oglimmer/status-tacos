@@ -137,3 +137,5 @@ monitor:
     team-id: ""
     key-id: ""
     private-key: ""
+  limits:
+    max-monitors-per-user: 0

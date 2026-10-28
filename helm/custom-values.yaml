@@ -2,6 +2,8 @@ frontend:
   replicaCount: 1
 backend:
   replicaCount: 1
+  limits:
+    maxMonitorsPerUser: 3
   email:
     enabled: true
   apns:

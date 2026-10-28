@@ -23,6 +23,8 @@ export interface CurrentUser {
   tenantIds: number[]
   tenants: Tenant[]
   isActive: boolean
+  /** Maximum number of monitors in all tenants of the user. Missing: no limit. */
+  maxMonitors?: number
   createdAt: string
   updatedAt: string
 }

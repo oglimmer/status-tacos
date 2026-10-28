@@ -51,6 +51,8 @@ public interface MonitorRepository extends JpaRepository<Monitor, Integer> {
   @Query("SELECT COUNT(m) FROM Monitor m WHERE m.tenantId = :tenantId AND m.state = 'ACTIVE'")
   long countByTenantIdAndIsActiveTrue(@Param("tenantId") Integer tenantId);
 
+  long countByTenantIdIn(Set<Integer> tenantIds);
+
   @Query("SELECT m FROM Monitor m JOIN FETCH m.tenant WHERE m.tenantId IN :tenantIds")
   List<Monitor> findByTenantIdIn(@Param("tenantIds") Set<Integer> tenantIds);
 

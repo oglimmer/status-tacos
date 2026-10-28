@@ -21,6 +21,10 @@ public class UserResponseDto {
   private Integer[] tenantIds;
   private List<TenantResponseDto> tenants;
   private Boolean isActive;
+
+  /** Maximum number of monitors in all tenants of the user. Null: no limit. */
+  private Integer maxMonitors;
+
   private LocalDateTime createdAt;
   private LocalDateTime updatedAt;
 }

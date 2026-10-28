@@ -5,6 +5,8 @@ import ViewModeSwitcher, { type ViewModeType } from './ViewModeSwitcher.vue'
 interface MonitorsHeaderProps {
   selectedTimeframe: TimeframeType
   selectedViewMode: ViewModeType
+  /** The user has the maximum number of monitors. */
+  limitReached?: boolean
 }
 
 interface MonitorsHeaderEmits {
@@ -35,7 +37,12 @@ defineEmits<MonitorsHeaderEmits>()
       </div>
     </div>
     <div class="header-right">
-      <button @click="$emit('add-monitor')" class="btn btn-primary">
+      <button
+        @click="$emit('add-monitor')"
+        class="btn btn-primary"
+        :disabled="limitReached"
+        :title="limitReached ? 'You have the maximum number of monitors' : undefined"
+      >
         Add Monitor
       </button>
     </div>

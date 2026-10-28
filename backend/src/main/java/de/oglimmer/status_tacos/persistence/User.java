@@ -44,6 +44,10 @@ public class User {
       inverseJoinColumns = @JoinColumn(name = "tenant_id"))
   private Set<Tenant> tenants;
 
+  /** Null: the server default (monitor.limits.max-monitors-per-user). 0: no limit. */
+  @Column(name = "max_monitors")
+  private Integer maxMonitors;
+
   @Column(name = "is_active", nullable = false)
   @Builder.Default
   private Boolean isActive = true;

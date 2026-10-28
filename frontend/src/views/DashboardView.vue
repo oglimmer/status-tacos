@@ -7,6 +7,7 @@ import MonitorEditForm from '../components/MonitorEditForm.vue'
 import DashboardHeader from '../components/DashboardHeader.vue'
 import PageNavigation from '../components/PageNavigation.vue'
 import MonitorsHeader from '../components/MonitorsHeader.vue'
+import MonitorLimitInfo from '../components/MonitorLimitInfo.vue'
 import DashboardSummary from '../components/DashboardSummary.vue'
 import EnhancedMonitorCard from '../components/EnhancedMonitorCard.vue'
 import type { TimeframeType } from '../components/TimeframeSwitcher.vue'
@@ -181,6 +182,12 @@ const refreshMonitorData = async () => {
   }
 }
 
+// Null: the user has no monitor limit
+const maxMonitors = computed(() => currentUser.value?.maxMonitors ?? null)
+const monitorLimitReached = computed(
+  () => maxMonitors.value !== null && monitorsStore.monitors.length >= maxMonitors.value
+)
+
 // Summary data computed property
 const summaryData = computed(() => {
   const filtered = filteredMonitors.value
@@ -268,9 +275,16 @@ onUnmounted(() => {
         <MonitorsHeader
           :selected-timeframe="selectedTimeframe"
           :selected-view-mode="selectedViewMode"
+          :limit-reached="monitorLimitReached"
           @add-monitor="openAddMonitorForm"
           @update:selected-timeframe="selectedTimeframe = $event"
           @update:selected-view-mode="selectedViewMode = $event"
+        />
+
+        <MonitorLimitInfo
+          v-if="maxMonitors !== null && !monitorsStore.isLoading && !monitorsStore.error"
+          :monitor-count="monitorsStore.monitors.length"
+          :max-monitors="maxMonitors"
         />
 
         <DashboardSummary

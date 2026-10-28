@@ -6,11 +6,13 @@ import de.oglimmer.status_tacos.dto.MonitorResponseDto;
 import de.oglimmer.status_tacos.mapper.EntityMapper;
 import de.oglimmer.status_tacos.persistence.Monitor;
 import de.oglimmer.status_tacos.persistence.MonitorState;
+import de.oglimmer.status_tacos.service.MonitorLimitService;
 import de.oglimmer.status_tacos.service.MonitorMoveService;
 import de.oglimmer.status_tacos.service.MonitorService;
 import de.oglimmer.status_tacos.service.UserTenantResolver;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +28,7 @@ public class MonitorController {
 
   private final MonitorService monitorService;
   private final MonitorMoveService monitorMoveService;
+  private final MonitorLimitService monitorLimitService;
   private final UserTenantResolver userTenantResolver;
   private final EntityMapper entityMapper;
 
@@ -38,6 +41,13 @@ public class MonitorController {
           "User attempted to create monitor for unauthorized tenant: {}", requestDto.getTenantId());
       return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
     }
+
+    userTenantResolver
+        .getCurrentUser()
+        .ifPresent(
+            user ->
+                monitorLimitService.checkCanCreateMonitor(
+                    user, userTenantResolver.getCurrentUserTenantIds()));
 
     log.info("Creating monitor: {} for tenant: {}", requestDto.getName(), requestDto.getTenantId());
 
@@ -205,5 +215,13 @@ public class MonitorController {
 
     log.warn("Failed to toggle monitor status: {} - not found in any accessible tenant", id);
     return ResponseEntity.notFound().build();
+  }
+
+  /** The user has the maximum number of monitors. The frontend shows the message. */
+  @ExceptionHandler(MonitorLimitService.MonitorLimitReachedException.class)
+  public ResponseEntity<Map<String, String>> limitReached(
+      MonitorLimitService.MonitorLimitReachedException e) {
+    return ResponseEntity.status(HttpStatus.CONFLICT)
+        .body(Map.of("error", "monitor_limit_reached", "message", e.getMessage()));
   }
 }

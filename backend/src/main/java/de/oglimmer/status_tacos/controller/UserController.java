@@ -6,6 +6,7 @@ import de.oglimmer.status_tacos.dto.UserResponseDto;
 import de.oglimmer.status_tacos.mapper.EntityMapper;
 import de.oglimmer.status_tacos.persistence.User;
 import de.oglimmer.status_tacos.service.AccountDeletionService;
+import de.oglimmer.status_tacos.service.MonitorLimitService;
 import de.oglimmer.status_tacos.service.TenantManagementService;
 import de.oglimmer.status_tacos.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ public class UserController {
   private final TenantManagementService tenantManagementService;
   private final EntityMapper entityMapper;
   private final AccountDeletionService accountDeletionService;
+  private final MonitorLimitService monitorLimitService;
 
   @GetMapping("/me")
   public ResponseEntity<UserResponseDto> getCurrentUser() {
@@ -85,6 +87,8 @@ public class UserController {
   }
 
   private UserResponseDto convertToDto(User user) {
-    return entityMapper.toDto(user);
+    UserResponseDto dto = entityMapper.toDto(user);
+    dto.setMaxMonitors(monitorLimitService.maxMonitorsFor(user));
+    return dto;
   }
 }
