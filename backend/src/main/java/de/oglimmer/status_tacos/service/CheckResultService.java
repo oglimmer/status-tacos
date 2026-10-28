@@ -6,19 +6,30 @@ import de.oglimmer.status_tacos.persistence.Monitor;
 import de.oglimmer.status_tacos.repository.CheckResultRepository;
 import java.time.Clock;
 import java.time.LocalDateTime;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 @Transactional
 public class CheckResultService {
 
   private final CheckResultRepository checkResultRepository;
   private final Clock clock;
+
+  /** The run interval of the check job, see MonitorExecutionService. */
+  private final long checkIntervalMs;
+
+  public CheckResultService(
+      CheckResultRepository checkResultRepository,
+      Clock clock,
+      @Value("${monitor.scheduling.check-interval:60000}") long checkIntervalMs) {
+    this.checkResultRepository = checkResultRepository;
+    this.clock = clock;
+    this.checkIntervalMs = checkIntervalMs;
+  }
 
   public CheckResult saveCheckResult(
       Integer tenantId, Monitor monitor, HttpClientService.HttpCheckResult httpResult) {
@@ -33,6 +44,8 @@ public class CheckResultService {
             .statusCode(httpResult.getStatusCode())
             .responseTimeMs(httpResult.getResponseTimeMs())
             .isUp(httpResult.getIsUp())
+            .checkInterval(
+                MonitorExecutionService.effectiveIntervalSeconds(monitor, checkIntervalMs))
             .errorMessage(httpResult.getErrorMessage())
             .build();
 

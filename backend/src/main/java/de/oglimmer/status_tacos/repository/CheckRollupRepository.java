@@ -17,7 +17,8 @@ import org.springframework.stereotype.Repository;
 /**
  * SQL for the check roll-ups (MariaDB). All time ranges are half-open: {@code [from, to)}.
  *
- * <p>Response-time values (rt_*) and histograms count successful checks only.
+ * <p>Response-time values (rt_*) and histograms count successful checks only. The *_seconds columns
+ * sum the check interval of the checks: the uptime weights each check with its interval.
  */
 @Repository
 @RequiredArgsConstructor
@@ -38,6 +39,8 @@ public class CheckRollupRepository {
       LocalDateTime firstCheckAt,
       long totalChecks,
       long upChecks,
+      long totalSeconds,
+      long upSeconds,
       long rtCount,
       long rtSum,
       Integer rtMin,
@@ -69,6 +72,8 @@ public class CheckRollupRepository {
       """
       COUNT(*) AS total_checks,
       COALESCE(SUM(is_up), 0) AS up_checks,
+      COALESCE(SUM(check_interval), 0) AS total_seconds,
+      COALESCE(SUM(CASE WHEN is_up = 1 THEN check_interval END), 0) AS up_seconds,
       COALESCE(SUM(CASE WHEN is_up = 1 AND response_time_ms IS NOT NULL THEN 1 ELSE 0 END), 0)
         AS rt_count,
       COALESCE(SUM(CASE WHEN is_up = 1 THEN response_time_ms END), 0) AS rt_sum,
@@ -127,7 +132,8 @@ public class CheckRollupRepository {
     jdbc.update("DELETE FROM check_rollup_hourly WHERE bucket_start = :hour", params);
     jdbc.update(
         "INSERT INTO check_rollup_hourly (monitor_id, bucket_start, total_checks, up_checks,"
-            + " rt_count, rt_sum, rt_min, rt_max) SELECT monitor_id, :hour, "
+            + " total_seconds, up_seconds, rt_count, rt_sum, rt_min, rt_max)"
+            + " SELECT monitor_id, :hour, "
             + RAW_AGGREGATES
             + " FROM check_results WHERE checked_at >= :from AND checked_at < :to"
             + " GROUP BY monitor_id",
@@ -200,7 +206,8 @@ public class CheckRollupRepository {
       Collection<Integer> monitorIds, LocalDateTime from, LocalDateTime to) {
     return jdbc.query(
         "SELECT monitor_id, bucket_start, bucket_start AS first_check_at, total_checks,"
-            + " up_checks, rt_count, rt_sum, rt_min, rt_max FROM check_rollup_hourly"
+            + " up_checks, total_seconds, up_seconds, rt_count, rt_sum, rt_min, rt_max"
+            + " FROM check_rollup_hourly"
             + " WHERE monitor_id IN (:ids)"
             + " AND bucket_start >= :from AND bucket_start < :to",
         range(from, to).addValue("ids", monitorIds),
@@ -319,6 +326,8 @@ public class CheckRollupRepository {
         rs.getObject("first_check_at", LocalDateTime.class),
         rs.getLong("total_checks"),
         rs.getLong("up_checks"),
+        rs.getLong("total_seconds"),
+        rs.getLong("up_seconds"),
         rs.getLong("rt_count"),
         rs.getLong("rt_sum"),
         rs.getObject("rt_min", Integer.class),

@@ -347,10 +347,26 @@ public class MonitorExecutionService {
     if (monitor.getCheckInterval() == null || checkIntervalMs <= 0 || monitor.getId() == null) {
       return true;
     }
-    // An interval that is no multiple of the run interval rounds down: never fewer checks
-    long runs = Math.max(1, monitor.getCheckInterval() * 1000L / checkIntervalMs);
+    long runs = runsPerCheck(monitor, checkIntervalMs);
     return runs == 1
         || Math.floorMod(slot, runs) == Math.floorMod(monitor.getId() * 0x9E3779B97F4A7C15L, runs);
+  }
+
+  /**
+   * The seconds between two checks of the monitor, as the check job really runs them (see isDue).
+   * This is the weight of a check in the uptime.
+   */
+  static int effectiveIntervalSeconds(Monitor monitor, long checkIntervalMs) {
+    if (checkIntervalMs <= 0) {
+      return monitor.getCheckInterval() != null ? monitor.getCheckInterval() : 15;
+    }
+    long runs = monitor.getCheckInterval() == null ? 1 : runsPerCheck(monitor, checkIntervalMs);
+    return (int) Math.max(1, runs * checkIntervalMs / 1000);
+  }
+
+  private static long runsPerCheck(Monitor monitor, long checkIntervalMs) {
+    // An interval that is no multiple of the run interval rounds down: never fewer checks
+    return Math.max(1, monitor.getCheckInterval() * 1000L / checkIntervalMs);
   }
 
   private static boolean recentlyDown(

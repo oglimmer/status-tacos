@@ -273,6 +273,66 @@ class UptimeStatsIntegrationTest {
   }
 
   @Test
+  void uptime_weightsEachCheckWithItsInterval() {
+    // 2 days UP with a 15 s interval, then 1 day DOWN with a 1 h interval. By count this is
+    // 11520 UP and 24 DOWN checks (99.79 %), but the monitor was down for a third of the time.
+    Monitor slow = saveMonitor("Slow", MonitorState.ACTIVE);
+    LocalDateTime changed = NOW.minusDays(1);
+    List<Check> fast = new ArrayList<>();
+    for (LocalDateTime at = changed.minusDays(2); at.isBefore(changed); at = at.plusSeconds(15)) {
+      fast.add(new Check(at, true, 100));
+    }
+    List<Check> hourly = new ArrayList<>();
+    for (LocalDateTime at = changed; at.isBefore(NOW); at = at.plusHours(1)) {
+      hourly.add(new Check(at, false, null));
+    }
+    insert(slow, fast, 15);
+    insert(slow, hourly, 3600);
+    BigDecimal expected = new BigDecimal("66.66");
+
+    // From raw check results, then from the roll-ups.
+    for (boolean rolledUp : List.of(false, true)) {
+      if (rolledUp) {
+        rollupService.rollUp();
+      }
+      for (StatsPeriod period : StatsPeriod.values()) {
+        UptimeStatsResponseDto stats =
+            statsService.getStats(Set.of(tenant.getId()), slow.getId(), period).orElseThrow();
+        assertThat(stats.getTotalChecks()).isEqualTo(fast.size() + hourly.size());
+        assertThat(stats.getSuccessfulChecks()).isEqualTo(fast.size());
+        assertThat(stats.getUptimePercentage()).as(period.name()).isEqualTo(expected);
+        assertThat(statsService.getUptimePercentages(List.of(slow), period))
+            .containsEntry(slow.getId(), expected);
+      }
+    }
+  }
+
+  @Test
+  void uptime24h_weightsEachCheckWithItsInterval() {
+    // 6 hours UP with a 15 s interval, then 6 hours DOWN with a 1 h interval. By count this is
+    // 1440 UP and 6 DOWN checks (99.58 %), but the monitor was down for half of the time.
+    Monitor slow = saveMonitor("Slow", MonitorState.ACTIVE);
+    LocalDateTime changed = NOW.minusHours(6);
+    List<Check> fast = new ArrayList<>();
+    for (LocalDateTime at = changed.minusHours(6); at.isBefore(changed); at = at.plusSeconds(15)) {
+      fast.add(new Check(at, true, 100));
+    }
+    List<Check> hourly = new ArrayList<>();
+    for (LocalDateTime at = changed; at.isBefore(NOW); at = at.plusHours(1)) {
+      hourly.add(new Check(at, false, null));
+    }
+    insert(slow, fast, 15);
+    insert(slow, hourly, 3600);
+
+    ResponseTimeHistoryResponseDto history =
+        statsService.getResponseTimeHistory24h(Set.of(tenant.getId()), slow.getId()).orElseThrow();
+
+    assertThat(history.getTotalChecks24h()).isEqualTo(fast.size() + hourly.size());
+    assertThat(history.getSuccessfulChecks24h()).isEqualTo(fast.size());
+    assertThat(history.getUptimePercentage24h()).isEqualTo(new BigDecimal("50.00"));
+  }
+
+  @Test
   void stats_ofAllMonitors_matchSingleMonitorStats() {
     rollupService.rollUp();
 
@@ -472,9 +532,13 @@ class UptimeStatsIntegrationTest {
   }
 
   private void insert(Monitor target, List<Check> data) {
+    insert(target, data, 15);
+  }
+
+  private void insert(Monitor target, List<Check> data, int checkInterval) {
     jdbc.batchUpdate(
         "INSERT INTO check_results (monitor_id, tenant_id, checked_at, status_code,"
-            + " response_time_ms, is_up) VALUES (?, ?, ?, ?, ?, ?)",
+            + " response_time_ms, is_up, check_interval) VALUES (?, ?, ?, ?, ?, ?, ?)",
         data,
         5000,
         (ps, c) -> {
@@ -484,6 +548,7 @@ class UptimeStatsIntegrationTest {
           ps.setInt(4, c.up() ? 200 : 500);
           ps.setObject(5, c.rt());
           ps.setBoolean(6, c.up());
+          ps.setInt(7, checkInterval);
         });
   }
 

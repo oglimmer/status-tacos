@@ -44,8 +44,9 @@ import org.springframework.transaction.annotation.Transactional;
  * results after the watermark. All reads run in one read-only transaction, so they see one
  * consistent snapshot: no check is missing or counted twice, and the numbers have no lag.
  *
- * <p>Uptime = successful checks / all checks, rounded down to 2 decimals. Response-time values
- * count successful checks only.
+ * <p>Uptime = time of successful checks / time of all checks, rounded down to 2 decimals. Each
+ * check counts with its check interval, so a change of the interval does not change the weight of
+ * the older checks. Response-time values count successful checks only.
  */
 @Service
 @RequiredArgsConstructor
@@ -120,7 +121,7 @@ public class UptimeStatsService {
             (id, rows) -> {
               Totals totals = new Totals();
               rows.forEach(totals::add);
-              BigDecimal uptime = uptimePercentage(totals.up, totals.total);
+              BigDecimal uptime = uptimePercentage(totals.upSeconds, totals.totalSeconds);
               if (uptime != null) {
                 result.put(id, uptime);
               }
@@ -159,7 +160,7 @@ public class UptimeStatsService {
                   .intervalMinutes(period.getChartIntervalMinutes())
                   .totalChecks(totals.total)
                   .successfulChecks(totals.up)
-                  .uptimePercentage(uptimePercentage(totals.up, totals.total))
+                  .uptimePercentage(uptimePercentage(totals.upSeconds, totals.totalSeconds))
                   .minResponseTimeMs(totals.rtMin)
                   .maxResponseTimeMs(totals.rtMax)
                   .avgResponseTimeMs(totals.avg())
@@ -194,6 +195,12 @@ public class UptimeStatsService {
             monitor -> {
               List<CheckPoint> checks = checksByMonitor.getOrDefault(monitor.getId(), List.of());
               long up = checks.stream().filter(CheckPoint::isUp).count();
+              long upSeconds =
+                  checks.stream()
+                      .filter(CheckPoint::isUp)
+                      .mapToLong(CheckPoint::checkInterval)
+                      .sum();
+              long totalSeconds = checks.stream().mapToLong(CheckPoint::checkInterval).sum();
               TreeMap<LocalDateTime, Integer> maxByBucket = new TreeMap<>();
               for (CheckPoint check : checks) {
                 if (check.isUp() && check.responseTimeMs() != null) {
@@ -208,7 +215,7 @@ public class UptimeStatsService {
                   .monitorName(monitor.getName())
                   .intervalMinutes(HISTORY_24H_INTERVAL_MINUTES)
                   .totalDataPoints(HISTORY_24H_DATA_POINTS)
-                  .uptimePercentage24h(uptimePercentage(up, checks.size()))
+                  .uptimePercentage24h(uptimePercentage(upSeconds, totalSeconds))
                   .totalChecks24h(checks.size())
                   .successfulChecks24h((int) up)
                   .dataPoints(toDataPoints(maxByBucket))
@@ -381,6 +388,8 @@ public class UptimeStatsService {
   private static final class Totals {
     long total;
     long up;
+    long totalSeconds;
+    long upSeconds;
     long rtCount;
     long rtSum;
     Integer rtMin;
@@ -389,6 +398,8 @@ public class UptimeStatsService {
     void add(HourRow row) {
       total += row.totalChecks();
       up += row.upChecks();
+      totalSeconds += row.totalSeconds();
+      upSeconds += row.upSeconds();
       rtCount += row.rtCount();
       rtSum += row.rtSum();
       if (row.rtMin() != null && (rtMin == null || row.rtMin() < rtMin)) {

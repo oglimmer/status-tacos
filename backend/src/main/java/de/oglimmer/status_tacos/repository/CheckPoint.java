@@ -5,4 +5,8 @@ import java.time.LocalDateTime;
 
 /** The fields of a check result that the 24h view needs. */
 public record CheckPoint(
-    Integer monitorId, LocalDateTime checkedAt, Boolean isUp, Integer responseTimeMs) {}
+    Integer monitorId,
+    LocalDateTime checkedAt,
+    Boolean isUp,
+    Integer responseTimeMs,
+    Integer checkInterval) {}

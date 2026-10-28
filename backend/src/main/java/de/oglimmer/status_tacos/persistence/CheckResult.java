@@ -61,6 +61,11 @@ public class CheckResult {
   @Column(name = "is_up", nullable = false)
   private Boolean isUp;
 
+  /** Seconds between this check and the next one. The weight of the check in the uptime. */
+  @Column(name = "check_interval", nullable = false)
+  @Builder.Default
+  private Integer checkInterval = 15;
+
   @Column(name = "error_message", columnDefinition = "TEXT")
   private String errorMessage;
 

@@ -527,6 +527,20 @@ class MonitorExecutionServiceTest {
   }
 
   @Test
+  void effectiveIntervalIsTheTimeBetweenTwoRealChecks() {
+    Monitor every15s = Monitor.builder().id(7).checkInterval(15).build();
+    Monitor every50s = Monitor.builder().id(7).checkInterval(50).build();
+    Monitor everyHour = Monitor.builder().id(7).checkInterval(3600).build();
+
+    assertThat(MonitorExecutionService.effectiveIntervalSeconds(every15s, 15_000)).isEqualTo(15);
+    assertThat(MonitorExecutionService.effectiveIntervalSeconds(everyHour, 15_000)).isEqualTo(3600);
+    // Rounded down to whole runs, like isDue: 50 s with a run every 15 s is checked every 45 s
+    assertThat(MonitorExecutionService.effectiveIntervalSeconds(every50s, 15_000)).isEqualTo(45);
+    // A 15 s monitor with a run every 60 s is checked every 60 s
+    assertThat(MonitorExecutionService.effectiveIntervalSeconds(every15s, 60_000)).isEqualTo(60);
+  }
+
+  @Test
   void silentMonitorQueuesNoAlert() {
     testMonitor.setState(MonitorState.SILENT);
     stubCheck(failedHttpResult, downCheck(), downStatusSince(600));

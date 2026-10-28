@@ -37,7 +37,7 @@ public interface CheckResultRepository extends JpaRepository<CheckResult, Long> 
   /** Checks of the monitors in [from, to), oldest first. */
   @Query(
       "SELECT new de.oglimmer.status_tacos.repository.CheckPoint(cr.monitor.id, cr.checkedAt,"
-          + " cr.isUp, cr.responseTimeMs) FROM CheckResult cr WHERE cr.monitor.id IN :monitorIds"
+          + " cr.isUp, cr.responseTimeMs, cr.checkInterval) FROM CheckResult cr WHERE cr.monitor.id IN :monitorIds"
           + " AND cr.checkedAt >= :from AND cr.checkedAt < :to ORDER BY cr.checkedAt, cr.id")
   List<CheckPoint> findCheckPoints(
       @Param("monitorIds") Collection<Integer> monitorIds,
