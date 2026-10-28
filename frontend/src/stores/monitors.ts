@@ -17,6 +17,8 @@ export interface MonitorRequest {
   prometheusKey?: string
   prometheusMinValue?: number
   prometheusMaxValue?: number
+  checkInterval?: number
+  connectTimeout?: number
   alertingThreshold?: number
   showOnPublicPage?: boolean
 }
@@ -42,6 +44,9 @@ export interface MonitorResponse {
   prometheusKey?: string
   prometheusMinValue?: number
   prometheusMaxValue?: number
+  // Missing from older servers
+  checkInterval?: number
+  connectTimeout?: number
   alertingThreshold: number
   // Missing from older servers
   showOnPublicPage?: boolean

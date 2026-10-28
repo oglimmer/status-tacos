@@ -164,6 +164,10 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
           </span>
         </div>
         <div class="detail-item" v-if="isExpanded || selectedViewMode === 'full'">
+          <strong>Check Interval:</strong>
+          <span class="criteria-value">{{ monitor.checkInterval ?? 15 }}s</span>
+        </div>
+        <div class="detail-item" v-if="isExpanded || selectedViewMode === 'full'">
           <strong>Alert Delay:</strong>
           <span class="criteria-value">{{ monitor.alertingThreshold }}s</span>
         </div>

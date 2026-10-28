@@ -36,6 +36,8 @@ const form = ref<MonitorRequest>({
   prometheusKey: '',
   prometheusMinValue: undefined,
   prometheusMaxValue: undefined,
+  checkInterval: 15,
+  connectTimeout: 5,
   alertingThreshold: 30,
   showOnPublicPage: false
 })
@@ -88,6 +90,8 @@ const initializeForm = () => {
       prometheusKey: props.monitor.prometheusKey || '',
       prometheusMinValue: props.monitor.prometheusMinValue,
       prometheusMaxValue: props.monitor.prometheusMaxValue,
+      checkInterval: props.monitor.checkInterval ?? 15,
+      connectTimeout: props.monitor.connectTimeout ?? 5,
       alertingThreshold: props.monitor.alertingThreshold,
       showOnPublicPage: props.monitor.showOnPublicPage ?? false
     }
@@ -105,6 +109,8 @@ const initializeForm = () => {
       prometheusKey: '',
       prometheusMinValue: undefined,
       prometheusMaxValue: undefined,
+      checkInterval: 15,
+      connectTimeout: 5,
       alertingThreshold: 30,
       showOnPublicPage: false
     }
@@ -192,7 +198,25 @@ const validateForm = (): boolean => {
     }
   }
 
-  // Validate alerting threshold
+  // Validate check settings. The backend has the same rules.
+  if (form.value.checkInterval !== undefined) {
+    if (form.value.checkInterval < 15 || form.value.checkInterval > 3600) {
+      error.value = 'Check interval must be between 15 and 3600 seconds'
+      return false
+    }
+    if (form.value.checkInterval % 15 !== 0) {
+      error.value = 'Check interval must be a multiple of 15 seconds'
+      return false
+    }
+  }
+
+  if (form.value.connectTimeout !== undefined) {
+    if (!Number.isInteger(form.value.connectTimeout) || form.value.connectTimeout < 1 || form.value.connectTimeout > 10) {
+      error.value = 'Connect timeout must be a whole number between 1 and 10 seconds'
+      return false
+    }
+  }
+
   if (form.value.alertingThreshold !== undefined) {
     if (form.value.alertingThreshold < 15) {
       error.value = 'Alerting threshold must be at least 15 seconds'
@@ -329,17 +353,54 @@ const handleClose = () => {
       />
 
       <div class="form-group">
-        <label for="alerting-threshold">Alerting Threshold (seconds) *</label>
-        <input
-          id="alerting-threshold"
-          v-model.number="form.alertingThreshold"
-          type="number"
-          min="15"
-          step="15"
-          placeholder="30"
-          required
-        />
-        <small class="field-note">Must be a multiple of 15 seconds (minimum: 15)</small>
+        <label>Check Settings *</label>
+        <div class="check-settings">
+          <div class="form-subgroup">
+            <label for="check-interval">Check Interval (seconds)</label>
+            <input
+              id="check-interval"
+              v-model.number="form.checkInterval"
+              type="number"
+              min="15"
+              max="3600"
+              step="15"
+              placeholder="15"
+              required
+            />
+            <small class="field-note">Time between two checks. A multiple of 15 seconds (15 to 3600).</small>
+          </div>
+
+          <div class="form-subgroup">
+            <label for="connect-timeout">Connect Timeout (seconds)</label>
+            <input
+              id="connect-timeout"
+              v-model.number="form.connectTimeout"
+              type="number"
+              min="1"
+              max="10"
+              step="1"
+              placeholder="5"
+              required
+            />
+            <small class="field-note">Maximum wait for the connection to the server (1 to 10).</small>
+          </div>
+
+          <div class="form-subgroup">
+            <label for="alerting-threshold">Alerting Threshold (seconds)</label>
+            <input
+              id="alerting-threshold"
+              v-model.number="form.alertingThreshold"
+              type="number"
+              min="15"
+              step="15"
+              placeholder="30"
+              required
+            />
+            <small class="field-note">
+              Time down before the alert goes out. A multiple of 15 seconds (minimum: 15).
+            </small>
+          </div>
+        </div>
       </div>
 
       <div class="form-group">
@@ -424,6 +485,29 @@ const handleClose = () => {
   outline: none;
   border-color: #007bff;
   box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.check-settings {
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 1rem;
+  background: #f8f9fa;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.form-subgroup {
+  margin-bottom: 0.75rem;
+}
+
+.form-subgroup:last-child {
+  margin-bottom: 0;
+}
+
+.form-group .form-subgroup label {
+  margin-bottom: 0.25rem;
+  color: #495057;
+  font-size: 0.875rem;
 }
 
 .disabled-field {

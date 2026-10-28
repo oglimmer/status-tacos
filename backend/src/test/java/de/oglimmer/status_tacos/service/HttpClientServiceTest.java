@@ -125,6 +125,22 @@ class HttpClientServiceTest {
   }
 
   @Test
+  void connectTimeoutOfTheMonitorWinsOverTheDefault() {
+    // Default connect timeout 5 s, total timeout 2 s. A non-routable address never answers the
+    // connect, so with the monitor's 300 ms the check fails at the connect, not at the total
+    // timeout.
+    long start = System.nanoTime();
+    HttpClientService.HttpCheckResult result =
+        httpClientService.performHealthCheck(
+            "http://10.255.255.1/", null, null, null, null, null, null, Duration.ofMillis(300));
+    long tookMs = (System.nanoTime() - start) / 1_000_000;
+
+    assertThat(result.getIsUp()).isFalse();
+    assertThat(result.getErrorMessage()).startsWith("Network error");
+    assertThat(tookMs).isLessThan(1_500L);
+  }
+
+  @Test
   void bodyLargerThanMaxSize_isCutAndCheckStaysUp() {
     mockWebServer.enqueue(new MockResponse().setResponseCode(200).setBody("a".repeat(5000)));
 
@@ -140,7 +156,8 @@ class HttpClientServiceTest {
         new MockResponse().setResponseCode(200).setBody("a".repeat(5000) + "healthy"));
 
     HttpClientService.HttpCheckResult result =
-        httpClientService.performHealthCheck(baseUrl, null, null, "healthy", null, null, null);
+        httpClientService.performHealthCheck(
+            baseUrl, null, null, "healthy", null, null, null, null);
 
     assertThat(result.getIsUp()).isFalse();
     assertThat(result.getErrorMessage())
@@ -185,7 +202,8 @@ class HttpClientServiceTest {
 
     long start = System.nanoTime();
     HttpClientService.HttpCheckResult result =
-        httpClientService.performHealthCheck(baseUrl, null, null, "^(.*a){20}$", null, null, null);
+        httpClientService.performHealthCheck(
+            baseUrl, null, null, "^(.*a){20}$", null, null, null, null);
     long tookMs = (System.nanoTime() - start) / 1_000_000;
 
     assertThat(result.getIsUp()).isFalse();
@@ -201,7 +219,8 @@ class HttpClientServiceTest {
             .setBody("# HELP queue\nqueue_size{name=\"a b\"} 7 1700000000000\nqueue_size 5\n"));
 
     HttpClientService.HttpCheckResult result =
-        httpClientService.performHealthCheck(baseUrl, null, null, null, "queue_size", 0.0, 10.0);
+        httpClientService.performHealthCheck(
+            baseUrl, null, null, null, "queue_size", 0.0, 10.0, null);
 
     assertThat(result.getIsUp()).isFalse();
     assertThat(result.getErrorMessage()).contains("12.0").contains("outside");
@@ -289,7 +308,8 @@ class HttpClientServiceTest {
       for (int i = 0; i < checks; i++) {
         results.add(
             pool.submit(
-                () -> service.performHealthCheck(baseUrl, null, null, null, null, null, null)));
+                () ->
+                    service.performHealthCheck(baseUrl, null, null, null, null, null, null, null)));
       }
       for (Future<HttpClientService.HttpCheckResult> result : results) {
         HttpClientService.HttpCheckResult checkResult = result.get(20, TimeUnit.SECONDS);
@@ -312,6 +332,6 @@ class HttpClientServiceTest {
   }
 
   private HttpClientService.HttpCheckResult check(String url) {
-    return httpClientService.performHealthCheck(url, null, null, null, null, null, null);
+    return httpClientService.performHealthCheck(url, null, null, null, null, null, null, null);
   }
 }

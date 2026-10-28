@@ -3,6 +3,7 @@ package de.oglimmer.status_tacos.persistence;
 
 import de.oglimmer.status_tacos.validation.MultipleOf15;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -78,6 +79,21 @@ public class Monitor {
 
   @Column(name = "prometheus_max_value")
   private Double prometheusMaxValue;
+
+  /** Seconds between two checks. */
+  @Column(name = "check_interval", nullable = false)
+  @Min(value = 15, message = "Check interval must be at least 15 seconds")
+  @Max(value = 3600, message = "Check interval must not exceed 3600 seconds")
+  @MultipleOf15(message = "Check interval must be a multiple of 15 seconds")
+  @Builder.Default
+  private Integer checkInterval = 15;
+
+  /** Seconds to wait for the TCP connect. */
+  @Column(name = "connect_timeout", nullable = false)
+  @Min(value = 1, message = "Connect timeout must be at least 1 second")
+  @Max(value = 10, message = "Connect timeout must not exceed 10 seconds")
+  @Builder.Default
+  private Integer connectTimeout = 5;
 
   @Column(name = "alerting_threshold", nullable = false)
   @Min(value = 15, message = "Alerting threshold must be at least 15 seconds")

@@ -27,6 +27,8 @@ public class MonitorResponseDto {
   private String prometheusKey;
   private Double prometheusMinValue;
   private Double prometheusMaxValue;
+  private Integer checkInterval;
+  private Integer connectTimeout;
   private Integer alertingThreshold;
   private Boolean showOnPublicPage;
   private LocalDateTime createdAt;

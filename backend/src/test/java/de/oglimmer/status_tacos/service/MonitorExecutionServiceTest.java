@@ -10,6 +10,7 @@ import static org.mockito.Mockito.*;
 import static org.mockito.Mockito.lenient;
 
 import de.oglimmer.status_tacos.persistence.*;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -68,6 +69,7 @@ class MonitorExecutionServiceTest {
             taskExecutor,
             alertExecutor,
             applicationContext,
+            Clock.systemUTC(),
             0L, // no start spread: checks start at once
             Duration.ofSeconds(30));
 
@@ -146,7 +148,8 @@ class MonitorExecutionServiceTest {
             eq(null),
             eq(null),
             eq(null),
-            eq(null)))
+            eq(null),
+            eq(Duration.ofSeconds(5))))
         .thenReturn(successfulHttpResult);
     when(checkResultService.saveCheckResult(eq(TEST_TENANT_ID), eq(testMonitor), any()))
         .thenReturn(testCheckResult);
@@ -167,7 +170,8 @@ class MonitorExecutionServiceTest {
             eq(null),
             eq(null),
             eq(null),
-            eq(null));
+            eq(null),
+            eq(Duration.ofSeconds(5)));
     verify(checkResultService).saveCheckResult(eq(TEST_TENANT_ID), eq(testMonitor), any());
     verify(monitorStatusService)
         .updateMonitorStatus(eq(TEST_TENANT_ID), eq(testMonitor), eq(testCheckResult));
@@ -182,7 +186,8 @@ class MonitorExecutionServiceTest {
             eq(null),
             eq(null),
             eq(null),
-            eq(null)))
+            eq(null),
+            eq(Duration.ofSeconds(5))))
         .thenReturn(failedHttpResult);
 
     CheckResult failedCheckResult =
@@ -225,7 +230,8 @@ class MonitorExecutionServiceTest {
             eq(null),
             eq(null),
             eq(null),
-            eq(null));
+            eq(null),
+            eq(Duration.ofSeconds(5)));
     verify(checkResultService).saveCheckResult(eq(TEST_TENANT_ID), eq(testMonitor), any());
     verify(monitorStatusService)
         .updateMonitorStatus(eq(TEST_TENANT_ID), eq(testMonitor), eq(failedCheckResult));
@@ -240,7 +246,8 @@ class MonitorExecutionServiceTest {
             eq(null),
             eq(null),
             eq(null),
-            eq(null)))
+            eq(null),
+            eq(Duration.ofSeconds(5))))
         .thenThrow(new RuntimeException("Network timeout"));
 
     CheckResult errorCheckResult =
@@ -274,7 +281,8 @@ class MonitorExecutionServiceTest {
             eq(null),
             eq(null),
             eq(null),
-            eq(null));
+            eq(null),
+            eq(Duration.ofSeconds(5)));
     verify(checkResultService).saveCheckResult(eq(TEST_TENANT_ID), eq(testMonitor), any());
     verify(monitorStatusService).updateMonitorStatus(eq(TEST_TENANT_ID), eq(testMonitor), any());
   }
@@ -288,7 +296,8 @@ class MonitorExecutionServiceTest {
             eq(null),
             eq(null),
             eq(null),
-            eq(null)))
+            eq(null),
+            eq(Duration.ofSeconds(5))))
         .thenReturn(successfulHttpResult);
     // For example no free database connection
     when(checkResultService.saveCheckResult(eq(TEST_TENANT_ID), eq(testMonitor), any()))
@@ -353,7 +362,7 @@ class MonitorExecutionServiceTest {
         .execute(any(Runnable.class));
 
     when(httpClientService.performHealthCheck(
-            anyString(), any(), any(), any(), any(), any(), any()))
+            anyString(), any(), any(), any(), any(), any(), any(), any()))
         .thenReturn(successfulHttpResult);
     when(checkResultService.saveCheckResult(eq(TEST_TENANT_ID), any(), any()))
         .thenReturn(testCheckResult);
@@ -373,7 +382,8 @@ class MonitorExecutionServiceTest {
             eq(null),
             eq(null),
             eq(null),
-            eq(null));
+            eq(null),
+            eq(Duration.ofSeconds(5)));
     verify(checkResultService).saveCheckResult(eq(TEST_TENANT_ID), any(), any());
     verify(monitorStatusService).updateMonitorStatus(eq(TEST_TENANT_ID), any(), any());
   }
@@ -452,6 +462,71 @@ class MonitorExecutionServiceTest {
   }
 
   @Test
+  void upCheckOfAMonitorWithALongIntervalStillQueuesTheRecoveryAlert() {
+    // 15 minutes between checks: the last failed check is longer ago than the 10-minute window
+    testMonitor.setCheckInterval(900);
+    MonitorStatus recovered = recoveredStatus();
+    recovered.setLastDownAt(testCheckResult.getCheckedAt().minusSeconds(900));
+    stubCheck(successfulHttpResult, testCheckResult, recovered);
+
+    monitorExecutionService.executeMonitorCheck(testMonitor);
+    runQueuedAlert();
+
+    verify(alertService)
+        .handleMonitorUp(testMonitor, testCheckResult, recovered.getOutageStartedAt());
+  }
+
+  @Test
+  void slotIsTheNearestRunOfTheGrid() {
+    // A run at 30 s is slot 2, also when it starts a little late or the clock is a little off
+    assertThat(MonitorExecutionService.slotOf(30_000, 15_000)).isEqualTo(2);
+    assertThat(MonitorExecutionService.slotOf(30_400, 15_000)).isEqualTo(2);
+    assertThat(MonitorExecutionService.slotOf(29_700, 15_000)).isEqualTo(2);
+    assertThat(MonitorExecutionService.slotOf(45_000, 15_000)).isEqualTo(3);
+  }
+
+  @Test
+  void monitorIsDueOnceInEachOfItsIntervals() {
+    for (int id = 1; id <= 50; id++) {
+      Monitor monitor = Monitor.builder().id(id).checkInterval(60).build();
+      // 60 s with a run every 15 s: exactly one of four runs in a row
+      for (long first = 0; first < 8; first++) {
+        long due = 0;
+        for (long slot = first; slot < first + 4; slot++) {
+          if (MonitorExecutionService.isDue(monitor, slot, 15_000)) {
+            due++;
+          }
+        }
+        assertThat(due).isEqualTo(1);
+      }
+    }
+  }
+
+  @Test
+  void monitorsWithALongIntervalAreSpreadOverTheRuns() {
+    java.util.Map<Long, Integer> perSlot = new java.util.HashMap<>();
+    for (int id = 1; id <= 400; id++) {
+      Monitor monitor = Monitor.builder().id(id).checkInterval(60).build();
+      for (long slot = 0; slot < 4; slot++) {
+        if (MonitorExecutionService.isDue(monitor, slot, 15_000)) {
+          perSlot.merge(slot, 1, Integer::sum);
+        }
+      }
+    }
+    assertThat(perSlot.values()).allSatisfy(count -> assertThat(count).isBetween(80, 120));
+  }
+
+  @Test
+  void monitorWithTheRunIntervalOrLessIsAlwaysDue() {
+    Monitor every15s = Monitor.builder().id(7).checkInterval(15).build();
+    for (long slot = 0; slot < 8; slot++) {
+      assertThat(MonitorExecutionService.isDue(every15s, slot, 15_000)).isTrue();
+      // The run interval of the job is 60 s: a 15 s monitor is checked at each run
+      assertThat(MonitorExecutionService.isDue(every15s, slot, 60_000)).isTrue();
+    }
+  }
+
+  @Test
   void silentMonitorQueuesNoAlert() {
     testMonitor.setState(MonitorState.SILENT);
     stubCheck(failedHttpResult, downCheck(), downStatusSince(600));
@@ -476,7 +551,8 @@ class MonitorExecutionServiceTest {
 
   private void stubCheck(
       HttpClientService.HttpCheckResult httpResult, CheckResult saved, MonitorStatus status) {
-    when(httpClientService.performHealthCheck(any(), any(), any(), any(), any(), any(), any()))
+    when(httpClientService.performHealthCheck(
+            any(), any(), any(), any(), any(), any(), any(), any()))
         .thenReturn(httpResult);
     when(checkResultService.saveCheckResult(eq(TEST_TENANT_ID), eq(testMonitor), any()))
         .thenReturn(saved);
@@ -543,6 +619,7 @@ class MonitorExecutionServiceTest {
         taskExecutor,
         alertExecutor,
         applicationContext,
+        Clock.systemUTC(),
         checkIntervalMs,
         totalTimeout);
   }

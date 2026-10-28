@@ -30,6 +30,8 @@ public interface EntityMapper {
   @Mapping(target = "prometheusKey", source = "prometheusKey")
   @Mapping(target = "prometheusMinValue", source = "prometheusMinValue")
   @Mapping(target = "prometheusMaxValue", source = "prometheusMaxValue")
+  @Mapping(target = "checkInterval", source = "checkInterval")
+  @Mapping(target = "connectTimeout", source = "connectTimeout")
   @Mapping(target = "alertingThreshold", source = "alertingThreshold")
   MonitorResponseDto toDto(Monitor monitor);
 

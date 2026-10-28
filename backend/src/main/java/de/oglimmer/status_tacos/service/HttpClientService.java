@@ -52,6 +52,7 @@ public class HttpClientService {
   private final CloseableHttpClient httpClient;
   private final PoolingHttpClientConnectionManager connectionManager;
   private final ScheduledExecutorService deadlineScheduler;
+  private final RequestConfig defaultRequestConfig;
   private final Duration totalTimeout;
   private final int maxBodyBytes;
   private final UserRegex userRegex;
@@ -82,14 +83,15 @@ public class HttpClientService {
             .setSocketTimeout(Timeout.of(requestTimeout))
             .build());
 
+    this.defaultRequestConfig =
+        RequestConfig.custom()
+            .setConnectionRequestTimeout(Timeout.of(connectTimeout))
+            .setResponseTimeout(Timeout.of(requestTimeout))
+            .build();
     this.httpClient =
         HttpClients.custom()
             .setConnectionManager(connectionManager)
-            .setDefaultRequestConfig(
-                RequestConfig.custom()
-                    .setConnectionRequestTimeout(Timeout.of(connectTimeout))
-                    .setResponseTimeout(Timeout.of(requestTimeout))
-                    .build())
+            .setDefaultRequestConfig(defaultRequestConfig)
             // A monitor measures the full path of a new visitor: no keep-alive between checks.
             .setConnectionReuseStrategy((request, response, context) -> false)
             // By default HttpClient sends a GET once more after 1 s on most I/O errors and on a
@@ -134,11 +136,12 @@ public class HttpClientService {
       String responseBodyRegex,
       String prometheusKey,
       Double prometheusMinValue,
-      Double prometheusMaxValue) {
+      Double prometheusMaxValue,
+      Duration connectTimeout) {
     long startTime = System.nanoTime();
     HttpGet request;
     try {
-      request = buildRequest(url, customHeaders);
+      request = buildRequest(url, customHeaders, connectTimeout);
     } catch (IllegalArgumentException e) {
       // A URL that can not be sent is a failed check like any other, not an error of ours: no
       // stack trace at every check
@@ -217,8 +220,20 @@ public class HttpClientService {
     }
   }
 
-  private static HttpGet buildRequest(String url, Map<String, String> customHeaders) {
+  /**
+   * The connect timeout of the monitor goes into the request config: it wins over the default of
+   * the connection manager. It is deprecated there, but it is the only connect timeout per request.
+   */
+  @SuppressWarnings("deprecation")
+  private HttpGet buildRequest(
+      String url, Map<String, String> customHeaders, Duration connectTimeout) {
     HttpGet request = new HttpGet(url);
+    if (connectTimeout != null) {
+      request.setConfig(
+          RequestConfig.copy(defaultRequestConfig)
+              .setConnectTimeout(Timeout.of(connectTimeout))
+              .build());
+    }
     request.setHeader("User-Agent", "StatusTacos-Monitor/1.0");
     request.setHeader("Accept", "*/*");
     if (customHeaders != null) {

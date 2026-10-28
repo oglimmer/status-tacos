@@ -4,6 +4,7 @@ package de.oglimmer.status_tacos.dto;
 import de.oglimmer.status_tacos.persistence.MonitorState;
 import de.oglimmer.status_tacos.validation.HttpUrl;
 import de.oglimmer.status_tacos.validation.MultipleOf15;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -48,6 +49,17 @@ public class MonitorRequestDto {
   private Double prometheusMinValue;
 
   private Double prometheusMaxValue;
+
+  @Min(value = 15, message = "Check interval must be at least 15 seconds")
+  @Max(value = 3600, message = "Check interval must not exceed 3600 seconds")
+  @MultipleOf15(message = "Check interval must be a multiple of 15 seconds")
+  @Builder.Default
+  private Integer checkInterval = 15;
+
+  @Min(value = 1, message = "Connect timeout must be at least 1 second")
+  @Max(value = 10, message = "Connect timeout must not exceed 10 seconds")
+  @Builder.Default
+  private Integer connectTimeout = 5;
 
   @Min(value = 15, message = "Alerting threshold must be at least 15 seconds")
   @MultipleOf15(message = "Alerting threshold must be a multiple of 15 seconds")

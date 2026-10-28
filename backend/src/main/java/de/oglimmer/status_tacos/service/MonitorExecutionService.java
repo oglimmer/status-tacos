@@ -7,6 +7,7 @@ import de.oglimmer.status_tacos.persistence.MonitorState;
 import de.oglimmer.status_tacos.persistence.MonitorStatus;
 import de.oglimmer.status_tacos.persistence.Tenant;
 import jakarta.annotation.PostConstruct;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -29,8 +30,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class MonitorExecutionService {
 
   /**
-   * An UP check looks for a DOWN alert without UP alert only this long after the last failed check.
-   * Within this time a failed UP alert is tried again at each check.
+   * An UP check looks for a DOWN alert without UP alert only this long after the last failed check
+   * (or two check intervals of the monitor, if that is longer). Within this time a failed UP alert
+   * is tried again at each check.
    */
   static final Duration RECOVERY_ALERT_WINDOW = Duration.ofMinutes(10);
 
@@ -43,8 +45,11 @@ public class MonitorExecutionService {
   private final Executor taskExecutor;
   private final Executor alertExecutor;
   private final ApplicationContext applicationContext;
+  private final Clock clock;
 
+  /** The run interval of the check job. The check interval of a monitor is a multiple of it. */
   private final long checkIntervalMs;
+
   private final long totalTimeoutMs;
 
   /** The checks of one run start spread over this time, not all at the same moment. */
@@ -63,6 +68,7 @@ public class MonitorExecutionService {
       @Qualifier("taskExecutor") Executor taskExecutor,
       @Qualifier("alertExecutor") Executor alertExecutor,
       ApplicationContext applicationContext,
+      Clock clock,
       @Value("${monitor.scheduling.check-interval:60000}") long checkIntervalMs,
       @Value("${monitor.http.total-timeout:30s}") Duration totalTimeout) {
     this.httpClientService = httpClientService;
@@ -74,6 +80,7 @@ public class MonitorExecutionService {
     this.taskExecutor = taskExecutor;
     this.alertExecutor = alertExecutor;
     this.applicationContext = applicationContext;
+    this.clock = clock;
     this.checkIntervalMs = checkIntervalMs;
     this.totalTimeoutMs = totalTimeout.toMillis();
     // A quarter of the interval: the run (spread + slowest check) must end before the next one
@@ -141,7 +148,10 @@ public class MonitorExecutionService {
               monitor.getResponseBodyRegex(),
               monitor.getPrometheusKey(),
               monitor.getPrometheusMinValue(),
-              monitor.getPrometheusMaxValue());
+              monitor.getPrometheusMaxValue(),
+              monitor.getConnectTimeout() != null
+                  ? Duration.ofSeconds(monitor.getConnectTimeout())
+                  : null);
     } catch (Exception e) {
       log.error("Error executing monitor check for {}: {}", monitor.getName(), e.getMessage(), e);
       httpResult = createErrorHttpResult(monitor.getUrl(), e.getMessage());
@@ -208,7 +218,7 @@ public class MonitorExecutionService {
     } else {
       // Monitor is up, send recovery alert if needed. A monitor that was not down in the last
       // minutes can have no open DOWN alert, so the alert thread does not need to look.
-      if (!recentlyDown(status, checkResult)) {
+      if (!recentlyDown(monitor, status, checkResult)) {
         return;
       }
       alert = () -> alertService.handleMonitorUp(monitor, checkResult, outageStart);
@@ -250,17 +260,23 @@ public class MonitorExecutionService {
     List<Monitor> silentMonitors =
         monitorService.getMonitorsByState(activeTenantIds, MonitorState.SILENT);
 
-    List<Monitor> monitorsToCheck = new java.util.ArrayList<>(activeMonitors);
-    monitorsToCheck.addAll(silentMonitors);
+    List<Monitor> monitors = new java.util.ArrayList<>(activeMonitors);
+    monitors.addAll(silentMonitors);
 
-    if (monitorsToCheck.isEmpty()) {
+    if (monitors.isEmpty()) {
       log.info("No monitors to check found");
       return;
     }
 
+    long slot = slotOf(clock.millis(), checkIntervalMs);
+    List<Monitor> monitorsToCheck =
+        monitors.stream().filter(monitor -> isDue(monitor, slot, checkIntervalMs)).toList();
+
     log.debug(
-        "Found {} monitors to check ({} active, {} silent)",
+        "{} of {} monitors are due in slot {} ({} active, {} silent)",
         monitorsToCheck.size(),
+        monitors.size(),
+        slot,
         activeMonitors.size(),
         silentMonitors.size());
 
@@ -313,12 +329,43 @@ public class MonitorExecutionService {
     return Math.floorMod(monitorId * 0x9E3779B97F4A7C15L, spreadMs);
   }
 
-  private static boolean recentlyDown(MonitorStatus status, CheckResult checkResult) {
+  /**
+   * The number of the run that starts at this time. The trigger fires at the multiples of the
+   * interval (CheckGridTrigger), so rounding to the nearest multiple leaves half an interval for a
+   * late start or a replica clock that is a little off.
+   */
+  static long slotOf(long epochMs, long checkIntervalMs) {
+    return checkIntervalMs > 0 ? Math.floorDiv(epochMs + checkIntervalMs / 2, checkIntervalMs) : 0;
+  }
+
+  /**
+   * A monitor with an interval of n runs is checked in every n-th slot. The slot in the cycle comes
+   * from the id, so the monitors with a long interval are spread over the runs. The slot comes from
+   * the clock, not from the last check, so a change of replica does not move the checks.
+   */
+  static boolean isDue(Monitor monitor, long slot, long checkIntervalMs) {
+    if (monitor.getCheckInterval() == null || checkIntervalMs <= 0 || monitor.getId() == null) {
+      return true;
+    }
+    // An interval that is no multiple of the run interval rounds down: never fewer checks
+    long runs = Math.max(1, monitor.getCheckInterval() * 1000L / checkIntervalMs);
+    return runs == 1
+        || Math.floorMod(slot, runs) == Math.floorMod(monitor.getId() * 0x9E3779B97F4A7C15L, runs);
+  }
+
+  private static boolean recentlyDown(
+      Monitor monitor, MonitorStatus status, CheckResult checkResult) {
+    Duration window = RECOVERY_ALERT_WINDOW;
+    if (monitor.getCheckInterval() != null) {
+      // The next check after the last failed one must still be in the window
+      Duration twoIntervals = Duration.ofSeconds(2L * monitor.getCheckInterval());
+      if (twoIntervals.compareTo(window) > 0) {
+        window = twoIntervals;
+      }
+    }
     return status != null
         && status.getLastDownAt() != null
-        && !status
-            .getLastDownAt()
-            .isBefore(checkResult.getCheckedAt().minus(RECOVERY_ALERT_WINDOW));
+        && !status.getLastDownAt().isBefore(checkResult.getCheckedAt().minus(window));
   }
 
   public CompletableFuture<CheckResult> executeMonitorCheckAsync(Monitor monitor) {

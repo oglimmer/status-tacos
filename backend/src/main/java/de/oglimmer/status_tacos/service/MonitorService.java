@@ -45,6 +45,8 @@ public class MonitorService {
             .prometheusKey(requestDto.getPrometheusKey())
             .prometheusMinValue(requestDto.getPrometheusMinValue())
             .prometheusMaxValue(requestDto.getPrometheusMaxValue())
+            .checkInterval(requestDto.getCheckInterval())
+            .connectTimeout(requestDto.getConnectTimeout())
             .alertingThreshold(requestDto.getAlertingThreshold())
             .showOnPublicPage(Boolean.TRUE.equals(requestDto.getShowOnPublicPage()))
             .build();
@@ -127,6 +129,8 @@ public class MonitorService {
     existingMonitor.setPrometheusKey(requestDto.getPrometheusKey());
     existingMonitor.setPrometheusMinValue(requestDto.getPrometheusMinValue());
     existingMonitor.setPrometheusMaxValue(requestDto.getPrometheusMaxValue());
+    existingMonitor.setCheckInterval(requestDto.getCheckInterval());
+    existingMonitor.setConnectTimeout(requestDto.getConnectTimeout());
     existingMonitor.setAlertingThreshold(requestDto.getAlertingThreshold());
     existingMonitor.setShowOnPublicPage(Boolean.TRUE.equals(requestDto.getShowOnPublicPage()));
 
