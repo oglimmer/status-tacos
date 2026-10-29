@@ -110,6 +110,26 @@ export interface StatusPageAsset {
   reference: string
 }
 
+/** A token for the Prometheus API, for example for Grafana. Timestamps are UTC without a zone suffix. */
+export interface ApiToken {
+  id: number
+  name: string
+  // The first characters of the token, to tell tokens apart
+  prefix: string
+  createdAt: string
+  // Missing when the token was never used
+  lastUsedAt?: string | null
+}
+
+/** The new token. token is in this answer only: the server keeps only a hash. */
+export interface CreatedApiToken extends ApiToken {
+  token: string
+}
+
+export interface ApiTokenRequest {
+  name: string
+}
+
 export class ApiService {
   private getApiBaseUrl(): string {
     const hostname = window.location.hostname
@@ -454,6 +474,22 @@ export class ApiService {
     const params = new URLSearchParams()
     params.append('email', email)
     return this.deleteVoid(`/tenants/${tenantId}/users?${params.toString()}`, user)
+  }
+
+  // API token methods
+  async getApiTokens(): Promise<ApiToken[]> {
+    const user = await this.getAuthenticatedUser()
+    return this.get<ApiToken[]>('/api-tokens', user)
+  }
+
+  async createApiToken(data: ApiTokenRequest): Promise<CreatedApiToken> {
+    const user = await this.getAuthenticatedUser()
+    return this.post<CreatedApiToken, ApiTokenRequest>('/api-tokens', data, user)
+  }
+
+  async deleteApiToken(id: number): Promise<void> {
+    const user = await this.getAuthenticatedUser()
+    return this.deleteVoid(`/api-tokens/${id}`, user)
   }
 
   /** Deletes the account of the signed-in user, with all tenants only they belong to. */

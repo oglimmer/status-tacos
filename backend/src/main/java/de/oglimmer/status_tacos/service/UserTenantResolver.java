@@ -1,6 +1,7 @@
 /* Copyright (c) 2025 by oglimmer.com / Oliver Zimpasser. All rights reserved. */
 package de.oglimmer.status_tacos.service;
 
+import de.oglimmer.status_tacos.config.ApiTokenPrincipal;
 import de.oglimmer.status_tacos.persistence.Tenant;
 import de.oglimmer.status_tacos.persistence.User;
 import de.oglimmer.status_tacos.repository.UserRepository;
@@ -42,6 +43,9 @@ public class UserTenantResolver {
 
     if (principal instanceof Jwt jwt) {
       return jwt.getSubject();
+    }
+    if (principal instanceof ApiTokenPrincipal apiToken) {
+      return apiToken.oidcSubject();
     }
 
     throw new IllegalArgumentException(

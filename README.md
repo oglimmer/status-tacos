@@ -49,3 +49,7 @@ cd backend
 - Status charts and dashboards
 - Alert notifications (Teams integration)
 - OIDC authentication
+
+## Grafana
+
+Use Status Tacos as a Prometheus data source in Grafana. See [docs/grafana.md](docs/grafana.md).

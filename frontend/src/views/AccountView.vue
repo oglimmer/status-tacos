@@ -5,6 +5,7 @@ import type { CurrentUser } from '../services/api'
 import DashboardHeader from '../components/DashboardHeader.vue'
 import PageNavigation from '../components/PageNavigation.vue'
 import DeleteAccountModal from '../components/DeleteAccountModal.vue'
+import ApiTokens from '../components/ApiTokens.vue'
 import VersionInfo from '../components/VersionInfo.vue'
 
 const authStore = useAuthStore()
@@ -84,6 +85,8 @@ onMounted(async () => {
           </ul>
           <router-link to="/tenants" class="link">Manage tenants →</router-link>
         </section>
+
+        <ApiTokens />
 
         <section class="card card-danger">
           <h2>Delete Account</h2>

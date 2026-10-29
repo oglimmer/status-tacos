@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
 import { ApiService } from './api'
 import { ApiError, LOGIN_NOT_ALLOWED } from './apiError'
 import { toasts } from './toasts'
@@ -165,6 +166,58 @@ describe('ApiService', () => {
         })
 
         await expect(apiService.deleteAccount(mockUser)).rejects.toMatchObject({ status: 502 })
+      })
+    })
+
+    describe('API tokens', () => {
+      const headers = {
+        'Authorization': 'Bearer test-token',
+        'Content-Type': 'application/json'
+      }
+
+      beforeEach(() => {
+        setActivePinia(createPinia())
+        apiService.setUserProvider(async () => mockUser)
+      })
+
+      it('lists the tokens', async () => {
+        const tokens = [{ id: 1, name: 'Grafana', prefix: 'stt_ab12', createdAt: '2026-10-01T10:00:00' }]
+        window.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => tokens })
+
+        await expect(apiService.getApiTokens()).resolves.toEqual(tokens)
+        expect(fetch).toHaveBeenCalledWith('http://localhost:8080/api/v1/api-tokens', { method: 'GET', headers })
+      })
+
+      it('creates a token and returns it with the secret', async () => {
+        const created = { id: 2, name: 'Grafana', prefix: 'stt_cd34', createdAt: '2026-10-01T10:00:00', token: 'stt_cd34secret' }
+        window.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => created })
+
+        await expect(apiService.createApiToken({ name: 'Grafana' })).resolves.toEqual(created)
+        expect(fetch).toHaveBeenCalledWith('http://localhost:8080/api/v1/api-tokens', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ name: 'Grafana' })
+        })
+      })
+
+      it('uses the message of the server when the user has too many tokens', async () => {
+        window.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          status: 409,
+          json: async () => ({ message: 'You can have at most 20 API tokens' })
+        })
+
+        await expect(apiService.createApiToken({ name: 'One more' })).rejects.toMatchObject({
+          status: 409,
+          message: 'You can have at most 20 API tokens'
+        })
+      })
+
+      it('deletes a token', async () => {
+        window.fetch = vi.fn().mockResolvedValue({ ok: true, status: 204 })
+
+        await expect(apiService.deleteApiToken(3)).resolves.toBeUndefined()
+        expect(fetch).toHaveBeenCalledWith('http://localhost:8080/api/v1/api-tokens/3', { method: 'DELETE', headers })
       })
     })
 
