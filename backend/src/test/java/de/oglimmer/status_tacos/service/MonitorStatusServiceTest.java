@@ -95,6 +95,24 @@ class MonitorStatusServiceTest {
     assertThat(status.getOutageStartedAt()).isEqualTo(T0);
   }
 
+  @Test
+  void errorOfTheLastFailedCheckIsKeptUntilTheNextUpCheck() {
+    MonitorStatus down =
+        monitorStatusService.updateMonitorStatus(
+            1,
+            monitor,
+            CheckResult.builder()
+                .monitor(monitor)
+                .tenantId(1)
+                .isUp(false)
+                .checkedAt(T0)
+                .errorMessage("Network error: no such host")
+                .build());
+    assertThat(down.getLastErrorMessage()).isEqualTo("Network error: no such host");
+
+    assertThat(check(true, T0.plusSeconds(15)).getLastErrorMessage()).isNull();
+  }
+
   private MonitorStatus check(boolean up, LocalDateTime checkedAt) {
     CheckResult result =
         CheckResult.builder().monitor(monitor).tenantId(1).isUp(up).checkedAt(checkedAt).build();

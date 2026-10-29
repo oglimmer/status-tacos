@@ -38,6 +38,7 @@ const form = ref<MonitorRequest>({
   prometheusMaxValue: undefined,
   checkInterval: 15,
   connectTimeout: 5,
+  useSystemDns: false,
   alertingThreshold: 30,
   showOnPublicPage: false
 })
@@ -92,6 +93,7 @@ const initializeForm = () => {
       prometheusMaxValue: props.monitor.prometheusMaxValue,
       checkInterval: props.monitor.checkInterval ?? 15,
       connectTimeout: props.monitor.connectTimeout ?? 5,
+      useSystemDns: props.monitor.useSystemDns ?? false,
       alertingThreshold: props.monitor.alertingThreshold,
       showOnPublicPage: props.monitor.showOnPublicPage ?? false
     }
@@ -111,6 +113,7 @@ const initializeForm = () => {
       prometheusMaxValue: undefined,
       checkInterval: 15,
       connectTimeout: 5,
+      useSystemDns: false,
       alertingThreshold: 30,
       showOnPublicPage: false
     }
@@ -401,6 +404,18 @@ const handleClose = () => {
             </small>
           </div>
         </div>
+      </div>
+
+      <div class="form-group">
+        <label class="checkbox-label" for="use-system-dns">
+          <input id="use-system-dns" v-model="form.useSystemDns" type="checkbox" />
+          Use the DNS server of the backend
+        </label>
+        <small class="field-note">
+          Off (default): each check asks the nameservers of the domain for the IP, so a changed IP shows at the
+          next check. On: the DNS server of the backend gives the IP. It can keep an old IP for hours after a
+          change. Use this for names that only the DNS of the backend knows.
+        </small>
       </div>
 
       <div class="form-group">

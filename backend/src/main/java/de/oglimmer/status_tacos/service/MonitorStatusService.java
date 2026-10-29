@@ -53,6 +53,8 @@ public class MonitorStatusService {
     status.setLastCheckedAt(checkResult.getCheckedAt());
     status.setLastResponseTimeMs(checkResult.getResponseTimeMs());
     status.setLastStatusCode(checkResult.getStatusCode());
+    status.setLastErrorMessage(
+        checkResult.getIsUp() ? null : truncate(checkResult.getErrorMessage()));
 
     if (checkResult.getIsUp()) {
       status.setLastUpAt(checkResult.getCheckedAt());
@@ -89,5 +91,11 @@ public class MonitorStatusService {
     return tenantIds.isEmpty()
         ? List.of()
         : monitorStatusRepository.findAllActiveMonitorStatusesByTenantIdIn(tenantIds);
+  }
+
+  private static String truncate(String text) {
+    return text != null && text.length() > MonitorStatus.MAX_ERROR_LENGTH
+        ? text.substring(0, MonitorStatus.MAX_ERROR_LENGTH)
+        : text;
   }
 }

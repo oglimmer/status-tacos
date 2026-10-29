@@ -19,6 +19,7 @@ export interface MonitorRequest {
   prometheusMaxValue?: number
   checkInterval?: number
   connectTimeout?: number
+  useSystemDns?: boolean
   alertingThreshold?: number
   showOnPublicPage?: boolean
 }
@@ -47,6 +48,7 @@ export interface MonitorResponse {
   // Missing from older servers
   checkInterval?: number
   connectTimeout?: number
+  useSystemDns?: boolean
   alertingThreshold: number
   // Missing from older servers
   showOnPublicPage?: boolean
@@ -75,6 +77,8 @@ export interface MonitorStatus {
   consecutiveFailures: number
   lastResponseTimeMs: number
   lastStatusCode: number
+  // Missing from older servers
+  lastErrorMessage?: string | null
   updatedAt: string
 }
 

@@ -20,12 +20,15 @@ import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.hc.client5.http.DnsResolver;
+import org.apache.hc.client5.http.SystemDefaultDnsResolver;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
@@ -49,8 +52,12 @@ public class HttpClientService {
 
   private static final int LOGGED_BODY_CHARS = 500;
 
+  /** Asks the nameservers of the domain: see AuthoritativeDnsResolver. */
   private final CloseableHttpClient httpClient;
-  private final PoolingHttpClientConnectionManager connectionManager;
+
+  /** Asks the DNS server of this machine, with its cache. A per-monitor option. */
+  private final CloseableHttpClient systemDnsHttpClient;
+
   private final ScheduledExecutorService deadlineScheduler;
   private final RequestConfig defaultRequestConfig;
   private final Duration totalTimeout;
@@ -63,41 +70,27 @@ public class HttpClientService {
       @Value("${monitor.http.total-timeout:30s}") Duration totalTimeout,
       @Value("${monitor.http.max-body-size:2MB}") DataSize maxBodySize,
       @Value("${monitor.http.regex-timeout:1s}") Duration regexTimeout,
-      @Value("${monitor.http.max-connections:200}") int maxConnections) {
+      @Value("${monitor.http.max-connections:200}") int maxConnections,
+      DnsResolver dnsResolver) {
     this.totalTimeout = totalTimeout;
     this.maxBodyBytes = (int) Math.min(Integer.MAX_VALUE - 1, maxBodySize.toBytes());
     this.userRegex = new UserRegex(regexTimeout);
 
-    // Connections are not reused, so these limits only cap the checks that run at the same time.
-    // The check thread pool (monitor.threading.max-pool-size) is the real cap and must be smaller
-    // than maxConnections. No extra limit per host: many monitors of one host would otherwise wait
-    // for each other and the wait would be saved as DOWN, although the host is fine.
-    this.connectionManager = new PoolingHttpClientConnectionManager();
-    this.connectionManager.setMaxTotal(maxConnections);
-    this.connectionManager.setDefaultMaxPerRoute(maxConnections);
-    // The TCP connect timeout must be set here. Without it an unreachable host blocks for the OS
-    // default (60-120+ seconds). The socket timeout is the max wait between two reads.
-    this.connectionManager.setDefaultConnectionConfig(
+    // The TCP connect timeout must be set on the connection. Without it an unreachable host blocks
+    // for the OS default (60-120+ seconds). The socket timeout is the max wait between two reads.
+    ConnectionConfig connectionConfig =
         ConnectionConfig.custom()
             .setConnectTimeout(Timeout.of(connectTimeout))
             .setSocketTimeout(Timeout.of(requestTimeout))
-            .build());
-
+            .build();
     this.defaultRequestConfig =
         RequestConfig.custom()
             .setConnectionRequestTimeout(Timeout.of(connectTimeout))
             .setResponseTimeout(Timeout.of(requestTimeout))
             .build();
-    this.httpClient =
-        HttpClients.custom()
-            .setConnectionManager(connectionManager)
-            .setDefaultRequestConfig(defaultRequestConfig)
-            // A monitor measures the full path of a new visitor: no keep-alive between checks.
-            .setConnectionReuseStrategy((request, response, context) -> false)
-            // By default HttpClient sends a GET once more after 1 s on most I/O errors and on a
-            // 429 or 503 response. That hides a real failure and adds 1 s to the response time.
-            .disableAutomaticRetries()
-            .build();
+    this.httpClient = buildClient(dnsResolver, connectionConfig, maxConnections);
+    this.systemDnsHttpClient =
+        buildClient(SystemDefaultDnsResolver.INSTANCE, connectionConfig, maxConnections);
 
     this.deadlineScheduler =
         Executors.newSingleThreadScheduledExecutor(
@@ -117,13 +110,38 @@ public class HttpClientService {
         maxConnections);
   }
 
+  private CloseableHttpClient buildClient(
+      DnsResolver dnsResolver, ConnectionConfig connectionConfig, int maxConnections) {
+    // Connections are not reused, so these limits only cap the checks that run at the same time.
+    // The check thread pool (monitor.threading.max-pool-size) is the real cap and must be smaller
+    // than maxConnections. No extra limit per host: many monitors of one host would otherwise wait
+    // for each other and the wait would be saved as DOWN, although the host is fine.
+    PoolingHttpClientConnectionManager connectionManager =
+        PoolingHttpClientConnectionManagerBuilder.create()
+            .setDnsResolver(dnsResolver)
+            .setMaxConnTotal(maxConnections)
+            .setMaxConnPerRoute(maxConnections)
+            .setDefaultConnectionConfig(connectionConfig)
+            .build();
+    return HttpClients.custom()
+        .setConnectionManager(connectionManager)
+        .setDefaultRequestConfig(defaultRequestConfig)
+        // A monitor measures the full path of a new visitor: no keep-alive between checks.
+        .setConnectionReuseStrategy((request, response, context) -> false)
+        // By default HttpClient sends a GET once more after 1 s on most I/O errors and on a
+        // 429 or 503 response. That hides a real failure and adds 1 s to the response time.
+        .disableAutomaticRetries()
+        .build();
+  }
+
   @PreDestroy
   public void cleanup() {
     try {
       log.info("Closing HTTP client and releasing connections");
       deadlineScheduler.shutdownNow();
+      // Closes the connection managers too
       httpClient.close();
-      connectionManager.close();
+      systemDnsHttpClient.close();
     } catch (IOException e) {
       log.error("Error closing HTTP client: {}", e.getMessage(), e);
     }
@@ -137,7 +155,8 @@ public class HttpClientService {
       String prometheusKey,
       Double prometheusMinValue,
       Double prometheusMaxValue,
-      Duration connectTimeout) {
+      Duration connectTimeout,
+      boolean useSystemDns) {
     long startTime = System.nanoTime();
     HttpGet request;
     try {
@@ -164,7 +183,8 @@ public class HttpClientService {
 
     // executeOpen, not execute with a handler: execute reads the rest of a cut body to the end.
     // Closing the response instead drops the connection.
-    try (ClassicHttpResponse response = httpClient.executeOpen(null, request, null)) {
+    CloseableHttpClient client = useSystemDns ? systemDnsHttpClient : httpClient;
+    try (ClassicHttpResponse response = client.executeOpen(null, request, null)) {
       int responseTime = elapsedMs(startTime);
       int statusCode = response.getCode();
       Body body = readBody(response.getEntity());

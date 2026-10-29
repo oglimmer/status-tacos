@@ -4,6 +4,8 @@ package de.oglimmer.status_tacos.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -13,6 +15,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+import org.apache.hc.client5.http.DnsResolver;
+import org.apache.hc.client5.http.SystemDefaultDnsResolver;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,8 +41,8 @@ class HttpClientServiceTest {
             Duration.ofSeconds(2), // total timeout
             DataSize.ofBytes(1024), // max body size
             Duration.ofMillis(500), // regex timeout
-            200 // max connections
-            );
+            200, // max connections
+            SystemDefaultDnsResolver.INSTANCE);
   }
 
   @AfterEach
@@ -132,7 +136,15 @@ class HttpClientServiceTest {
     long start = System.nanoTime();
     HttpClientService.HttpCheckResult result =
         httpClientService.performHealthCheck(
-            "http://10.255.255.1/", null, null, null, null, null, null, Duration.ofMillis(300));
+            "http://10.255.255.1/",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            Duration.ofMillis(300),
+            false);
     long tookMs = (System.nanoTime() - start) / 1_000_000;
 
     assertThat(result.getIsUp()).isFalse();
@@ -157,7 +169,7 @@ class HttpClientServiceTest {
 
     HttpClientService.HttpCheckResult result =
         httpClientService.performHealthCheck(
-            baseUrl, null, null, "healthy", null, null, null, null);
+            baseUrl, null, null, "healthy", null, null, null, null, false);
 
     assertThat(result.getIsUp()).isFalse();
     assertThat(result.getErrorMessage())
@@ -203,7 +215,7 @@ class HttpClientServiceTest {
     long start = System.nanoTime();
     HttpClientService.HttpCheckResult result =
         httpClientService.performHealthCheck(
-            baseUrl, null, null, "^(.*a){20}$", null, null, null, null);
+            baseUrl, null, null, "^(.*a){20}$", null, null, null, null, false);
     long tookMs = (System.nanoTime() - start) / 1_000_000;
 
     assertThat(result.getIsUp()).isFalse();
@@ -220,7 +232,7 @@ class HttpClientServiceTest {
 
     HttpClientService.HttpCheckResult result =
         httpClientService.performHealthCheck(
-            baseUrl, null, null, null, "queue_size", 0.0, 10.0, null);
+            baseUrl, null, null, null, "queue_size", 0.0, 10.0, null, false);
 
     assertThat(result.getIsUp()).isFalse();
     assertThat(result.getErrorMessage()).contains("12.0").contains("outside");
@@ -294,7 +306,8 @@ class HttpClientServiceTest {
             Duration.ofSeconds(10),
             DataSize.ofBytes(1024),
             Duration.ofMillis(500),
-            200);
+            200,
+            SystemDefaultDnsResolver.INSTANCE);
     for (int i = 0; i < checks; i++) {
       mockWebServer.enqueue(
           new MockResponse()
@@ -309,7 +322,8 @@ class HttpClientServiceTest {
         results.add(
             pool.submit(
                 () ->
-                    service.performHealthCheck(baseUrl, null, null, null, null, null, null, null)));
+                    service.performHealthCheck(
+                        baseUrl, null, null, null, null, null, null, null, false)));
       }
       for (Future<HttpClientService.HttpCheckResult> result : results) {
         HttpClientService.HttpCheckResult checkResult = result.get(20, TimeUnit.SECONDS);
@@ -331,7 +345,49 @@ class HttpClientServiceTest {
     assertThat(mockWebServer.getRequestCount()).isZero();
   }
 
+  @Test
+  void useSystemDnsSkipsTheInjectedResolver() throws Exception {
+    DnsResolver failing =
+        new DnsResolver() {
+          @Override
+          public InetAddress[] resolve(String host) throws UnknownHostException {
+            throw new UnknownHostException(host + ": from the injected resolver");
+          }
+
+          @Override
+          public String resolveCanonicalHostname(String host) {
+            return host;
+          }
+        };
+    HttpClientService service =
+        new HttpClientService(
+            Duration.ofSeconds(5),
+            Duration.ofSeconds(10),
+            Duration.ofSeconds(2),
+            DataSize.ofBytes(1024),
+            Duration.ofMillis(500),
+            200,
+            failing);
+    mockWebServer.enqueue(new MockResponse().setResponseCode(200));
+    String url = "http://localhost:" + mockWebServer.getPort() + "/";
+    try {
+      assertThat(
+              service
+                  .performHealthCheck(url, null, null, null, null, null, null, null, false)
+                  .getErrorMessage())
+          .contains("from the injected resolver");
+      assertThat(
+              service
+                  .performHealthCheck(url, null, null, null, null, null, null, null, true)
+                  .getIsUp())
+          .isTrue();
+    } finally {
+      service.cleanup();
+    }
+  }
+
   private HttpClientService.HttpCheckResult check(String url) {
-    return httpClientService.performHealthCheck(url, null, null, null, null, null, null, null);
+    return httpClientService.performHealthCheck(
+        url, null, null, null, null, null, null, null, false);
   }
 }

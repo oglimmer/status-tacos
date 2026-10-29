@@ -95,6 +95,14 @@ public class Monitor {
   @Builder.Default
   private Integer connectTimeout = 5;
 
+  /**
+   * Find the IP at the DNS server of the backend, with its cache. False: ask the nameservers of the
+   * domain, so a changed IP shows at the next check.
+   */
+  @Column(name = "use_system_dns", nullable = false)
+  @Builder.Default
+  private Boolean useSystemDns = false;
+
   @Column(name = "alerting_threshold", nullable = false)
   @Min(value = 15, message = "Alerting threshold must be at least 15 seconds")
   @MultipleOf15(message = "Alerting threshold must be a multiple of 15 seconds")

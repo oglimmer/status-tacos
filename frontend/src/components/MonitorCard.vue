@@ -10,6 +10,7 @@ interface MonitorStatus {
   lastCheckedAt: string
   lastResponseTimeMs: number
   lastStatusCode: number
+  lastErrorMessage?: string | null
   consecutiveFailures: number
 }
 
@@ -158,6 +159,10 @@ const getUptimeClass = (history: ResponseTimeHistory | null): string => {
         <strong>Check Interval:</strong>
         <span class="criteria-value">{{ monitor.checkInterval ?? 15 }}s</span>
       </div>
+      <div class="detail-item" v-if="isExpanded && monitor.useSystemDns">
+        <strong>DNS:</strong>
+        <span class="criteria-value">DNS server of the backend</span>
+      </div>
       <div class="detail-item" v-if="isExpanded">
         <strong>Alert Delay:</strong>
         <span class="criteria-value">{{ monitor.alertingThreshold }}s</span>
@@ -179,8 +184,11 @@ const getUptimeClass = (history: ResponseTimeHistory | null): string => {
       </div>
       <div class="stat-item" v-if="isExpanded">
         <span class="stat-label">Status Code:</span>
-        <span class="stat-value">
+        <span v-if="status.lastStatusCode != null" class="stat-value">
           {{ status.lastStatusCode }}
+        </span>
+        <span v-else-if="status.lastErrorMessage" class="stat-value stat-error">
+          {{ status.lastErrorMessage }}
         </span>
       </div>
       <div v-if="status.consecutiveFailures > 0 && isExpanded" class="stat-item">
@@ -367,6 +375,13 @@ const getUptimeClass = (history: ResponseTimeHistory | null): string => {
 .stat-value {
   font-weight: 500;
   color: #2c3e50;
+}
+
+.stat-value.stat-error {
+  color: #dc3545;
+  overflow-wrap: anywhere;
+  text-align: right;
+  margin-left: 1rem;
 }
 
 .stat-value.failure-count {

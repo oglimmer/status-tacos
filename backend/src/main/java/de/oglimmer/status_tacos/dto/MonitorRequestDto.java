@@ -61,6 +61,8 @@ public class MonitorRequestDto {
   @Builder.Default
   private Integer connectTimeout = 5;
 
+  @Builder.Default private Boolean useSystemDns = false;
+
   @Min(value = 15, message = "Alerting threshold must be at least 15 seconds")
   @MultipleOf15(message = "Alerting threshold must be a multiple of 15 seconds")
   @Builder.Default

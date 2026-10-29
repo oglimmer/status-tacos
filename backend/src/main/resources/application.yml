@@ -87,6 +87,9 @@ monitor:
     total-timeout: "10s"
     max-body-size: "2MB"
     regex-timeout: "1s"
+    dns:
+      authoritative: true
+      timeout: "2s"
   scheduling:
     enabled: true
     check-interval: 15000

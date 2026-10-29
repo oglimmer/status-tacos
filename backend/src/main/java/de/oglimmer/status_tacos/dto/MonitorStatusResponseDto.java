@@ -25,5 +25,6 @@ public class MonitorStatusResponseDto {
   private Integer consecutiveFailures;
   private Integer lastResponseTimeMs;
   private Integer lastStatusCode;
+  private String lastErrorMessage;
   private LocalDateTime updatedAt;
 }

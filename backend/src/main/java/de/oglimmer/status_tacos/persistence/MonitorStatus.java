@@ -77,8 +77,14 @@ public class MonitorStatus {
   @Column(name = "last_status_code")
   private Integer lastStatusCode;
 
+  /** Why the last check failed. Null when it was UP. */
+  @Column(name = "last_error_message", length = MAX_ERROR_LENGTH)
+  private String lastErrorMessage;
+
   @Column(name = "updated_at", nullable = false)
   private LocalDateTime updatedAt;
+
+  public static final int MAX_ERROR_LENGTH = 1000;
 
   public enum StatusType {
     up,

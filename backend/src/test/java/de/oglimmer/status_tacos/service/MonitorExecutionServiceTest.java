@@ -149,7 +149,8 @@ class MonitorExecutionServiceTest {
             eq(null),
             eq(null),
             eq(null),
-            eq(Duration.ofSeconds(5))))
+            eq(Duration.ofSeconds(5)),
+            eq(false)))
         .thenReturn(successfulHttpResult);
     when(checkResultService.saveCheckResult(eq(TEST_TENANT_ID), eq(testMonitor), any()))
         .thenReturn(testCheckResult);
@@ -171,7 +172,8 @@ class MonitorExecutionServiceTest {
             eq(null),
             eq(null),
             eq(null),
-            eq(Duration.ofSeconds(5)));
+            eq(Duration.ofSeconds(5)),
+            eq(false));
     verify(checkResultService).saveCheckResult(eq(TEST_TENANT_ID), eq(testMonitor), any());
     verify(monitorStatusService)
         .updateMonitorStatus(eq(TEST_TENANT_ID), eq(testMonitor), eq(testCheckResult));
@@ -187,7 +189,8 @@ class MonitorExecutionServiceTest {
             eq(null),
             eq(null),
             eq(null),
-            eq(Duration.ofSeconds(5))))
+            eq(Duration.ofSeconds(5)),
+            eq(false)))
         .thenReturn(failedHttpResult);
 
     CheckResult failedCheckResult =
@@ -231,7 +234,8 @@ class MonitorExecutionServiceTest {
             eq(null),
             eq(null),
             eq(null),
-            eq(Duration.ofSeconds(5)));
+            eq(Duration.ofSeconds(5)),
+            eq(false));
     verify(checkResultService).saveCheckResult(eq(TEST_TENANT_ID), eq(testMonitor), any());
     verify(monitorStatusService)
         .updateMonitorStatus(eq(TEST_TENANT_ID), eq(testMonitor), eq(failedCheckResult));
@@ -247,7 +251,8 @@ class MonitorExecutionServiceTest {
             eq(null),
             eq(null),
             eq(null),
-            eq(Duration.ofSeconds(5))))
+            eq(Duration.ofSeconds(5)),
+            eq(false)))
         .thenThrow(new RuntimeException("Network timeout"));
 
     CheckResult errorCheckResult =
@@ -282,7 +287,8 @@ class MonitorExecutionServiceTest {
             eq(null),
             eq(null),
             eq(null),
-            eq(Duration.ofSeconds(5)));
+            eq(Duration.ofSeconds(5)),
+            eq(false));
     verify(checkResultService).saveCheckResult(eq(TEST_TENANT_ID), eq(testMonitor), any());
     verify(monitorStatusService).updateMonitorStatus(eq(TEST_TENANT_ID), eq(testMonitor), any());
   }
@@ -297,7 +303,8 @@ class MonitorExecutionServiceTest {
             eq(null),
             eq(null),
             eq(null),
-            eq(Duration.ofSeconds(5))))
+            eq(Duration.ofSeconds(5)),
+            eq(false)))
         .thenReturn(successfulHttpResult);
     // For example no free database connection
     when(checkResultService.saveCheckResult(eq(TEST_TENANT_ID), eq(testMonitor), any()))
@@ -362,7 +369,7 @@ class MonitorExecutionServiceTest {
         .execute(any(Runnable.class));
 
     when(httpClientService.performHealthCheck(
-            anyString(), any(), any(), any(), any(), any(), any(), any()))
+            anyString(), any(), any(), any(), any(), any(), any(), any(), anyBoolean()))
         .thenReturn(successfulHttpResult);
     when(checkResultService.saveCheckResult(eq(TEST_TENANT_ID), any(), any()))
         .thenReturn(testCheckResult);
@@ -383,7 +390,8 @@ class MonitorExecutionServiceTest {
             eq(null),
             eq(null),
             eq(null),
-            eq(Duration.ofSeconds(5)));
+            eq(Duration.ofSeconds(5)),
+            eq(false));
     verify(checkResultService).saveCheckResult(eq(TEST_TENANT_ID), any(), any());
     verify(monitorStatusService).updateMonitorStatus(eq(TEST_TENANT_ID), any(), any());
   }
@@ -566,7 +574,7 @@ class MonitorExecutionServiceTest {
   private void stubCheck(
       HttpClientService.HttpCheckResult httpResult, CheckResult saved, MonitorStatus status) {
     when(httpClientService.performHealthCheck(
-            any(), any(), any(), any(), any(), any(), any(), any()))
+            any(), any(), any(), any(), any(), any(), any(), any(), anyBoolean()))
         .thenReturn(httpResult);
     when(checkResultService.saveCheckResult(eq(TEST_TENANT_ID), eq(testMonitor), any()))
         .thenReturn(saved);

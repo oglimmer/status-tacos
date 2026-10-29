@@ -32,6 +32,7 @@ public interface EntityMapper {
   @Mapping(target = "prometheusMaxValue", source = "prometheusMaxValue")
   @Mapping(target = "checkInterval", source = "checkInterval")
   @Mapping(target = "connectTimeout", source = "connectTimeout")
+  @Mapping(target = "useSystemDns", source = "useSystemDns")
   @Mapping(target = "alertingThreshold", source = "alertingThreshold")
   MonitorResponseDto toDto(Monitor monitor);
 

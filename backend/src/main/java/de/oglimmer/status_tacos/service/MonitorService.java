@@ -47,6 +47,7 @@ public class MonitorService {
             .prometheusMaxValue(requestDto.getPrometheusMaxValue())
             .checkInterval(requestDto.getCheckInterval())
             .connectTimeout(requestDto.getConnectTimeout())
+            .useSystemDns(Boolean.TRUE.equals(requestDto.getUseSystemDns()))
             .alertingThreshold(requestDto.getAlertingThreshold())
             .showOnPublicPage(Boolean.TRUE.equals(requestDto.getShowOnPublicPage()))
             .build();
@@ -131,6 +132,7 @@ public class MonitorService {
     existingMonitor.setPrometheusMaxValue(requestDto.getPrometheusMaxValue());
     existingMonitor.setCheckInterval(requestDto.getCheckInterval());
     existingMonitor.setConnectTimeout(requestDto.getConnectTimeout());
+    existingMonitor.setUseSystemDns(Boolean.TRUE.equals(requestDto.getUseSystemDns()));
     existingMonitor.setAlertingThreshold(requestDto.getAlertingThreshold());
     existingMonitor.setShowOnPublicPage(Boolean.TRUE.equals(requestDto.getShowOnPublicPage()));
 

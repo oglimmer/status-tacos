@@ -29,6 +29,7 @@ public class MonitorResponseDto {
   private Double prometheusMaxValue;
   private Integer checkInterval;
   private Integer connectTimeout;
+  private Boolean useSystemDns;
   private Integer alertingThreshold;
   private Boolean showOnPublicPage;
   private LocalDateTime createdAt;

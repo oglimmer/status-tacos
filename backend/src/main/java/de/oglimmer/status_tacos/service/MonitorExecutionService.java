@@ -151,7 +151,8 @@ public class MonitorExecutionService {
               monitor.getPrometheusMaxValue(),
               monitor.getConnectTimeout() != null
                   ? Duration.ofSeconds(monitor.getConnectTimeout())
-                  : null);
+                  : null,
+              Boolean.TRUE.equals(monitor.getUseSystemDns()));
     } catch (Exception e) {
       log.error("Error executing monitor check for {}: {}", monitor.getName(), e.getMessage(), e);
       httpResult = createErrorHttpResult(monitor.getUrl(), e.getMessage());
