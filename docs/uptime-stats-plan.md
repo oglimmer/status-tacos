@@ -2,6 +2,12 @@
 
 Status: in progress, 2026-10-07. Scope change: the 365-day period is removed. Max period is 90 days.
 
+> **Update 2026-10-28:** decision D1 changed. Monitors now have their own check interval (15 s
+> to 1 h), so one check can stand for 15 s or for 1 hour. Uptime is now
+> `up_seconds / total_seconds`: each check counts with the interval it was checked with
+> (`check_results`, summed in the hourly roll-up). Rows from before count 15 s per check. The
+> check counts stay plain counts. See [monitors.md](monitors.md).
+
 Fixes every item in
 [uptime-stats-review.md](uptime-stats-review.md) (issues #1-#16).
 

@@ -65,6 +65,25 @@ helm install my-status-tacos ./helm -f custom-values.yaml
 | `backend.resources.requests.cpu` | CPU request | `250m` |
 | `backend.resources.requests.memory` | Memory request | `512Mi` |
 
+### Backend Features
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `backend.appUrl` | Link to the UI on alert cards | `https://<first ingress host>` |
+| `backend.email.enabled` | Send email alerts (SMTP settings under `backend.email.smtp`) | `false` |
+| `backend.access.allowedLogins` | Who may sign in: a list of `email` + `provider` pairs. Empty: everybody with a valid token | `[]` |
+| `backend.access.providerClaim` | Token claim with the Keycloak identity provider alias (needs a Keycloak mapper) | `identity_provider` |
+| `backend.limits.maxMonitorsPerUser` | Maximum number of monitors per user, in all their tenants. `0`: no limit. See [docs/monitors.md](../docs/monitors.md#monitor-limit) | `0` |
+| `backend.peer.tenantId` | Tenant with the heartbeat monitor of a second Status Tacos server. Empty: off. See [docs/peer.md](../docs/peer.md) | `""` |
+| `backend.apns.*` | iOS push alerts (section below) | off |
+| `backend.keycloakAdmin.*` | Delete the Keycloak user on account deletion (section below) | off |
+| `backend.appleSignIn.*` | Revoke Sign in with Apple tokens on account deletion (section below) | off |
+
+Public status pages, the Grafana data source (`/api/prom`) and the multi edit need no settings.
+Each check asks the nameservers of the domain for the IP address. To use the DNS server of the
+backend for all monitors, set the environment variable `MONITOR_HTTP_DNS_AUTHORITATIVE=false` on
+the backend (the chart has no value for it). See [docs/monitors.md](../docs/monitors.md#dns).
+
 ### Database Configuration
 
 | Parameter | Description | Default |

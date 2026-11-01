@@ -5,14 +5,15 @@ import LegalPage from '../components/LegalPage.vue'
 <template>
   <LegalPage
     title="Privacy Policy"
-    description="How Status Tacos processes personal data when you use the web app or the iOS app."
-    last-updated="9 October 2026"
+    description="How Status Tacos processes personal data when you use the web app, the iOS app or the Mac app."
+    last-updated="1 November 2026"
   >
     <p class="intro">
       This Privacy Policy explains how oglimmer.com / Oliver Zimpasser ("we", "our", "us")
       processes personal data when you use Status Tacos, the HTTP endpoint monitoring service at
-      <a href="https://tacos.oglimmer.com">tacos.oglimmer.com</a>, and the Status Tacos iOS app
-      (together the "Service"). It applies to all visitors and registered users.
+      <a href="https://tacos.oglimmer.com">tacos.oglimmer.com</a>, the Status Tacos iOS app and the
+      Status Tacos Alert app for macOS (together the "Service"). It applies to all visitors,
+      including visitors of public status pages, and to all registered users.
     </p>
 
     <h2>1. Controller</h2>
@@ -39,6 +40,15 @@ import LegalPage from '../components/LegalPage.vue'
         (for example an API key). You decide what you enter.
       </li>
       <li>
+        Status page content: the template, the CSS and the files (for example fonts and logos)
+        that you upload for the public status page of a tenant, and which monitors you show on
+        it.
+      </li>
+      <li>
+        API tokens: the name of each token, the time it was created and the time it was last
+        used. We store only a hash (a one-way fingerprint) of the token, never the token itself.
+      </li>
+      <li>
         Check results: for each check, the time, the result, the HTTP status code, the response
         time and the error message if the check failed. We also store uptime statistics and
         outages derived from them.
@@ -51,6 +61,10 @@ import LegalPage from '../components/LegalPage.vue'
         iOS app data: if you turn on push alerts, the push token of your device, the push
         environment and the generic device model name (for example "iPhone"), plus your choice
         of monitors to be alerted about.
+      </li>
+      <li>
+        Mac app data: the Mac app asks our server for current alerts and monitor states. It keeps
+        this data on your Mac only, to show notifications and the widget.
       </li>
       <li>
         Technical data: IP address, browser or app user-agent and the time of each request, in
@@ -102,6 +116,14 @@ import LegalPage from '../components/LegalPage.vue'
         iOS app (essential): your login tokens are kept in the iOS Keychain on your device only.
         Your server settings and display preferences are kept in the app's local settings.
       </li>
+      <li>
+        Mac app (essential): your login tokens are kept in the macOS Keychain on your Mac only. The
+        app shares the current monitor states with its widget on the same Mac.
+      </li>
+      <li>
+        Public status pages: they set no cookies and use no local storage, and they run no
+        scripts.
+      </li>
     </ul>
 
     <h2>6. Analytics and Server Logs</h2>
@@ -123,6 +145,27 @@ import LegalPage from '../components/LegalPage.vue'
         configure, with the headers you configure. The operator of each endpoint
         receives our server's IP address and the content of the request. You must be authorized
         to monitor each endpoint (see our <router-link to="/terms">Terms of Service</router-link>).
+      </li>
+      <li>
+        <strong>DNS lookups.</strong> To find the IP address of an endpoint, our servers ask the
+        public nameservers of the internet (the root servers, the servers of the top-level domain
+        and the nameservers of the domain). These nameservers receive the host name of the URL and
+        our server's IP address, but not the full URL and no headers.
+      </li>
+      <li>
+        <strong>Public status pages.</strong> If you show a monitor on the public status page of a
+        tenant, anyone on the internet can see the tenant name, the monitor name, its current
+        status, the start of the current outage and its uptime for 90 days. URLs, headers,
+        response times and alert contacts are never shown. Other websites can embed the page. You
+        decide which monitors are shown and what the template and CSS contain. Files you upload
+        are served from our servers. If your CSS or template loads fonts or images from another
+        host, the browser of each visitor sends its IP address to that host. To avoid this, upload
+        the files instead.
+      </li>
+      <li>
+        <strong>Grafana and other tools.</strong> If you create an API token, every tool that has
+        the token can read the check results of the monitors in your tenants. Delete a token on
+        your account page when you no longer need it.
       </li>
       <li>
         <strong>Email alerts.</strong> Alert emails go to the addresses you enter. They contain the
@@ -149,7 +192,7 @@ import LegalPage from '../components/LegalPage.vue'
       email server on infrastructure we operate. Where we use service providers, they
       act as processors under Art. 28 GDPR and process data only on our instructions. We do not
       transfer data outside the EU/EEA unless adequate safeguards are in place. Separately from
-      this, the recipients you choose in Section 7 (endpoints, webhooks, Microsoft Teams, Apple
+      this, the recipients in Section 7 (endpoints, public nameservers, webhooks, Microsoft Teams, Apple
       for push alerts, and Google, Microsoft or Apple if you sign in with them) receive data as
       described there.
     </p>
@@ -177,7 +220,8 @@ import LegalPage from '../components/LegalPage.vue'
     <p>
       We implement appropriate technical and organizational measures to protect your data. All
       connections to the Service use HTTPS. The iOS app keeps your login tokens in the iOS
-      Keychain. Monitor configurations, including request headers you enter, are stored in our
+      Keychain, and the Mac app in the macOS Keychain. API tokens are stored only as a hash.
+      Public status pages run no scripts. Monitor configurations, including request headers you enter, are stored in our
       database; do not use credentials there that give more access than the check needs. No
       online service can guarantee absolute security.
     </p>
@@ -194,7 +238,7 @@ import LegalPage from '../components/LegalPage.vue'
     <p>
       You can delete your account at any time: in the web app with "Delete Account" at the top of
       the page, or in the iOS app under Settings → Delete Account. We then delete your login
-      account, your user data, your push tokens and every tenant that only you belong to, with its
+      account, your user data, your push tokens, your API tokens and every tenant that only you belong to, with its
       monitors, check results and alert contacts. If you signed in with Apple, we also revoke your
       Apple sign-in for Status Tacos. Tenants that you share with other users stay with them; we
       only remove you from them. If you cannot sign in any more, send an email to

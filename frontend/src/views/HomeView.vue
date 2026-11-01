@@ -96,8 +96,8 @@ const events = [
       <div class="hero-text">
         <h1 class="hero-title">Is it up?</h1>
         <p class="lead">
-          Status Tacos calls your URLs every 15&nbsp;seconds. When one stops answering, you hear
-          about it: by email, webhook, Microsoft Teams or on your iPhone.
+          Status Tacos calls your URLs as often as every 15&nbsp;seconds. When one stops
+          answering, you hear about it: by email, webhook, Microsoft Teams or on your iPhone.
         </p>
 
         <div v-if="!authStore.isAuthenticated" class="hero-action">
@@ -216,6 +216,14 @@ const events = [
               <dd>Point the check at a /metrics page. One value must stay between a minimum and a maximum.</dd>
             </div>
           </dl>
+          <p>
+            Every 15&nbsp;seconds or once an hour: you choose for each URL, with its own timeout.
+          </p>
+          <p>
+            Moved your site to a new server? Each check asks the nameservers of your domain for the
+            address, so the very next check goes to the new server. No old address from a cache
+            that says "up" while the new site is broken.
+          </p>
           <p class="aside">Your URL needs a token? Add your own request headers to the check.</p>
         </div>
       </section>
@@ -231,12 +239,93 @@ const events = [
             <li><span class="menu-item">iPhone and iPad</span><span class="menu-detail">a push alert, also in Focus</span></li>
           </ul>
           <p>
-            One slow answer does not wake anybody up. You choose how long a URL must fail before
-            the alert goes out: 30&nbsp;seconds by default, 15 at the least. When the URL answers
-            again, you get the all-clear.
+            Planned maintenance? Make the monitor silent. The checks go on, the alerts stop.
+          </p>
+        </div>
+      </section>
+
+      <section class="part" aria-labelledby="trust-title">
+        <h2 id="trust-title">Alerts you can trust</h2>
+        <div class="part-content">
+          <p>
+            A false alarm at 3&nbsp;a.m. is bad. A real outage without an alarm is worse. Status
+            Tacos works hard on both.
+          </p>
+
+          <h3 class="group-title">On every Status Tacos, also this one</h3>
+          <dl class="rules">
+            <div class="rule">
+              <dt>No alarm for a hiccup</dt>
+              <dd>
+                One slow answer does not wake anybody up. A URL must fail for the time you choose:
+                30&nbsp;seconds by default, 15 at the least.
+              </dd>
+            </div>
+            <div class="rule">
+              <dt>Always the all-clear</dt>
+              <dd>
+                When the URL answers again, you hear that too. If the all-clear does not get
+                through, the next outage still alerts you.
+              </dd>
+            </div>
+            <div class="rule">
+              <dt>More than one way to reach you</dt>
+              <dd>
+                Send each alert by email, webhook, Teams and push at the same time. When one way
+                fails, the others still go out.
+              </dd>
+            </div>
+            <div class="rule">
+              <dt>Through Focus</dt>
+              <dd>DOWN alerts on the iPhone are time sensitive. They show also in a Focus mode.</dd>
+            </div>
+          </dl>
+
+          <h3 class="group-title">When you run two servers</h3>
+          <dl class="rules">
+            <div class="rule">
+              <dt>A second opinion</dt>
+              <dd>
+                Before one server sends a DOWN alert, the other checks the URL too. When only one
+                of them sees it down, the problem is on that server, and nobody gets woken up. When
+                the other server does not answer, the alert goes out as usual.
+              </dd>
+            </div>
+            <div class="rule">
+              <dt>They watch each other</dt>
+              <dd>Each server checks the other. When one goes down, the other one alerts you.</dd>
+            </div>
+            <div class="rule">
+              <dt>Who alerts the alerter?</dt>
+              <dd>
+                When a server cannot send alerts, for example its email fails again and again, it
+                tells the other server. The other one alerts you.
+              </dd>
+            </div>
+          </dl>
+          <p class="aside">
+            This service runs on one server. The pair is for your own servers: see
+            <a class="link" href="#own-title">Run your own</a>.
+          </p>
+        </div>
+      </section>
+
+      <section class="part" aria-labelledby="public-title">
+        <h2 id="public-title">Show it to your customers</h2>
+        <div class="part-content">
+          <p>
+            Each tenant gets its own public status page. Your customers see if your service is up,
+            without an account.
+          </p>
+          <p><code class="snippet">tacos.oglimmer.com/<mark>your-team</mark>/status</code></p>
+          <p>
+            You pick the monitors. The page shows only their names, the current status and the
+            90-day uptime. Your URLs stay private.
           </p>
           <p>
-            Planned maintenance? Make the monitor silent. The checks go on, the alerts stop.
+            Make it look like your brand: your colors, your logo, your own CSS, even your own
+            template. Upload your fonts and images, and the page loads them from our server, not
+            from a third party. A live preview shows each change.
           </p>
         </div>
       </section>
@@ -253,6 +342,14 @@ const events = [
             7&nbsp;days or 90&nbsp;days. The iPhone app shows the same, and you can silence a
             monitor from it.
           </p>
+          <p>
+            Thirty monitors need a longer interval? Select them and change it once. You see each
+            monitor go through.
+          </p>
+          <p>
+            Live in Grafana already? Add Status Tacos as a Prometheus data source and put your
+            uptime next to your other dashboards.
+          </p>
         </div>
       </section>
 
@@ -260,8 +357,9 @@ const events = [
         <h2 id="own-title">Run your own</h2>
         <div class="part-content">
           <p>
-            The code is on GitHub. Run Status Tacos on your server with Docker Compose or the Helm
-            chart.
+            This one is free, with up to 3&nbsp;monitors per person. Need more? The code is on
+            GitHub. Run Status Tacos on your server with Docker Compose or the Helm chart, with no
+            limit. Run two, and they watch each other.
           </p>
           <p class="links">
             <a class="link" href="https://github.com/oglimmer/status-tacos">See the code on GitHub</a>
@@ -579,6 +677,20 @@ const events = [
 
 .rules {
   margin: 1.5rem 0;
+}
+
+/* A small label above a group of rules. */
+.group-title {
+  margin: 2rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.group-title + .rules {
+  margin-top: 0.75rem;
 }
 
 .rule {
