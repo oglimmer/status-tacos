@@ -92,4 +92,32 @@ describe('ApiTokens', () => {
 
     confirmSpy.mockRestore()
   })
+
+  it('has no token type choice without the peer tenant', async () => {
+    const wrapper = mount(ApiTokens)
+    await flushPromises()
+
+    expect(wrapper.find('#api-token-scope').exists()).toBe(false)
+  })
+
+  it('creates a peer token for a member of the peer tenant', async () => {
+    vi.mocked(apiService.createApiToken).mockResolvedValue({
+      id: 4,
+      name: 'Server B',
+      prefix: 'stt_gh78',
+      scope: 'PEER',
+      createdAt: '2026-11-01T12:00:00',
+      token: 'stt_gh78secret'
+    })
+    const wrapper = mount(ApiTokens, { props: { peerTenantId: 7 } })
+    await flushPromises()
+
+    await wrapper.find('#api-token-name').setValue('Server B')
+    await wrapper.find('#api-token-scope').setValue('PEER')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(apiService.createApiToken).toHaveBeenCalledWith({ name: 'Server B', scope: 'PEER' })
+    expect(wrapper.findAll('.token-list li')[2]!.find('.token-scope').text()).toBe('peer')
+  })
 })

@@ -41,6 +41,11 @@ public class ApiToken {
   @Column(name = "token_prefix", nullable = false, length = 20)
   private String tokenPrefix;
 
+  @Enumerated(EnumType.STRING)
+  @Column(name = "scope", nullable = false, length = 20)
+  @Builder.Default
+  private ApiTokenScope scope = ApiTokenScope.GRAFANA;
+
   @Column(name = "created_at", nullable = false)
   private LocalDateTime createdAt;
 

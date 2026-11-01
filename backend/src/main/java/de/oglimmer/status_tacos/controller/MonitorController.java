@@ -47,7 +47,7 @@ public class MonitorController {
         .ifPresent(
             user ->
                 monitorLimitService.checkCanCreateMonitor(
-                    user, userTenantResolver.getCurrentUserTenantIds()));
+                    user, userTenantResolver.getCurrentUserTenantIds(), requestDto.getTenantId()));
 
     log.info("Creating monitor: {} for tenant: {}", requestDto.getName(), requestDto.getTenantId());
 

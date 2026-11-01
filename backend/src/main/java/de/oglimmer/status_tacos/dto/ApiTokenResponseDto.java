@@ -1,6 +1,7 @@
 /* Copyright (c) 2025 by oglimmer.com / Oliver Zimpasser. All rights reserved. */
 package de.oglimmer.status_tacos.dto;
 
+import de.oglimmer.status_tacos.persistence.ApiTokenScope;
 import java.time.LocalDateTime;
 
 /**
@@ -12,6 +13,7 @@ public record ApiTokenResponseDto(
     Long id,
     String name,
     String prefix,
+    ApiTokenScope scope,
     LocalDateTime createdAt,
     LocalDateTime lastUsedAt,
     String token) {}

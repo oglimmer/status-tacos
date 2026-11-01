@@ -6,7 +6,7 @@ import UptimeMetrics from './UptimeMetrics.vue'
 import EnhancedResponseTimeChart from './EnhancedResponseTimeChart.vue'
 import EnhancedStatusChart from './EnhancedStatusChart.vue'
 import ResponseTimeChart from './ResponseTimeChart.vue'
-import type { MonitorResponse, UptimeStats, MonitorState } from '../stores/monitors'
+import type { MonitorResponse, UptimeStats, MonitorState, PeerResult } from '../stores/monitors'
 import MonitorStateButton from './MonitorStateButton.vue'
 
 interface MonitorStatus {
@@ -15,6 +15,7 @@ interface MonitorStatus {
   lastResponseTimeMs: number
   lastStatusCode: number
   lastErrorMessage?: string | null
+  peerResult?: PeerResult | null
   consecutiveFailures: number
 }
 
@@ -36,6 +37,8 @@ interface EnhancedMonitorCardProps {
   selectedViewMode: ViewModeType
   isExpanded: boolean
   isLoadingStats?: boolean
+  // The monitor of the heartbeat of the other Status Tacos server
+  isPeer?: boolean
 }
 
 interface EnhancedMonitorCardEmits {
@@ -47,6 +50,12 @@ interface EnhancedMonitorCardEmits {
 
 const props = defineProps<EnhancedMonitorCardProps>()
 defineEmits<EnhancedMonitorCardEmits>()
+
+const PEER_RESULT_TEXT: Record<PeerResult, string> = {
+  CONFIRMED: 'Also DOWN for the other server',
+  PEER_UP: 'Only this server sees DOWN: no alert sent',
+  NO_ANSWER: 'The other server did not answer: alert sent'
+}
 
 const getStatusBadgeClass = (status: 'up' | 'down') => {
   return status === 'up' ? 'status-badge status-up' : 'status-badge status-down'
@@ -102,7 +111,14 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
     <!-- Minimal view: only name and status -->
     <template v-if="selectedViewMode === 'minimal'">
       <div class="monitor-header minimal">
-        <h3>{{ monitor.name }}</h3>
+        <h3>
+          {{ monitor.name }}
+          <span
+            v-if="isPeer"
+            class="peer-badge"
+            title="Watches the other Status Tacos server. The other server checks DOWN monitors before alerts."
+          >peer</span>
+        </h3>
         <div class="monitor-status">
           <span
             :class="getStatusBadgeClass(status?.currentStatus || 'down')"
@@ -116,7 +132,14 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
     <!-- Default and Full views -->
     <template v-else>
       <div class="monitor-header">
-        <h3>{{ monitor.name }}</h3>
+        <h3>
+          {{ monitor.name }}
+          <span
+            v-if="isPeer"
+            class="peer-badge"
+            title="Watches the other Status Tacos server. The other server checks DOWN monitors before alerts."
+          >peer</span>
+        </h3>
         <div class="monitor-status">
           <span
             :class="getStatusBadgeClass(status?.currentStatus || 'down')"
@@ -209,6 +232,15 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
             </span>
             <span v-else-if="status.lastErrorMessage" class="stat-value stat-error">
               {{ status.lastErrorMessage }}
+            </span>
+          </div>
+          <div v-if="status.currentStatus === 'down' && status.peerResult" class="stat-item">
+            <span class="stat-label">Other Server:</span>
+            <span
+              class="stat-value"
+              :class="{ 'peer-only-here': status.peerResult === 'PEER_UP' }"
+            >
+              {{ PEER_RESULT_TEXT[status.peerResult] }}
             </span>
           </div>
           <div v-if="status.consecutiveFailures > 0" class="stat-item">
@@ -455,6 +487,24 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
 .stat-value {
   font-weight: 500;
   color: #2c3e50;
+}
+
+.peer-badge {
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: #e8f4ff;
+  color: #004085;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  vertical-align: middle;
+}
+
+.stat-value.peer-only-here {
+  color: #7a4d00;
+  font-weight: 600;
 }
 
 .stat-value.stat-error {

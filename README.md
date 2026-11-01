@@ -50,6 +50,10 @@ cd backend
 - Alert notifications (Teams integration)
 - OIDC authentication
 
+## Two servers (peer)
+
+Two Status Tacos servers can check each other and confirm DOWN alerts. See [docs/peer.md](docs/peer.md).
+
 ## Grafana
 
 Use Status Tacos as a Prometheus data source in Grafana. See [docs/grafana.md](docs/grafana.md).

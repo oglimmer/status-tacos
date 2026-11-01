@@ -1,6 +1,7 @@
 /* Copyright (c) 2025 by oglimmer.com / Oliver Zimpasser. All rights reserved. */
 package de.oglimmer.status_tacos.config;
 
+import de.oglimmer.status_tacos.persistence.ApiTokenScope;
 import de.oglimmer.status_tacos.service.AllowedLoginValidator;
 import de.oglimmer.status_tacos.service.ApiTokenService;
 import java.util.List;
@@ -68,7 +69,8 @@ public class SecurityConfig {
     http.securityMatcher("/prom/**")
         .authorizeHttpRequests(authz -> authz.anyRequest().authenticated())
         .addFilterBefore(
-            new ApiTokenAuthenticationFilter(apiTokenService), AnonymousAuthenticationFilter.class)
+            new ApiTokenAuthenticationFilter(apiTokenService, ApiTokenScope.GRAFANA),
+            AnonymousAuthenticationFilter.class)
         .exceptionHandling(
             exceptions ->
                 exceptions.authenticationEntryPoint(
@@ -80,8 +82,31 @@ public class SecurityConfig {
     return http.build();
   }
 
+  /**
+   * The other Status Tacos server: heartbeat, checks before a DOWN alert, and "check me now".
+   * Signed in with a PEER API token of a member of the peer tenant, not with Keycloak.
+   */
   @Bean
   @Order(3)
+  public SecurityFilterChain peerFilterChain(HttpSecurity http, ApiTokenService apiTokenService)
+      throws Exception {
+    http.securityMatcher("/peer/**")
+        .authorizeHttpRequests(authz -> authz.anyRequest().authenticated())
+        .addFilterBefore(
+            new ApiTokenAuthenticationFilter(apiTokenService, ApiTokenScope.PEER),
+            AnonymousAuthenticationFilter.class)
+        .exceptionHandling(
+            exceptions ->
+                exceptions.authenticationEntryPoint(
+                    new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+        .sessionManagement(
+            session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        .csrf(AbstractHttpConfigurer::disable);
+    return http.build();
+  }
+
+  @Bean
+  @Order(4)
   public SecurityFilterChain filterChain(
       HttpSecurity http, LoginNotAllowedEntryPoint loginNotAllowedEntryPoint) throws Exception {
     http.authorizeHttpRequests(

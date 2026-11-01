@@ -1,16 +1,20 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { apiService, type ApiToken, type CreatedApiToken } from '../services/api'
+import { apiService, type ApiToken, type ApiTokenScope, type CreatedApiToken } from '../services/api'
 import { showErrorToast } from '../services/toasts'
 import { parseUtc } from '../utils/uptime'
 
 const MAX_NAME_LENGTH = 100
+
+// Set when the user is a member of the peer tenant: then the user can create PEER tokens
+const props = defineProps<{ peerTenantId?: number | null }>()
 
 const tokens = ref<ApiToken[]>([])
 const isLoading = ref(true)
 const loadError = ref(false)
 
 const newName = ref('')
+const newScope = ref<ApiTokenScope>('GRAFANA')
 const isCreating = ref(false)
 // Shown once after creation; the server cannot show it again
 const createdToken = ref<CreatedApiToken | null>(null)
@@ -19,6 +23,7 @@ const copied = ref(false)
 const deletingId = ref<number | null>(null)
 
 const dataSourceUrl = computed(() => `${window.location.origin}/api/prom`)
+const peerHeartbeatUrl = computed(() => `${window.location.origin}/api/peer/heartbeat`)
 
 const formatDate = (value: string) =>
   parseUtc(value).toLocaleString(undefined, {
@@ -44,11 +49,14 @@ const createToken = async () => {
   if (!name || isCreating.value) return
   isCreating.value = true
   try {
-    const created = await apiService.createApiToken({ name })
+    const created = await apiService.createApiToken(
+      newScope.value === 'PEER' ? { name, scope: 'PEER' } : { name }
+    )
     createdToken.value = created
     copied.value = false
     tokens.value = [...tokens.value, created]
     newName.value = ''
+    newScope.value = 'GRAFANA'
   } catch (err) {
     // The API shows the message, for example when the user has too many tokens
     console.error('Creating the API token failed:', err)
@@ -119,6 +127,7 @@ onMounted(loadTokens)
         <div class="token-info">
           <span class="token-name">{{ token.name }}</span>
           <code class="token-prefix">{{ token.prefix }}…</code>
+          <span v-if="token.scope === 'PEER'" class="token-scope">peer</span>
           <span class="token-dates">
             Created {{ formatDate(token.createdAt) }} · Last used
             {{ token.lastUsedAt ? formatDate(token.lastUsedAt) : 'never' }}
@@ -147,10 +156,34 @@ onMounted(loadTokens)
         placeholder="Name, for example Grafana"
         autocomplete="off"
       />
+      <template v-if="props.peerTenantId != null">
+        <label for="api-token-scope" class="visually-hidden">Token type</label>
+        <select id="api-token-scope" v-model="newScope" :disabled="isCreating">
+          <option value="GRAFANA">Grafana (read)</option>
+          <option value="PEER">Peer server</option>
+        </select>
+      </template>
       <button type="submit" class="btn btn-primary" :disabled="isCreating || !newName.trim()">
         {{ isCreating ? 'Creating...' : 'Create Token' }}
       </button>
     </form>
+
+    <details v-if="props.peerTenantId != null" class="grafana">
+      <summary>Use for the other Status Tacos server (peer)</summary>
+      <ol>
+        <li>Create a token of the type <strong>Peer server</strong> here.</li>
+        <li>
+          On the other server, in its peer tenant, add a monitor with the URL
+          <code>{{ peerHeartbeatUrl }}</code>
+        </li>
+        <li>
+          Give it the HTTP header <code>Authorization</code> with the value
+          <code>Bearer &lt;token&gt;</code>, and the response body regex
+          <code>"status":"ok"</code>.
+        </li>
+        <li>Do the same in the other direction.</li>
+      </ol>
+    </details>
 
     <details class="grafana">
       <summary>Use with Grafana</summary>
@@ -266,6 +299,24 @@ onMounted(loadTokens)
 .token-prefix {
   color: #6c757d;
   font-size: 0.85rem;
+}
+
+.token-scope {
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: #e8f4ff;
+  color: #004085;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.create-form select {
+  padding: 0.75rem;
+  border: 1px solid #ced4da;
+  border-radius: 8px;
+  font-size: 1rem;
+  background: white;
 }
 
 .token-dates {

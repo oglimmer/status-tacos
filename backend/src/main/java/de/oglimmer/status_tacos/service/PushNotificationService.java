@@ -69,26 +69,34 @@ public class PushNotificationService {
   /**
    * Sends the message to every device of the user. Forgets devices that APNs reports as gone.
    *
-   * @return the number of devices that got the message
+   * @return how many devices got the message, and for how many APNs failed
    */
   @Transactional
-  public int sendToUser(User user, PushMessage message) {
+  public PushResult sendToUser(User user, PushMessage message) {
     if (!apnsConfig.isEnabled()) {
       log.warn("APNs is not enabled: no push notification for user {}", user.getId());
-      return 0;
+      return new PushResult(0, 0);
     }
     int delivered = 0;
+    int failed = 0;
     for (PushDevice device : deviceRepository.findByUserId(user.getId())) {
       switch (apnsClient.send(device, message)) {
         case DELIVERED -> delivered++;
         case DEVICE_GONE -> deviceRepository.delete(device);
         case FAILED -> {
           // Logged by the client. The device stays: the problem may be temporary.
+          failed++;
         }
       }
     }
-    return delivered;
+    return new PushResult(delivered, failed);
   }
+
+  /**
+   * @param delivered devices that got the message
+   * @param failed devices for which APNs failed (not the devices that APNs reports as gone)
+   */
+  public record PushResult(int delivered, int failed) {}
 
   private static String truncate(String value, int max) {
     if (value == null || value.isBlank()) {

@@ -2,6 +2,7 @@
 package de.oglimmer.status_tacos.service;
 
 import de.oglimmer.status_tacos.config.EmailConfig;
+import de.oglimmer.status_tacos.persistence.AlertChannelHealth.Channel;
 import de.oglimmer.status_tacos.persistence.AlertContact;
 import de.oglimmer.status_tacos.persistence.AlertHistory;
 import de.oglimmer.status_tacos.persistence.CheckResult;
@@ -10,6 +11,7 @@ import de.oglimmer.status_tacos.persistence.MonitorState;
 import de.oglimmer.status_tacos.persistence.User;
 import de.oglimmer.status_tacos.repository.AlertContactRepository;
 import de.oglimmer.status_tacos.repository.AlertHistoryRepository;
+import java.net.URI;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -41,6 +43,7 @@ public class AlertService {
   private final Optional<JavaMailSender> javaMailSender;
   private final TeamsNotificationService teamsNotificationService;
   private final PushNotificationService pushNotificationService;
+  private final AlertDeliveryHealthService deliveryHealth;
 
   /** Same clock as the checks, so sent_at and outage_started_at can be compared. */
   private final Clock clock;
@@ -83,6 +86,16 @@ public class AlertService {
     for (AlertContact contact : contacts) {
       sendAlert(monitor, contact, "down", statusCode, teamsAlert);
     }
+  }
+
+  /**
+   * true if handleMonitorDown would send something now: the monitor has a contact and no DOWN alert
+   * was sent in this outage. The other server is only asked in that case.
+   */
+  @Transactional(readOnly = true)
+  public boolean isDownAlertDue(Monitor monitor, LocalDateTime outageStart) {
+    return !findDeliverableContacts(monitor).isEmpty()
+        && !isDownAlertSentForOutage(monitor, outageStart);
   }
 
   /**
@@ -268,6 +281,7 @@ public class AlertService {
       // Don't record test alerts in alert history
       if (!test) {
         recordAlert(monitor, contact, alertType, contact.getValue());
+        deliveryHealth.recordSuccess(Channel.EMAIL);
       }
 
       log.info(
@@ -286,6 +300,10 @@ public class AlertService {
           contact.getName() != null ? contact.getName() : "unnamed contact",
           e.getMessage(),
           e);
+      if (!test) {
+        deliveryHealth.recordFailure(
+            Channel.EMAIL, emailConfig.getSmtp().getHost(), String.valueOf(e.getMessage()));
+      }
     }
   }
 
@@ -339,6 +357,7 @@ public class AlertService {
       // Don't record test alerts in alert history
       if (!test) {
         recordAlert(monitor, contact, alertType, url);
+        deliveryHealth.recordSuccess(Channel.WEBHOOK);
       }
 
       log.info(
@@ -359,6 +378,10 @@ public class AlertService {
           contact.getName() != null ? contact.getName() : "unnamed contact",
           e.getMessage(),
           e);
+      if (!test) {
+        deliveryHealth.recordFailure(
+            Channel.WEBHOOK, hostOf(contact.getValue()), String.valueOf(e.getMessage()));
+      }
     } catch (Exception e) {
       log.error(
           "Unexpected error sending {} HTTP alert for monitor {} to {} ({}): {}",
@@ -383,6 +406,7 @@ public class AlertService {
       // Don't record test alerts in alert history
       if (!test) {
         recordAlert(monitor, contact, alertType, "TEAMS: " + contactLabel(contact));
+        deliveryHealth.recordSuccess(Channel.WEBHOOK);
       }
 
       log.info(
@@ -399,6 +423,10 @@ public class AlertService {
           contactLabel(contact),
           e.getMessage(),
           e);
+      if (!test) {
+        deliveryHealth.recordFailure(
+            Channel.WEBHOOK, hostOf(contact.getValue()), String.valueOf(e.getMessage()));
+      }
       // A test must tell the user that Teams did not accept the card
       if (test) {
         throw new IllegalStateException("Teams did not accept the notification: " + e.getMessage());
@@ -411,9 +439,19 @@ public class AlertService {
     User owner = contact.getOwner();
     // The test monitor has a negative id: the app must not open it.
     Integer monitorId = monitor.getId() != null && monitor.getId() > 0 ? monitor.getId() : null;
-    int delivered =
+    PushNotificationService.PushResult result =
         pushNotificationService.sendToUser(
             owner, PushMessage.of(alert, monitorId, monitor.getTenantId()));
+    int delivered = result.delivered();
+    if (!test) {
+      if (delivered > 0) {
+        deliveryHealth.recordSuccess(Channel.PUSH);
+      } else if (result.failed() > 0) {
+        // No device got it because APNs failed: our problem. No device at all is not.
+        deliveryHealth.recordFailure(
+            Channel.PUSH, "apns", "APNs failed for " + result.failed() + " device(s)");
+      }
+    }
 
     log.info(
         "Sent {} iOS push alert for monitor {} to {} device(s) of user {}",
@@ -427,6 +465,19 @@ public class AlertService {
     if (delivered == 0 && test) {
       throw new IllegalStateException(
           "No iOS device got the notification. Open the app to register this device again.");
+    }
+  }
+
+  /** The host of a webhook URL, or the URL itself if it has none (the template is not a URL). */
+  static String hostOf(String url) {
+    if (url == null) {
+      return null;
+    }
+    try {
+      String host = URI.create(url.trim()).getHost();
+      return host != null ? host : url;
+    } catch (IllegalArgumentException e) {
+      return url;
     }
   }
 

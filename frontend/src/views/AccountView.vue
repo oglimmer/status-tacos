@@ -86,7 +86,7 @@ onMounted(async () => {
           <router-link to="/tenants" class="link">Manage tenants →</router-link>
         </section>
 
-        <ApiTokens />
+        <ApiTokens :peer-tenant-id="currentUser?.peerTenantId ?? null" />
 
         <section class="card card-danger">
           <h2>Delete Account</h2>

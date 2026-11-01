@@ -35,7 +35,8 @@ public class ApiTokenController {
   public ResponseEntity<ApiTokenResponseDto> create(
       @Valid @RequestBody ApiTokenRequestDto request) {
     User user = currentUser();
-    ApiTokenResponseDto created = apiTokenService.create(user, request.getName());
+    ApiTokenResponseDto created =
+        apiTokenService.create(user, request.getName(), request.getScope());
     log.info("User {} created API token {}", user.getId(), created.id());
     return ResponseEntity.status(HttpStatus.CREATED).body(created);
   }
@@ -54,6 +55,12 @@ public class ApiTokenController {
   @ExceptionHandler(IllegalStateException.class)
   public ResponseEntity<Map<String, String>> conflict(IllegalStateException e) {
     return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", e.getMessage()));
+  }
+
+  /** A PEER token without the peer tenant. */
+  @ExceptionHandler(IllegalArgumentException.class)
+  public ResponseEntity<Map<String, String>> badRequest(IllegalArgumentException e) {
+    return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
   }
 
   /** API tokens need a user record. GET /v1/users/me creates it. */

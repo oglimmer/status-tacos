@@ -25,6 +25,12 @@ public class UserResponseDto {
   /** Maximum number of monitors in all tenants of the user. Null: no limit. */
   private Integer maxMonitors;
 
+  /**
+   * The peer tenant (monitor.peer.tenant-id), if the user is a member. Its monitors do not count
+   * for maxMonitors. Null: no peer setup, or not a member.
+   */
+  private Integer peerTenantId;
+
   private LocalDateTime createdAt;
   private LocalDateTime updatedAt;
 }

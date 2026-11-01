@@ -1,6 +1,7 @@
 /* Copyright (c) 2025 by oglimmer.com / Oliver Zimpasser. All rights reserved. */
 package de.oglimmer.status_tacos.dto;
 
+import de.oglimmer.status_tacos.persistence.PeerResult;
 import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -26,5 +27,9 @@ public class MonitorStatusResponseDto {
   private Integer lastResponseTimeMs;
   private Integer lastStatusCode;
   private String lastErrorMessage;
+
+  /** What the other server saw before the DOWN alert. Null when it was not asked. */
+  private PeerResult peerResult;
+
   private LocalDateTime updatedAt;
 }

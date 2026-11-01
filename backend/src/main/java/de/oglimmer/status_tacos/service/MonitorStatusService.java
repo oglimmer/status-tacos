@@ -59,6 +59,7 @@ public class MonitorStatusService {
     if (checkResult.getIsUp()) {
       status.setLastUpAt(checkResult.getCheckedAt());
       status.setConsecutiveFailures(0);
+      status.setPeerResult(null);
       // outageStartedAt stays: the UP alert reports the start of the outage that just ended
     } else {
       status.setLastDownAt(checkResult.getCheckedAt());
@@ -82,6 +83,11 @@ public class MonitorStatusService {
     }
 
     return savedStatus;
+  }
+
+  /** What the other server saw. Not written when the monitor is UP again in the meantime. */
+  public void setPeerResult(Integer monitorId, PeerResult result) {
+    monitorStatusRepository.updatePeerResultIfDown(monitorId, result);
   }
 
   /** Statuses of the ACTIVE and SILENT monitors of the tenants, in one query. */

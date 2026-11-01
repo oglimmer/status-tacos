@@ -1,6 +1,7 @@
 /* Copyright (c) 2025 by oglimmer.com / Oliver Zimpasser. All rights reserved. */
 package de.oglimmer.status_tacos.config;
 
+import de.oglimmer.status_tacos.persistence.ApiTokenScope;
 import de.oglimmer.status_tacos.service.ApiTokenService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -21,12 +22,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * as the password of HTTP basic auth (any user name): Grafana supports both.
  *
  * <p>Not a bean: Spring Boot would add a bean filter to every request. SecurityConfig adds it to
- * the /prom filter chain only.
+ * the /prom (GRAFANA tokens) and /peer (PEER tokens) filter chains only.
  */
 @RequiredArgsConstructor
 public class ApiTokenAuthenticationFilter extends OncePerRequestFilter {
 
   private final ApiTokenService apiTokenService;
+  private final ApiTokenScope scope;
 
   @Override
   protected void doFilterInternal(
@@ -35,7 +37,7 @@ public class ApiTokenAuthenticationFilter extends OncePerRequestFilter {
     String token = extractToken(request.getHeader(HttpHeaders.AUTHORIZATION));
     if (token != null) {
       apiTokenService
-          .authenticate(token)
+          .authenticate(token, scope)
           .ifPresent(
               principal ->
                   SecurityContextHolder.getContext()

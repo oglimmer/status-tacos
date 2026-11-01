@@ -2,6 +2,7 @@
 package de.oglimmer.status_tacos.repository;
 
 import de.oglimmer.status_tacos.persistence.MonitorStatus;
+import de.oglimmer.status_tacos.persistence.PeerResult;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -59,4 +60,15 @@ public interface MonitorStatusRepository extends JpaRepository<MonitorStatus, In
   @Modifying
   @Query("DELETE FROM MonitorStatus e WHERE e.tenantId = :tenantId")
   int deleteAllByTenantId(@Param("tenantId") Integer tenantId);
+
+  /**
+   * Only while the monitor is still DOWN: the next check may have found it UP already, and an UP
+   * monitor has no peer result.
+   */
+  @Modifying
+  @Query(
+      "UPDATE MonitorStatus ms SET ms.peerResult = :result WHERE ms.monitorId = :monitorId"
+          + " AND ms.currentStatus = 'down'")
+  int updatePeerResultIfDown(
+      @Param("monitorId") Integer monitorId, @Param("result") PeerResult result);
 }

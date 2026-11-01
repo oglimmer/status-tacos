@@ -25,6 +25,11 @@ export interface CurrentUser {
   isActive: boolean
   /** Maximum number of monitors in all tenants of the user. Missing: no limit. */
   maxMonitors?: number
+  /**
+   * The peer tenant, if the user is a member: it holds the monitor of the other Status Tacos
+   * server. Its monitors do not count for maxMonitors. Missing: no peer setup, or not a member.
+   */
+  peerTenantId?: number | null
   createdAt: string
   updatedAt: string
 }
@@ -111,9 +116,13 @@ export interface StatusPageAsset {
 }
 
 /** A token for the Prometheus API, for example for Grafana. Timestamps are UTC without a zone suffix. */
+export type ApiTokenScope = 'GRAFANA' | 'PEER'
+
 export interface ApiToken {
   id: number
   name: string
+  // GRAFANA reads /prom; PEER lets the other Status Tacos server call /peer. Missing from older servers.
+  scope?: ApiTokenScope
   // The first characters of the token, to tell tokens apart
   prefix: string
   createdAt: string
@@ -128,6 +137,21 @@ export interface CreatedApiToken extends ApiToken {
 
 export interface ApiTokenRequest {
   name: string
+  // Missing: GRAFANA
+  scope?: ApiTokenScope
+}
+
+/** The peer setup of this server. Only for members of the peer tenant. */
+export interface PeerStatus {
+  // OK, or why the other server is not asked before DOWN alerts
+  setup: 'OK' | 'NO_PEER_MONITOR' | 'MULTIPLE_PEER_MONITORS' | 'NO_TOKEN'
+  peerTenantId: number
+  monitorId?: number | null
+  monitorName?: string | null
+  // False: this server cannot send alerts, its heartbeat says cannot-alert
+  canAlert: boolean
+  cannotAlertSince?: string | null
+  cannotAlertReason?: string | null
 }
 
 export class ApiService {
@@ -485,6 +509,11 @@ export class ApiService {
   async createApiToken(data: ApiTokenRequest): Promise<CreatedApiToken> {
     const user = await this.getAuthenticatedUser()
     return this.post<CreatedApiToken, ApiTokenRequest>('/api-tokens', data, user)
+  }
+
+  async getPeerStatus(): Promise<PeerStatus> {
+    const user = await this.getAuthenticatedUser()
+    return this.get<PeerStatus>('/peer/status', user)
   }
 
   async deleteApiToken(id: number): Promise<void> {

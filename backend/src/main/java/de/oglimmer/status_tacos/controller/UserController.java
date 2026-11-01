@@ -1,6 +1,7 @@
 /* Copyright (c) 2025 by oglimmer.com / Oliver Zimpasser. All rights reserved. */
 package de.oglimmer.status_tacos.controller;
 
+import de.oglimmer.status_tacos.config.PeerConfig;
 import de.oglimmer.status_tacos.dto.AccountDeletionResponseDto;
 import de.oglimmer.status_tacos.dto.UserResponseDto;
 import de.oglimmer.status_tacos.mapper.EntityMapper;
@@ -33,6 +34,7 @@ public class UserController {
   private final EntityMapper entityMapper;
   private final AccountDeletionService accountDeletionService;
   private final MonitorLimitService monitorLimitService;
+  private final PeerConfig peerConfig;
 
   @GetMapping("/me")
   public ResponseEntity<UserResponseDto> getCurrentUser() {
@@ -89,6 +91,11 @@ public class UserController {
   private UserResponseDto convertToDto(User user) {
     UserResponseDto dto = entityMapper.toDto(user);
     dto.setMaxMonitors(monitorLimitService.maxMonitorsFor(user));
+    if (peerConfig.isEnabled()
+        && dto.getTenantIds() != null
+        && java.util.Arrays.asList(dto.getTenantIds()).contains(peerConfig.getTenantId())) {
+      dto.setPeerTenantId(peerConfig.getTenantId());
+    }
     return dto;
   }
 }

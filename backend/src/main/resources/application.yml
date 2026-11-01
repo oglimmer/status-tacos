@@ -142,3 +142,6 @@ monitor:
     private-key: ""
   limits:
     max-monitors-per-user: 0
+  peer:
+    confirm-timeout: "12s"
+    max-checks-per-minute: 120

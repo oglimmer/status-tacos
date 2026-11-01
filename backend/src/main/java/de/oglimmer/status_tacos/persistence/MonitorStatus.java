@@ -81,6 +81,14 @@ public class MonitorStatus {
   @Column(name = "last_error_message", length = MAX_ERROR_LENGTH)
   private String lastErrorMessage;
 
+  /**
+   * What the other server saw when it checked this DOWN monitor before the DOWN alert. Null when
+   * the monitor is UP or the other server was not asked.
+   */
+  @Enumerated(EnumType.STRING)
+  @Column(name = "peer_result", length = 20)
+  private PeerResult peerResult;
+
   @Column(name = "updated_at", nullable = false)
   private LocalDateTime updatedAt;
 

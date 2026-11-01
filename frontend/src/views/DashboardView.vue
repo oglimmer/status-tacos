@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
-import { useMonitorsStore, type MonitorResponse, type MonitorState } from '../stores/monitors'
+import { useMonitorsStore, isPeerMonitor, type MonitorResponse, type MonitorState } from '../stores/monitors'
 import MonitorForm from '../components/MonitorForm.vue'
 import MonitorEditForm from '../components/MonitorEditForm.vue'
 import DashboardHeader from '../components/DashboardHeader.vue'
 import PageNavigation from '../components/PageNavigation.vue'
 import MonitorsHeader from '../components/MonitorsHeader.vue'
 import MonitorLimitInfo from '../components/MonitorLimitInfo.vue'
+import PeerSetupWarning from '../components/PeerSetupWarning.vue'
 import DashboardSummary from '../components/DashboardSummary.vue'
 import EnhancedMonitorCard from '../components/EnhancedMonitorCard.vue'
 import type { TimeframeType } from '../components/TimeframeSwitcher.vue'
@@ -184,8 +185,13 @@ const refreshMonitorData = async () => {
 
 // Null: the user has no monitor limit
 const maxMonitors = computed(() => currentUser.value?.maxMonitors ?? null)
+const peerTenantId = computed(() => currentUser.value?.peerTenantId ?? null)
+// The monitors of the peer tenant watch the server itself: they do not count for the limit
+const countedMonitorCount = computed(
+  () => monitorsStore.monitors.filter(m => m.tenantId !== peerTenantId.value).length
+)
 const monitorLimitReached = computed(
-  () => maxMonitors.value !== null && monitorsStore.monitors.length >= maxMonitors.value
+  () => maxMonitors.value !== null && countedMonitorCount.value >= maxMonitors.value
 )
 
 // Summary data computed property
@@ -283,9 +289,11 @@ onUnmounted(() => {
 
         <MonitorLimitInfo
           v-if="maxMonitors !== null && !monitorsStore.isLoading && !monitorsStore.error"
-          :monitor-count="monitorsStore.monitors.length"
+          :monitor-count="countedMonitorCount"
           :max-monitors="maxMonitors"
         />
+
+        <PeerSetupWarning v-if="peerTenantId !== null" />
 
         <DashboardSummary
           v-if="!monitorsStore.isLoading && !monitorsStore.error && monitorsStore.monitors.length > 0"
@@ -332,6 +340,7 @@ onUnmounted(() => {
             :selected-view-mode="selectedViewMode"
             :is-expanded="isMonitorExpanded(monitor.id)"
             :is-loading-stats="loadingUptimeStats.has(monitor.id)"
+            :is-peer="isPeerMonitor(monitor, peerTenantId)"
             @toggle-expanded="toggleMonitorExpanded"
             @edit="openEditModal"
             @state-change="handleStateChange"

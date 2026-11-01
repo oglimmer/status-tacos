@@ -42,6 +42,7 @@ public class MonitorExecutionService {
   private final MonitorService monitorService;
   private final TenantService tenantService;
   private final AlertService alertService;
+  private final PeerService peerService;
   private final Executor taskExecutor;
   private final Executor alertExecutor;
   private final ApplicationContext applicationContext;
@@ -65,6 +66,7 @@ public class MonitorExecutionService {
       MonitorService monitorService,
       TenantService tenantService,
       AlertService alertService,
+      PeerService peerService,
       @Qualifier("taskExecutor") Executor taskExecutor,
       @Qualifier("alertExecutor") Executor alertExecutor,
       ApplicationContext applicationContext,
@@ -77,6 +79,7 @@ public class MonitorExecutionService {
     this.monitorService = monitorService;
     this.tenantService = tenantService;
     this.alertService = alertService;
+    this.peerService = peerService;
     this.taskExecutor = taskExecutor;
     this.alertExecutor = alertExecutor;
     this.applicationContext = applicationContext;
@@ -215,7 +218,14 @@ public class MonitorExecutionService {
       if (!shouldSendDownAlert(monitor, checkResult, outageStart)) {
         return;
       }
-      alert = () -> alertService.handleMonitorDown(monitor, checkResult, outageStart);
+      alert =
+          () -> {
+            // Ask the other server first: it sees the monitor UP, so the problem is on our side
+            if (peerService.vetoDownAlert(monitor, outageStart)) {
+              return;
+            }
+            alertService.handleMonitorDown(monitor, checkResult, outageStart);
+          };
     } else {
       // Monitor is up, send recovery alert if needed. A monitor that was not down in the last
       // minutes can have no open DOWN alert, so the alert thread does not need to look.

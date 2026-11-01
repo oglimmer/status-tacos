@@ -1,6 +1,7 @@
 /* Copyright (c) 2025 by oglimmer.com / Oliver Zimpasser. All rights reserved. */
 package de.oglimmer.status_tacos.dto;
 
+import de.oglimmer.status_tacos.persistence.ApiTokenScope;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -12,4 +13,7 @@ public class ApiTokenRequestDto {
   @NotBlank(message = "Name is required")
   @Size(max = 100, message = "Name must not exceed 100 characters")
   private String name;
+
+  /** Null: GRAFANA. */
+  private ApiTokenScope scope;
 }

@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 import de.oglimmer.status_tacos.config.LimitsConfig;
+import de.oglimmer.status_tacos.config.PeerConfig;
 import de.oglimmer.status_tacos.persistence.User;
 import de.oglimmer.status_tacos.repository.MonitorRepository;
 import java.util.Set;
@@ -30,13 +31,14 @@ class MonitorLimitServiceTest {
   void setUp() {
     limitsConfig = new LimitsConfig();
     limitsConfig.setMaxMonitorsPerUser(3);
-    monitorLimitService = new MonitorLimitService(limitsConfig, monitorRepository);
+    monitorLimitService =
+        new MonitorLimitService(limitsConfig, monitorRepository, new PeerConfig());
   }
 
   @Test
   void noLimitByDefault() {
     assertThat(
-            new MonitorLimitService(new LimitsConfig(), monitorRepository)
+            new MonitorLimitService(new LimitsConfig(), monitorRepository, new PeerConfig())
                 .maxMonitorsFor(new User()))
         .isNull();
   }

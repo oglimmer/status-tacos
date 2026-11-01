@@ -40,6 +40,8 @@ class MonitorExecutionServiceTest {
 
   @Mock private AlertService alertService;
 
+  @Mock private PeerService peerService;
+
   @Mock private Executor taskExecutor;
 
   @Mock private Executor alertExecutor;
@@ -66,6 +68,7 @@ class MonitorExecutionServiceTest {
             monitorService,
             tenantService,
             alertService,
+            peerService,
             taskExecutor,
             alertExecutor,
             applicationContext,
@@ -412,6 +415,18 @@ class MonitorExecutionServiceTest {
   }
 
   @Test
+  void peerSeesTheMonitorUp_noDownAlert() {
+    stubCheck(failedHttpResult, downCheck(), downStatusSince(120));
+    testMonitor.setAlertingThreshold(30);
+    when(peerService.vetoDownAlert(eq(testMonitor), any())).thenReturn(true);
+
+    monitorExecutionService.executeMonitorCheck(testMonitor);
+    runQueuedAlert();
+
+    verify(alertService, never()).handleMonitorDown(any(), any(), any());
+  }
+
+  @Test
   void downAlertWaitsForTheAlertingThreshold() {
     stubCheck(failedHttpResult, downCheck(), downStatusSince(10));
     testMonitor.setAlertingThreshold(30);
@@ -638,6 +653,7 @@ class MonitorExecutionServiceTest {
         monitorService,
         tenantService,
         alertService,
+        peerService,
         taskExecutor,
         alertExecutor,
         applicationContext,

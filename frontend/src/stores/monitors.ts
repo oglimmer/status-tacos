@@ -79,7 +79,24 @@ export interface MonitorStatus {
   lastStatusCode: number
   // Missing from older servers
   lastErrorMessage?: string | null
+  // What the other server saw before the DOWN alert. Missing when it was not asked.
+  peerResult?: PeerResult | null
   updatedAt: string
+}
+
+export type PeerResult = 'CONFIRMED' | 'PEER_UP' | 'NO_ANSWER'
+
+/** The monitor of the heartbeat of the other Status Tacos server. */
+export const isPeerMonitor = (
+  monitor: { tenantId: number; url: string },
+  peerTenantId: number | null | undefined
+): boolean => {
+  if (peerTenantId == null || monitor.tenantId !== peerTenantId) return false
+  try {
+    return new URL(monitor.url).pathname.replace(/\/$/, '').endsWith('/peer/heartbeat')
+  } catch {
+    return false
+  }
 }
 
 export interface ResponseTimeDataPoint {

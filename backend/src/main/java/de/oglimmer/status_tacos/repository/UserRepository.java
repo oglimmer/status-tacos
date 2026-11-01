@@ -33,6 +33,10 @@ public interface UserRepository extends JpaRepository<User, Integer> {
   @Query("SELECT COUNT(u) FROM User u JOIN u.tenants t WHERE t.id = :tenantId")
   long countMembersOfTenant(@Param("tenantId") Integer tenantId);
 
+  @Query(
+      "SELECT COUNT(u) > 0 FROM User u JOIN u.tenants t WHERE u.id = :userId AND t.id = :tenantId")
+  boolean isMemberOfTenant(@Param("userId") Integer userId, @Param("tenantId") Integer tenantId);
+
   /** Bulk delete. The database cascades to tenant memberships, push devices and push contacts. */
   @Modifying
   @Query("DELETE FROM User u WHERE u.id = :id")

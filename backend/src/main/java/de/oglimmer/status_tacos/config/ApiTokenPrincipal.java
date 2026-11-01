@@ -1,5 +1,8 @@
 /* Copyright (c) 2025 by oglimmer.com / Oliver Zimpasser. All rights reserved. */
 package de.oglimmer.status_tacos.config;
 
+import de.oglimmer.status_tacos.persistence.ApiTokenScope;
+
 /** The signed-in user of a request with an API token. */
-public record ApiTokenPrincipal(Long tokenId, Integer userId, String oidcSubject) {}
+public record ApiTokenPrincipal(
+    Long tokenId, Integer userId, String oidcSubject, ApiTokenScope scope) {}
