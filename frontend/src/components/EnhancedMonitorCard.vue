@@ -39,6 +39,9 @@ interface EnhancedMonitorCardProps {
   isLoadingStats?: boolean
   // The monitor of the heartbeat of the other Status Tacos server
   isPeer?: boolean
+  // Multi edit: the card shows a checkbox
+  selectable?: boolean
+  selected?: boolean
 }
 
 interface EnhancedMonitorCardEmits {
@@ -46,6 +49,7 @@ interface EnhancedMonitorCardEmits {
   'edit': [monitor: MonitorResponse]
   'state-change': [id: number, state: MonitorState]
   'delete': [id: number]
+  'toggle-select': [id: number]
 }
 
 const props = defineProps<EnhancedMonitorCardProps>()
@@ -107,11 +111,24 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
 </script>
 
 <template>
-  <div class="enhanced-monitor-card" :class="{ 'minimal-view': selectedViewMode === 'minimal', 'full-view': selectedViewMode === 'full' }">
+  <div
+    class="enhanced-monitor-card"
+    :class="{ 'minimal-view': selectedViewMode === 'minimal', 'full-view': selectedViewMode === 'full', selectable, selected }"
+    @click="selectable && $emit('toggle-select', monitor.id)"
+  >
     <!-- Minimal view: only name and status -->
     <template v-if="selectedViewMode === 'minimal'">
       <div class="monitor-header minimal">
         <h3>
+          <input
+            v-if="selectable"
+            type="checkbox"
+            class="select-box"
+            :checked="selected"
+            :aria-label="`Select ${monitor.name}`"
+            @click.stop
+            @change="$emit('toggle-select', monitor.id)"
+          />
           {{ monitor.name }}
           <span
             v-if="isPeer"
@@ -133,6 +150,15 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
     <template v-else>
       <div class="monitor-header">
         <h3>
+          <input
+            v-if="selectable"
+            type="checkbox"
+            class="select-box"
+            :checked="selected"
+            :aria-label="`Select ${monitor.name}`"
+            @click.stop
+            @change="$emit('toggle-select', monitor.id)"
+          />
           {{ monitor.name }}
           <span
             v-if="isPeer"
@@ -323,6 +349,31 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
 </template>
 
 <style scoped>
+.enhanced-monitor-card.selectable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.enhanced-monitor-card.selectable :deep(a),
+.enhanced-monitor-card.selectable :deep(button) {
+  pointer-events: none;
+}
+
+.enhanced-monitor-card.selected {
+  border-color: #007bff !important;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.35) !important;
+  background: #f5f9ff;
+}
+
+.select-box {
+  width: 1.05rem;
+  height: 1.05rem;
+  margin: 0 0.5rem 0 0;
+  vertical-align: -0.15rem;
+  cursor: pointer;
+  accent-color: #007bff;
+}
+
 .enhanced-monitor-card {
   background: white;
   border-radius: 8px;

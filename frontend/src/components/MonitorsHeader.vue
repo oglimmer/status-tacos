@@ -7,10 +7,15 @@ interface MonitorsHeaderProps {
   selectedViewMode: ViewModeType
   /** The user has the maximum number of monitors. */
   limitReached?: boolean
+  /** Multi edit: the user selects monitors. */
+  selecting?: boolean
+  /** There are monitors to select. */
+  canSelect?: boolean
 }
 
 interface MonitorsHeaderEmits {
   'add-monitor': []
+  'toggle-select-mode': []
   'update:selectedTimeframe': [timeframe: TimeframeType]
   'update:selectedViewMode': [viewMode: ViewModeType]
 }
@@ -37,6 +42,16 @@ defineEmits<MonitorsHeaderEmits>()
       </div>
     </div>
     <div class="header-right">
+      <button
+        v-if="canSelect"
+        @click="$emit('toggle-select-mode')"
+        class="btn btn-outline"
+        :class="{ active: selecting }"
+        :aria-pressed="selecting"
+        title="Select monitors to change settings of many monitors at once"
+      >
+        {{ selecting ? 'Done' : 'Select' }}
+      </button>
       <button
         @click="$emit('add-monitor')"
         class="btn btn-primary"
@@ -77,6 +92,7 @@ defineEmits<MonitorsHeaderEmits>()
 .header-right {
   display: flex;
   justify-content: flex-end;
+  gap: 0.5rem;
 }
 
 .dashboard-header-section h2 {
@@ -125,6 +141,17 @@ defineEmits<MonitorsHeaderEmits>()
 .btn-primary {
   background: #007bff;
   color: white;
+}
+
+.btn-outline {
+  background: white;
+  color: #007bff;
+  border: 1px solid #007bff;
+}
+
+.btn-outline:hover,
+.btn-outline.active {
+  background: #e7f1ff;
 }
 
 .btn-primary:hover:not(:disabled) {

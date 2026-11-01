@@ -262,26 +262,19 @@ export const useMonitorsStore = defineStore('monitors', () => {
   }
 
   const createMonitor = async (monitorData: MonitorRequest): Promise<MonitorResponse> => {
-    isLoading.value = true
-    error.value = null
-
     try {
       const newMonitor = await apiService.post<MonitorResponse, MonitorRequest>('/monitors', monitorData, authStore.user)
       monitors.value.push(newMonitor)
       return newMonitor
     } catch (err) {
-      error.value = 'Failed to create monitor'
       console.error('Create monitor error:', err)
       throw err
-    } finally {
-      isLoading.value = false
     }
   }
 
+  // Writes do not set isLoading or error: on the dashboard these swap the whole list, and the page
+  // loses its scroll position. The caller shows the error.
   const updateMonitor = async (id: number, monitorData: MonitorRequest): Promise<MonitorResponse> => {
-    isLoading.value = true
-    error.value = null
-
     try {
       const updatedMonitor = await apiService.put<MonitorResponse, MonitorRequest>(`/monitors/${id}`, monitorData, authStore.user)
       const index = monitors.value.findIndex(m => m.id === id)
@@ -290,35 +283,23 @@ export const useMonitorsStore = defineStore('monitors', () => {
       }
       return updatedMonitor
     } catch (err) {
-      error.value = 'Failed to update monitor'
       console.error('Update monitor error:', err)
       throw err
-    } finally {
-      isLoading.value = false
     }
   }
 
   const deleteMonitor = async (id: number): Promise<void> => {
-    isLoading.value = true
-    error.value = null
-
     try {
       await apiService.delete(`/monitors/${id}`, authStore.user)
       monitors.value = monitors.value.filter(m => m.id !== id)
       monitorStatuses.value = monitorStatuses.value.filter(ms => ms.monitorId !== id)
     } catch (err) {
-      error.value = 'Failed to delete monitor'
       console.error('Delete monitor error:', err)
       throw err
-    } finally {
-      isLoading.value = false
     }
   }
 
   const updateMonitorState = async (id: number, state: MonitorState): Promise<MonitorResponse> => {
-    isLoading.value = true
-    error.value = null
-
     try {
       const updatedMonitor = await apiService.patch<MonitorResponse>(`/monitors/${id}/state?state=${state}`, authStore.user)
       const index = monitors.value.findIndex(m => m.id === id)
@@ -327,20 +308,14 @@ export const useMonitorsStore = defineStore('monitors', () => {
       }
       return updatedMonitor
     } catch (err) {
-      error.value = 'Failed to update monitor state'
       console.error('Update monitor state error:', err)
       throw err
-    } finally {
-      isLoading.value = false
     }
   }
 
   // Moves the monitor with all its history to another tenant. Alert contacts that are limited to
   // selected monitors lose this monitor.
   const moveMonitorToTenant = async (id: number, tenantId: number): Promise<MonitorResponse> => {
-    isLoading.value = true
-    error.value = null
-
     try {
       const movedMonitor = await apiService.patch<MonitorResponse>(`/monitors/${id}/tenant?tenantId=${tenantId}`, authStore.user)
       const index = monitors.value.findIndex(m => m.id === id)
@@ -349,19 +324,13 @@ export const useMonitorsStore = defineStore('monitors', () => {
       }
       return movedMonitor
     } catch (err) {
-      error.value = 'Failed to move monitor'
       console.error('Move monitor error:', err)
       throw err
-    } finally {
-      isLoading.value = false
     }
   }
 
   // Legacy method for backward compatibility
   const toggleMonitorStatus = async (id: number): Promise<MonitorResponse> => {
-    isLoading.value = true
-    error.value = null
-
     try {
       const updatedMonitor = await apiService.patch<MonitorResponse>(`/monitors/${id}/toggle-status`, authStore.user)
       const index = monitors.value.findIndex(m => m.id === id)
@@ -370,11 +339,8 @@ export const useMonitorsStore = defineStore('monitors', () => {
       }
       return updatedMonitor
     } catch (err) {
-      error.value = 'Failed to toggle monitor status'
       console.error('Toggle monitor status error:', err)
       throw err
-    } finally {
-      isLoading.value = false
     }
   }
 

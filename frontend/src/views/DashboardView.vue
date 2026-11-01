@@ -11,6 +11,7 @@ import MonitorLimitInfo from '../components/MonitorLimitInfo.vue'
 import PeerSetupWarning from '../components/PeerSetupWarning.vue'
 import DashboardSummary from '../components/DashboardSummary.vue'
 import EnhancedMonitorCard from '../components/EnhancedMonitorCard.vue'
+import BulkEditMonitorsModal from '../components/BulkEditMonitorsModal.vue'
 import type { TimeframeType } from '../components/TimeframeSwitcher.vue'
 import type { ViewModeType } from '../components/ViewModeSwitcher.vue'
 import LoadingState from '../components/LoadingState.vue'
@@ -36,6 +37,12 @@ const selectedSort = ref<MonitorSort>(userConfigService.getMonitorSort())
 const selectedTimeframe = ref<TimeframeType>('24h')
 const selectedViewMode = ref<ViewModeType>('default')
 const loadingUptimeStats = ref(new Set<number>())
+// Multi edit
+const selecting = ref(false)
+const selectedIds = ref(new Set<number>())
+const showBulkEdit = ref(false)
+// The monitors at the time the dialog opened, so polling does not change the list in the dialog
+const bulkEditMonitors = ref<MonitorResponse[]>([])
 let refreshInterval: ReturnType<typeof setInterval> | null = null
 // The backend checks each monitor every 15 seconds, so polling more often shows nothing new.
 const MONITOR_REFRESH_MS = 15_000
@@ -106,6 +113,39 @@ const fetchUptimeStatsForTimeframe = async (timeframe: TimeframeType, force = fa
   }
 }
 
+const toggleSelectMode = () => {
+  selecting.value = !selecting.value
+  if (!selecting.value) selectedIds.value = new Set()
+}
+
+const toggleSelected = (id: number) => {
+  const next = new Set(selectedIds.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  selectedIds.value = next
+}
+
+// Only monitors that are still there and pass the filter count
+const selectedMonitors = computed(() => sortedMonitors.value.filter(m => selectedIds.value.has(m.id)))
+const allVisibleSelected = computed(
+  () => sortedMonitors.value.length > 0 && selectedMonitors.value.length === sortedMonitors.value.length
+)
+
+const toggleSelectAllVisible = () => {
+  selectedIds.value = allVisibleSelected.value ? new Set() : new Set(sortedMonitors.value.map(m => m.id))
+}
+
+const openBulkEdit = () => {
+  bulkEditMonitors.value = [...selectedMonitors.value]
+  showBulkEdit.value = true
+}
+
+const closeBulkEdit = () => {
+  showBulkEdit.value = false
+}
+
+const handleBulkEditFinished = () => reloadMonitorsInPlace()
+
 const isMonitorExpanded = (monitorId: number): boolean => {
   return expandedMonitors.value.has(monitorId) || selectedViewMode.value === 'full'
 }
@@ -128,19 +168,14 @@ const closeEditMonitorForm = () => {
   editingMonitor.value = null
 }
 
-const handleMonitorCreated = async () => {
-  await monitorsStore.fetchMonitors()
-  await monitorsStore.fetchMonitorStatuses()
-
+// Silent loads: the list stays on the page and keeps its scroll position
+const reloadMonitorsInPlace = async () => {
+  await Promise.all([monitorsStore.fetchMonitorsSilently(), monitorsStore.fetchMonitorStatusesSilently()])
   await monitorsStore.fetchAllResponseTimeHistories()
 }
 
-const handleMonitorUpdated = async () => {
-  await monitorsStore.fetchMonitors()
-  await monitorsStore.fetchMonitorStatuses()
-
-  await monitorsStore.fetchAllResponseTimeHistories()
-}
+const handleMonitorCreated = reloadMonitorsInPlace
+const handleMonitorUpdated = reloadMonitorsInPlace
 
 const handleMonitorDelete = async (id: number) => {
   const monitor = monitorsStore.getMonitorById(id)
@@ -282,7 +317,10 @@ onUnmounted(() => {
           :selected-timeframe="selectedTimeframe"
           :selected-view-mode="selectedViewMode"
           :limit-reached="monitorLimitReached"
+          :selecting="selecting"
+          :can-select="monitorsStore.monitors.length > 0"
           @add-monitor="openAddMonitorForm"
+          @toggle-select-mode="toggleSelectMode"
           @update:selected-timeframe="selectedTimeframe = $event"
           @update:selected-view-mode="selectedViewMode = $event"
         />
@@ -327,7 +365,24 @@ onUnmounted(() => {
           @action="openAddMonitorForm"
         />
 
-        <div v-else class="monitors-grid" :class="{ 'minimal-grid': selectedViewMode === 'minimal' }">
+        <template v-else>
+        <div v-if="selecting" class="selection-bar">
+          <label class="select-all">
+            <input
+              type="checkbox"
+              :checked="allVisibleSelected"
+              :indeterminate="selectedMonitors.length > 0 && !allVisibleSelected"
+              @change="toggleSelectAllVisible"
+            />
+            Select all {{ sortedMonitors.length }} shown
+          </label>
+          <span class="selection-count">{{ selectedMonitors.length }} selected</span>
+          <button class="btn-bulk" :disabled="selectedMonitors.length === 0" @click="openBulkEdit">
+            Edit {{ selectedMonitors.length || '' }} {{ selectedMonitors.length === 1 ? 'monitor' : 'monitors' }}
+          </button>
+        </div>
+
+        <div class="monitors-grid" :class="{ 'minimal-grid': selectedViewMode === 'minimal' }">
           <EnhancedMonitorCard
             v-for="monitor in sortedMonitors"
             :key="monitor.id"
@@ -341,12 +396,16 @@ onUnmounted(() => {
             :is-expanded="isMonitorExpanded(monitor.id)"
             :is-loading-stats="loadingUptimeStats.has(monitor.id)"
             :is-peer="isPeerMonitor(monitor, peerTenantId)"
+            :selectable="selecting"
+            :selected="selectedIds.has(monitor.id)"
+            @toggle-select="toggleSelected"
             @toggle-expanded="toggleMonitorExpanded"
             @edit="openEditModal"
             @state-change="handleStateChange"
             @delete="handleMonitorDelete"
           />
         </div>
+        </template>
       </div>
     </main>
 
@@ -355,6 +414,13 @@ onUnmounted(() => {
       :preselected-tenant-id="selectedTenantId"
       @close="closeAddMonitorForm"
       @success="handleMonitorCreated"
+    />
+
+    <BulkEditMonitorsModal
+      v-if="showBulkEdit"
+      :monitors="bulkEditMonitors"
+      @close="closeBulkEdit"
+      @finished="handleBulkEditFinished"
     />
 
     <MonitorEditForm
@@ -399,6 +465,60 @@ onUnmounted(() => {
 .monitors-grid.minimal-grid {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 0.5rem;
+}
+
+/* Multi edit: stays at the top while the user scrolls through the monitors */
+.selection-bar {
+  position: sticky;
+  top: 0.5rem;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 1rem;
+  margin-bottom: 1rem;
+  background: #ffffff;
+  border: 1px solid #007bff;
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0, 123, 255, 0.15);
+}
+
+.select-all {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  color: #2c3e50;
+  font-size: 0.9rem;
+}
+
+.select-all input {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: #007bff;
+}
+
+.selection-count {
+  color: #6c757d;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.btn-bulk {
+  margin-left: auto;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  background: #007bff;
+  color: white;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-bulk:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Mobile styles */
