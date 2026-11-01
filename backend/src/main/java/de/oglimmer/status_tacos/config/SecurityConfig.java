@@ -114,6 +114,9 @@ public class SecurityConfig {
                 authz
                     .requestMatchers("/actuator/health", "/actuator/info")
                     .permitAll()
+                    // The error page itself: else every error turns into a 401.
+                    .requestMatchers("/error")
+                    .permitAll()
                     .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html")
                     .permitAll()
                     .requestMatchers("/v1/**")

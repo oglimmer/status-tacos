@@ -1,0 +1,138 @@
+<script setup lang="ts">
+import '../assets/brand.css'
+import SiteFooter from './SiteFooter.vue'
+
+defineProps<{
+  /** The HTTP status, shown big. */
+  code: string
+  title: string
+  message: string
+}>()
+</script>
+
+<template>
+  <main class="error-page tacos-page">
+    <section class="error-band">
+      <header class="error-bar">
+        <router-link to="/" class="tacos-brand">
+          <img src="../assets/logo.png" alt="" />
+          Status Tacos
+        </router-link>
+      </header>
+
+      <div class="error-head">
+        <p class="error-code">{{ code }}</p>
+        <h1 class="error-title">{{ title }}</h1>
+      </div>
+    </section>
+
+    <div class="error-sheet">
+      <img src="../assets/taco.webp" alt="" class="error-taco" width="640" height="441" />
+      <p class="error-message">{{ message }}</p>
+      <slot />
+      <div class="error-actions">
+        <router-link to="/" class="error-button">Go to the start page</router-link>
+      </div>
+    </div>
+
+    <SiteFooter />
+  </main>
+</template>
+
+<style scoped>
+.error-page {
+  --error-width: min(48rem, 100% - 2 * var(--gutter));
+}
+
+.error-band {
+  background: var(--teal);
+  padding: 1rem 0 6rem;
+}
+
+.error-bar,
+.error-head {
+  width: var(--error-width);
+  margin: 0 auto;
+}
+
+.error-head {
+  padding-top: clamp(2.5rem, 7vw, 4.5rem);
+}
+
+.error-code {
+  margin: 0 0 0.5rem;
+  font-family: var(--sign);
+  font-size: clamp(4rem, 16vw, 9rem);
+  line-height: 0.9;
+  color: var(--paper);
+  text-shadow: 0.05em 0.05em 0 var(--ink);
+}
+
+.error-title {
+  font-family: var(--sign);
+  font-weight: 400;
+  font-size: clamp(1.8rem, 5vw, 3rem);
+  line-height: 1;
+  margin: 0;
+  text-shadow: 0.06em 0.06em 0 var(--masa);
+  /* Keep clear of the taco in the right corner. */
+  max-width: calc(100% - clamp(7rem, 14vw, 12rem) - 1rem);
+}
+
+.error-sheet {
+  position: relative;
+  width: var(--error-width);
+  margin: -3.5rem auto clamp(3rem, 7vw, 5rem);
+  padding: clamp(1.5rem, 4vw, 3rem);
+  background: var(--paper);
+  border: var(--line);
+  border-radius: 1rem;
+}
+
+.error-taco {
+  position: absolute;
+  bottom: calc(100% - 2px);
+  right: clamp(1rem, 4vw, 3rem);
+  width: clamp(7rem, 14vw, 12rem);
+  height: auto;
+  pointer-events: none;
+}
+
+.error-message {
+  margin: 0 0 1.5rem;
+  font-size: 1.2rem;
+}
+
+.error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.error-button {
+  display: inline-block;
+  padding: 0.7rem 1.3rem;
+  background: var(--masa);
+  color: var(--ink);
+  border: var(--line);
+  border-radius: 0.6rem;
+  box-shadow: 0.2rem 0.2rem 0 var(--ink);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.error-button:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 0.3rem 0.3rem 0 var(--ink);
+}
+
+@media (max-width: 720px) {
+  .error-band {
+    padding-bottom: calc(3.5rem + 6.5rem);
+  }
+
+  .error-title {
+    max-width: none;
+  }
+}
+</style>

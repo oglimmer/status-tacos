@@ -37,6 +37,10 @@ public class LoginNotAllowedEntryPoint implements AuthenticationEntryPoint {
     if (isLoginNotAllowed(authException)) {
       response.setContentType(MediaType.APPLICATION_JSON_VALUE);
       response.getWriter().write(BODY);
+    } else if (ErrorPage.wantsHtml(request)) {
+      // A browser that opens an API URL: a page, not an empty answer.
+      response.setContentType(ErrorPage.CONTENT_TYPE.toString());
+      response.getWriter().write(ErrorPage.render(response.getStatus()));
     }
   }
 

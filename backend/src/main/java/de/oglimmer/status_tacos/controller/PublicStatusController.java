@@ -1,6 +1,7 @@
 /* Copyright (c) 2025 by oglimmer.com / Oliver Zimpasser. All rights reserved. */
 package de.oglimmer.status_tacos.controller;
 
+import de.oglimmer.status_tacos.config.ErrorPage;
 import de.oglimmer.status_tacos.dto.PublicStatusPageDto;
 import de.oglimmer.status_tacos.persistence.TenantStatusPageAsset;
 import de.oglimmer.status_tacos.service.PublicStatusService;
@@ -64,10 +65,7 @@ public class PublicStatusController {
     return publicStatusService
         .getPublicStatusHtml(tenantCode)
         .map(html -> html(HttpStatus.OK).cacheControl(CACHE).body(html))
-        .orElse(
-            html(HttpStatus.NOT_FOUND)
-                .body(
-                    "<!doctype html><title>Not found</title><p>There is no status page here.</p>"));
+        .orElse(html(HttpStatus.NOT_FOUND).body(ErrorPage.render(HttpStatus.NOT_FOUND.value())));
   }
 
   /**
