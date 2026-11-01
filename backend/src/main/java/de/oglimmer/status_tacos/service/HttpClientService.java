@@ -68,6 +68,12 @@ public class HttpClientService {
   /** Set when the app shuts down: a check that fails from now on failed because of us. */
   private volatile boolean closing;
 
+  /**
+   * Sets {@link #closing} at the very start of a JVM shutdown. {@link #cleanup()} runs much later:
+   * other shutdown hooks (dnsjava closes its selector) already break checks before it.
+   */
+  private final Thread shutdownHook = new Thread(() -> closing = true, "http-check-closing");
+
   public HttpClientService(
       @Value("${monitor.http.connect-timeout:10s}") Duration connectTimeout,
       @Value("${monitor.http.request-timeout:30s}") Duration requestTimeout,
@@ -112,6 +118,8 @@ public class HttpClientService {
         totalTimeout,
         maxBodyBytes,
         maxConnections);
+
+    Runtime.getRuntime().addShutdownHook(shutdownHook);
   }
 
   private CloseableHttpClient buildClient(
@@ -144,12 +152,22 @@ public class HttpClientService {
       log.info("Closing HTTP client and releasing connections");
       // First: checks that fail when the client closes must not count as DOWN
       closing = true;
+      removeShutdownHook();
       deadlineScheduler.shutdownNow();
       // Closes the connection managers too
       httpClient.close();
       systemDnsHttpClient.close();
     } catch (IOException e) {
       log.error("Error closing HTTP client: {}", e.getMessage(), e);
+    }
+  }
+
+  /** Not needed once closed. Fails when the JVM already shuts down: then there is nothing to do. */
+  private void removeShutdownHook() {
+    try {
+      Runtime.getRuntime().removeShutdownHook(shutdownHook);
+    } catch (IllegalStateException e) {
+      // The JVM shuts down: the hook ran or runs now
     }
   }
 
@@ -260,10 +278,25 @@ public class HttpClientService {
    * was closed under it ("Shutdown in progress", "Connection pool shut down", socket closed).
    */
   private void abortIfClosing(String url, Exception e) {
-    if (closing) {
+    if (closing || isJvmShutdown(e)) {
       throw new CheckAbortedException(
           "Check of " + url + " stopped, the app shuts down: " + e.getMessage(), e);
     }
+  }
+
+  /**
+   * The JVM shuts down: a library tried to add a shutdown hook (dnsjava does that for each new DNS
+   * selector) and got "Shutdown in progress". Only a JVM shutdown throws this, so no race with the
+   * {@link #closing} flag.
+   */
+  static boolean isJvmShutdown(Throwable e) {
+    for (Throwable cause = e; cause != null; cause = cause.getCause()) {
+      if (cause instanceof IllegalStateException
+          && "Shutdown in progress".equals(cause.getMessage())) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /** The check has no result: the app shuts down. Do not save it, as UP or as DOWN. */

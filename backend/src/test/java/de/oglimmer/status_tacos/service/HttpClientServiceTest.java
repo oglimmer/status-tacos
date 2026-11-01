@@ -417,6 +417,50 @@ class HttpClientServiceTest {
         .isInstanceOf(HttpClientService.CheckAbortedException.class);
   }
 
+  @Test
+  void performHealthCheck_whenJvmShutsDownBeforeCleanup_hasNoResult() {
+    // dnsjava during a JVM shutdown: its new selector cannot add a shutdown hook. cleanup() has not
+    // run yet, so only the error itself tells us that the site is not DOWN.
+    HttpClientService shuttingDown =
+        new HttpClientService(
+            Duration.ofSeconds(5),
+            Duration.ofSeconds(10),
+            Duration.ofSeconds(2),
+            DataSize.ofBytes(1024),
+            Duration.ofMillis(500),
+            200,
+            new DnsResolver() {
+              @Override
+              public InetAddress[] resolve(String host) {
+                throw new IllegalStateException("Shutdown in progress");
+              }
+
+              @Override
+              public String resolveCanonicalHostname(String host) {
+                throw new IllegalStateException("Shutdown in progress");
+              }
+            });
+    try {
+      assertThatThrownBy(
+              () ->
+                  shuttingDown.performHealthCheck(
+                      "http://example.invalid/", null, null, null, null, null, null, null, false))
+          .isInstanceOf(HttpClientService.CheckAbortedException.class);
+    } finally {
+      shuttingDown.cleanup();
+    }
+  }
+
+  @Test
+  void isJvmShutdown_onlyForTheJvmShutdownError() {
+    assertThat(
+            HttpClientService.isJvmShutdown(
+                new RuntimeException(new IllegalStateException("Shutdown in progress"))))
+        .isTrue();
+    assertThat(HttpClientService.isJvmShutdown(new IllegalStateException("Other"))).isFalse();
+    assertThat(HttpClientService.isJvmShutdown(new IOException("Shutdown in progress"))).isFalse();
+  }
+
   private HttpClientService.HttpCheckResult check(String url) {
     return httpClientService.performHealthCheck(
         url, null, null, null, null, null, null, null, false);
