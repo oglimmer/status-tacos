@@ -7,6 +7,7 @@
     <span class="foot-line">Checks served fresh every 15 seconds.</span>
     <nav class="foot-nav" aria-label="More">
       <a href="https://github.com/oglimmer/status-tacos">GitHub</a>
+      <router-link to="/developers">Developers</router-link>
       <router-link to="/privacy">Privacy</router-link>
       <router-link to="/terms">Terms</router-link>
       <router-link to="/imprint">Imprint</router-link>
@@ -44,7 +45,8 @@
 
 .foot-nav {
   display: flex;
-  gap: 1.5rem;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
   font-size: 1rem;
 }
 

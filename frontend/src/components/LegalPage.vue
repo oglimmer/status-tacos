@@ -37,7 +37,8 @@ onMounted(() => {
           <img src="../assets/logo.png" alt="" />
           Status Tacos
         </router-link>
-        <nav class="legal-nav" aria-label="Legal">
+        <nav class="legal-nav" aria-label="More">
+          <router-link to="/developers">Developers</router-link>
           <router-link to="/privacy">Privacy</router-link>
           <router-link to="/terms">Terms</router-link>
           <router-link to="/imprint">Imprint</router-link>
@@ -98,7 +99,8 @@ onMounted(() => {
 
 .legal-page .legal-nav {
   display: flex;
-  gap: 1.25rem;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
   font-size: 1rem;
 }
 
