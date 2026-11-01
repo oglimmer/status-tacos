@@ -156,6 +156,10 @@ public class MonitorExecutionService {
                   ? Duration.ofSeconds(monitor.getConnectTimeout())
                   : null,
               Boolean.TRUE.equals(monitor.getUseSystemDns()));
+    } catch (HttpClientService.CheckAbortedException e) {
+      // The app shuts down: the site is not DOWN, the check simply has no result
+      log.info("No result for monitor {}: {}", monitor.getName(), e.getMessage());
+      return null;
     } catch (Exception e) {
       log.error("Error executing monitor check for {}: {}", monitor.getName(), e.getMessage(), e);
       httpResult = createErrorHttpResult(monitor.getUrl(), e.getMessage());

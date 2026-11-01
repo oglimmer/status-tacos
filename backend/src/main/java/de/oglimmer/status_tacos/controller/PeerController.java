@@ -17,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -83,6 +84,16 @@ public class PeerController {
             result.getStatusCode(),
             result.getResponseTimeMs(),
             result.getErrorMessage()));
+  }
+
+  /**
+   * This app shuts down, so the check has no result. 503: the other server treats it like a peer it
+   * cannot reach and sends its alert anyway.
+   */
+  @ExceptionHandler(HttpClientService.CheckAbortedException.class)
+  public ResponseEntity<Void> checkAborted(HttpClientService.CheckAbortedException e) {
+    log.info("Peer check not done: {}", e.getMessage());
+    return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
   }
 
   /** "Check me now": the other server cannot alert, or can again. Checks the peer monitor now. */

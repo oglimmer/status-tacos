@@ -297,6 +297,20 @@ class MonitorExecutionServiceTest {
   }
 
   @Test
+  void executeMonitorCheck_whenAppShutsDown_savesNothing() {
+    when(httpClientService.performHealthCheck(
+            any(), any(), any(), any(), any(), any(), any(), any(), anyBoolean()))
+        .thenThrow(
+            new HttpClientService.CheckAbortedException(
+                "app shuts down", new IllegalStateException("Shutdown in progress")));
+
+    CheckResult result = monitorExecutionService.executeMonitorCheck(testMonitor);
+
+    assertThat(result).isNull();
+    verifyNoInteractions(checkResultService, monitorStatusService);
+  }
+
+  @Test
   void executeMonitorCheck_whenSavingFails_doesNotStoreADownResult() {
     when(httpClientService.performHealthCheck(
             eq(testMonitor.getUrl()),

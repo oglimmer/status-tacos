@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.OptionalDouble;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -63,6 +64,9 @@ public class HttpClientService {
   private final Duration totalTimeout;
   private final int maxBodyBytes;
   private final UserRegex userRegex;
+
+  /** Set when the app shuts down: a check that fails from now on failed because of us. */
+  private volatile boolean closing;
 
   public HttpClientService(
       @Value("${monitor.http.connect-timeout:10s}") Duration connectTimeout,
@@ -138,6 +142,8 @@ public class HttpClientService {
   public void cleanup() {
     try {
       log.info("Closing HTTP client and releasing connections");
+      // First: checks that fail when the client closes must not count as DOWN
+      closing = true;
       deadlineScheduler.shutdownNow();
       // Closes the connection managers too
       httpClient.close();
@@ -172,14 +178,21 @@ public class HttpClientService {
     // The socket timeout only limits the wait between two reads. A server that sends the body
     // very slowly is stopped here.
     AtomicBoolean deadlineHit = new AtomicBoolean();
-    ScheduledFuture<?> deadline =
-        deadlineScheduler.schedule(
-            () -> {
-              deadlineHit.set(true);
-              request.cancel();
-            },
-            totalTimeout.toMillis(),
-            TimeUnit.MILLISECONDS);
+    ScheduledFuture<?> deadline;
+    try {
+      deadline =
+          deadlineScheduler.schedule(
+              () -> {
+                deadlineHit.set(true);
+                request.cancel();
+              },
+              totalTimeout.toMillis(),
+              TimeUnit.MILLISECONDS);
+    } catch (RejectedExecutionException e) {
+      // The scheduler stops only in cleanup(): a check that starts during the shutdown
+      abortIfClosing(url, e);
+      throw e;
+    }
 
     // executeOpen, not execute with a handler: execute reads the rest of a cut body to the end.
     // Closing the response instead drops the connection.
@@ -223,6 +236,7 @@ public class HttpClientService {
           .build();
 
     } catch (IOException e) {
+      abortIfClosing(url, e);
       String errorMessage =
           deadlineHit.get()
               ? "Timeout: no complete response within " + totalTimeout.toSeconds() + "s"
@@ -232,11 +246,30 @@ public class HttpClientService {
       return failedResult(url, startTime, errorMessage);
 
     } catch (Exception e) {
+      abortIfClosing(url, e);
       log.warn("Unexpected error during health check for {}: {}", url, e.getMessage(), e);
       return failedResult(url, startTime, "Unexpected error: " + e.getMessage());
 
     } finally {
       deadline.cancel(false);
+    }
+  }
+
+  /**
+   * A check that fails while the app shuts down did not fail because of the site: the HTTP client
+   * was closed under it ("Shutdown in progress", "Connection pool shut down", socket closed).
+   */
+  private void abortIfClosing(String url, Exception e) {
+    if (closing) {
+      throw new CheckAbortedException(
+          "Check of " + url + " stopped, the app shuts down: " + e.getMessage(), e);
+    }
+  }
+
+  /** The check has no result: the app shuts down. Do not save it, as UP or as DOWN. */
+  public static class CheckAbortedException extends RuntimeException {
+    public CheckAbortedException(String message, Throwable cause) {
+      super(message, cause);
     }
   }
 

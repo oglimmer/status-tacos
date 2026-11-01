@@ -2,6 +2,7 @@
 package de.oglimmer.status_tacos.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -9,6 +10,7 @@ import java.net.UnknownHostException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -384,6 +386,35 @@ class HttpClientServiceTest {
     } finally {
       service.cleanup();
     }
+  }
+
+  @Test
+  void performHealthCheck_whenClientClosesDuringCheck_hasNoResult() throws Exception {
+    // The answer comes after 1 s: the check is still running when the app shuts down
+    mockWebServer.enqueue(
+        new MockResponse().setResponseCode(200).setHeadersDelay(1, TimeUnit.SECONDS));
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    try {
+      Future<HttpClientService.HttpCheckResult> running =
+          executor.submit(() -> check(baseUrl + "slow"));
+      mockWebServer.takeRequest(5, TimeUnit.SECONDS);
+
+      httpClientService.cleanup();
+
+      assertThatThrownBy(() -> running.get(5, TimeUnit.SECONDS))
+          .isInstanceOf(ExecutionException.class)
+          .hasCauseInstanceOf(HttpClientService.CheckAbortedException.class);
+    } finally {
+      executor.shutdownNow();
+    }
+  }
+
+  @Test
+  void performHealthCheck_afterClientClosed_hasNoResult() {
+    httpClientService.cleanup();
+
+    assertThatThrownBy(() -> check(baseUrl + "late"))
+        .isInstanceOf(HttpClientService.CheckAbortedException.class);
   }
 
   private HttpClientService.HttpCheckResult check(String url) {
