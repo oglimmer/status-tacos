@@ -112,11 +112,6 @@ monitor:
         enable: false
         required: false
     from: "mail@olikurt.de"
-    subject-prefix:
-    - "Status Tacos"
-    template:
-      monitor-down: "Monitor '%s' is DOWN - Status: %d"
-      monitor-up: "Monitor '%s' is UP again"
   app-url: ""
   access:
     allowed-logins: []

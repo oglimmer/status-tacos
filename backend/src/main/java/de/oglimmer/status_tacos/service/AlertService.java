@@ -22,7 +22,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +41,7 @@ public class AlertService {
   private final EmailConfig emailConfig;
   private final Optional<JavaMailSender> javaMailSender;
   private final TeamsNotificationService teamsNotificationService;
+  private final EmailNotificationService emailNotificationService;
   private final PushNotificationService pushNotificationService;
   private final AlertDeliveryHealthService deliveryHealth;
 
@@ -223,7 +223,7 @@ public class AlertService {
       int statusCode,
       TeamsAlert teamsAlert) {
     switch (contact.getType()) {
-      case EMAIL -> sendEmailAlert(monitor, contact, alertType, statusCode, false);
+      case EMAIL -> sendEmailAlert(monitor, contact, alertType, teamsAlert, false);
       case HTTP -> sendHttpAlert(monitor, contact, alertType, statusCode, null, false);
       case TEAMS -> sendTeamsAlert(monitor, contact, alertType, teamsAlert, false);
       case IOS_PUSH -> sendPushAlert(monitor, contact, alertType, teamsAlert, false);
@@ -231,52 +231,10 @@ public class AlertService {
   }
 
   private void sendEmailAlert(
-      Monitor monitor, AlertContact contact, String alertType, int statusCode, boolean test) {
+      Monitor monitor, AlertContact contact, String alertType, TeamsAlert alert, boolean test) {
     try {
-      SimpleMailMessage message = new SimpleMailMessage();
-      message.setFrom(emailConfig.getFrom());
-      message.setTo(contact.getValue());
-
-      String subject;
-      String body;
-
-      if ("down".equals(alertType)) {
-        subject =
-            String.format(
-                "%s %s",
-                emailConfig.getSubjectPrefix(),
-                String.format(
-                    emailConfig.getTemplate().getMonitorDown(), monitor.getName(), statusCode));
-        body =
-            String.format(
-                "Monitor '%s' is currently DOWN.\n\nURL: %s\nStatus Code: %d\nTime: %s",
-                monitor.getName(), monitor.getUrl(), statusCode, LocalDateTime.now());
-      } else if ("test".equals(alertType)) {
-        subject = String.format("%s Test Notification", emailConfig.getSubjectPrefix());
-        body =
-            String.format(
-                "This is a test notification for alert contact '%s'.\n\nMonitor: %s\nURL: %s\nTenant: %s\nTime: %s",
-                contact.getName() != null ? contact.getName() : "Unnamed Contact",
-                monitor.getName(),
-                monitor.getUrl(),
-                contact.getTenant().getName(),
-                LocalDateTime.now());
-      } else {
-        subject =
-            String.format(
-                "%s %s",
-                emailConfig.getSubjectPrefix(),
-                String.format(emailConfig.getTemplate().getMonitorUp(), monitor.getName()));
-        body =
-            String.format(
-                "Monitor '%s' is now UP again.\n\nURL: %s\nTime: %s",
-                monitor.getName(), monitor.getUrl(), LocalDateTime.now());
-      }
-
-      message.setSubject(subject);
-      message.setText(body);
-
-      javaMailSender.get().send(message);
+      emailNotificationService.send(
+          javaMailSender.get(), emailConfig.getFrom(), contact.getValue(), alert);
 
       // Don't record test alerts in alert history
       if (!test) {
@@ -536,7 +494,7 @@ public class AlertService {
     Monitor testMonitor = createTestMonitor(contact);
 
     if (contact.getType() == AlertContact.AlertContactType.EMAIL) {
-      sendEmailAlert(testMonitor, contact, AlertHistory.AlertType.down.name(), 200, true);
+      sendEmailAlert(testMonitor, contact, "test", testTeamsAlert(contact), true);
     } else if (contact.getType() == AlertContact.AlertContactType.HTTP) {
       sendHttpAlert(
           testMonitor,

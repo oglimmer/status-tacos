@@ -162,7 +162,7 @@ public class TeamsNotificationService {
     };
   }
 
-  private String summary(TeamsAlert alert) {
+  static String summary(TeamsAlert alert) {
     return switch (alert.kind()) {
       case DOWN ->
           alert.reason() == null || alert.reason().isBlank()
@@ -180,7 +180,7 @@ public class TeamsNotificationService {
     };
   }
 
-  private List<Map<String, String>> facts(TeamsAlert alert) {
+  static List<Map<String, String>> facts(TeamsAlert alert) {
     List<Map<String, String>> facts = new ArrayList<>();
     if (alert.kind() == TeamsAlert.Kind.TEST) {
       facts.add(fact("Alert contact", alert.contactName()));
@@ -240,11 +240,11 @@ public class TeamsNotificationService {
     return Map.of("type", "Action.OpenUrl", "title", title, "url", url);
   }
 
-  private Map<String, String> fact(String title, String value) {
+  private static Map<String, String> fact(String title, String value) {
     return Map.of("title", title, "value", value == null || value.isBlank() ? "-" : value);
   }
 
-  private String format(LocalDateTime time) {
+  private static String format(LocalDateTime time) {
     // LocalDateTime values come from the JVM clock / database in the JVM default zone.
     return time == null ? "-" : time.atZone(ZoneId.systemDefault()).format(TIMESTAMP);
   }
@@ -274,7 +274,7 @@ public class TeamsNotificationService {
     return text.toString().trim();
   }
 
-  private String shorten(String text) {
+  private static String shorten(String text) {
     String singleLine = text.strip();
     return singleLine.length() <= MAX_FACT_LENGTH
         ? singleLine

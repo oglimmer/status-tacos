@@ -12,10 +12,8 @@ public class EmailConfig {
 
   private boolean enabled = false;
   private String from = "noreply@status-tacos.local";
-  private String subjectPrefix = "[Status Tacos]";
 
   private Smtp smtp = new Smtp();
-  private Template template = new Template();
 
   @Data
   public static class Smtp {
@@ -31,11 +29,5 @@ public class EmailConfig {
       private boolean enable = true;
       private boolean required = false;
     }
-  }
-
-  @Data
-  public static class Template {
-    private String monitorDown = "Monitor '%s' is DOWN - Status: %d";
-    private String monitorUp = "Monitor '%s' is UP again";
   }
 }
