@@ -6,7 +6,8 @@ import UptimeMetrics from './UptimeMetrics.vue'
 import EnhancedResponseTimeChart from './EnhancedResponseTimeChart.vue'
 import EnhancedStatusChart from './EnhancedStatusChart.vue'
 import ResponseTimeChart from './ResponseTimeChart.vue'
-import type { MonitorResponse, UptimeStats, MonitorState, PeerResult } from '../stores/monitors'
+import type { MonitorResponse, UptimeStats, MonitorState, PeerResult, SilentFor } from '../stores/monitors'
+import { formatSilenceEnd, formatSilenceEndLong } from '../utils/silence'
 import MonitorStateButton from './MonitorStateButton.vue'
 import { formatUptime, getTimeframeLabel } from '../utils/uptime'
 
@@ -48,7 +49,7 @@ interface EnhancedMonitorCardProps {
 interface EnhancedMonitorCardEmits {
   'toggle-expanded': [id: number]
   'edit': [monitor: MonitorResponse]
-  'state-change': [id: number, state: MonitorState]
+  'state-change': [id: number, state: MonitorState, silentFor?: SilentFor]
   'delete': [id: number]
   'toggle-select': [id: number]
 }
@@ -61,6 +62,15 @@ const PEER_RESULT_TEXT: Record<PeerResult, string> = {
   PEER_UP: 'Only this server sees DOWN: no alert sent',
   NO_ANSWER: 'The other server did not answer: alert sent'
 }
+
+// Silent monitors show when their alerts start again
+const silentEnd = computed(() =>
+  props.monitor.state === 'SILENT' && props.monitor.silentUntil ? new Date(props.monitor.silentUntil) : null
+)
+const silentChipText = computed(() => (silentEnd.value ? `Silent until ${formatSilenceEnd(silentEnd.value)}` : null))
+const silentChipTitle = computed(() =>
+  silentEnd.value ? `No alerts. Alerts start again ${formatSilenceEndLong(silentEnd.value)}.` : undefined
+)
 
 const getStatusBadgeClass = (status: 'up' | 'down') => {
   return status === 'up' ? 'status-badge status-up' : 'status-badge status-down'
@@ -155,6 +165,9 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
           >peer</span>
         </h3>
         <div class="monitor-status">
+          <span v-if="silentChipText" class="silent-chip" :title="silentChipTitle">
+            <i class="fas fa-bell-slash" aria-hidden="true"></i>{{ silentChipText }}
+          </span>
           <span
             :class="getStatusBadgeClass(status?.currentStatus || 'down')"
             :title="minimalBadgeTitle"
@@ -186,6 +199,9 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
           >peer</span>
         </h3>
         <div class="monitor-status">
+          <span v-if="silentChipText" class="silent-chip" :title="silentChipTitle">
+            <i class="fas fa-bell-slash" aria-hidden="true"></i>{{ silentChipText }}
+          </span>
           <span
             :class="getStatusBadgeClass(status?.currentStatus || 'down')"
           >
@@ -208,6 +224,9 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
         <div class="detail-item" v-if="isExpanded || selectedViewMode === 'full'">
           <strong>State:</strong>
           <span class="state-display">{{ monitor.state }}</span>
+          <span v-if="silentEnd" class="state-until" :title="silentChipTitle">
+            until {{ formatSilenceEndLong(silentEnd) }}
+          </span>
         </div>
         <div class="detail-item" v-if="(isExpanded || selectedViewMode === 'full') && monitor.httpHeaders && Object.keys(monitor.httpHeaders).length > 0">
           <strong>Headers:</strong>
@@ -354,7 +373,8 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
         </button>
         <MonitorStateButton
           :state="monitor.state"
-          @state-change="(newState) => $emit('state-change', monitor.id, newState)"
+          :silent-until="monitor.silentUntil"
+          @state-change="(newState, silentFor) => $emit('state-change', monitor.id, newState, silentFor)"
         />
         <button
           @click="$emit('delete', monitor.id)"
@@ -368,6 +388,27 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
 </template>
 
 <style scoped>
+.silent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-right: 0.5rem;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--warning-soft-border);
+  border-radius: 999px;
+  background: var(--warning-soft);
+  color: var(--warning-soft-text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.state-until {
+  margin-left: 0.375rem;
+  color: var(--text-muted);
+}
+
 .enhanced-monitor-card.selectable {
   cursor: pointer;
   user-select: none;

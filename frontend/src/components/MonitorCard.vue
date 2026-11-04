@@ -3,7 +3,7 @@ import { } from 'vue'
 import ResponseTimeChart from './ResponseTimeChart.vue'
 import StatusChart from './StatusChart.vue'
 import MonitorStateButton from './MonitorStateButton.vue'
-import type { MonitorResponse, MonitorState } from '../stores/monitors'
+import type { MonitorResponse, MonitorState, SilentFor } from '../stores/monitors'
 
 interface MonitorStatus {
   currentStatus: 'up' | 'down'
@@ -31,7 +31,7 @@ defineProps<{
 defineEmits<{
   'toggle-expanded': [id: number]
   'edit': [monitor: MonitorResponse]
-  'state-change': [id: number, state: MonitorState]
+  'state-change': [id: number, state: MonitorState, silentFor?: SilentFor]
   'delete': [id: number]
 }>()
 
@@ -232,7 +232,8 @@ const getUptimeClass = (history: ResponseTimeHistory | null): string => {
       </button>
       <MonitorStateButton
         :state="monitor.state"
-        @state-change="(newState) => $emit('state-change', monitor.id, newState)"
+        :silent-until="monitor.silentUntil"
+        @state-change="(newState, silentFor) => $emit('state-change', monitor.id, newState, silentFor)"
       />
       <button
         @click="$emit('delete', monitor.id)"

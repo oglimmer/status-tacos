@@ -26,6 +26,7 @@ public class ScheduledMonitorService implements SchedulingConfigurer {
   private final MonitorCheckJob monitorCheckJob;
   private final CheckRollupService checkRollupService;
   private final SchedulerHeartbeat heartbeat;
+  private final MonitorService monitorService;
 
   @Value("${monitor.scheduling.check-interval:60000}")
   private long checkIntervalMs;
@@ -55,6 +56,19 @@ public class ScheduledMonitorService implements SchedulingConfigurer {
       checkRollupService.rollUp();
     } catch (Exception e) {
       log.error("Error during check roll-up: {}", e.getMessage(), e);
+    }
+  }
+
+  /** A silent monitor is active again when its silence ends (1h, 24h, 3d or 7d). */
+  @Scheduled(
+      initialDelayString = "${monitor.scheduling.silence-initial-delay:20000}",
+      fixedDelayString = "${monitor.scheduling.silence-interval:60000}")
+  @SchedulerLock(name = "end-silences", lockAtMostFor = "PT5M")
+  public void endExpiredSilences() {
+    try {
+      monitorService.endExpiredSilences();
+    } catch (Exception e) {
+      log.error("Error while ending silences: {}", e.getMessage(), e);
     }
   }
 

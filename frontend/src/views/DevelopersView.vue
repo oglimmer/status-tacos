@@ -64,9 +64,9 @@ curl -X POST -H "Authorization: Bearer $TACOS_JWT" \\
        "tenantId":7,"checkInterval":60,"alertingThreshold":120}' \\
   "$TACOS/v1/monitors"
 
-# During maintenance: no alerts, but keep the checks.
+# During maintenance: no alerts for 1 hour, but keep the checks.
 curl -X PATCH -H "Authorization: Bearer $TACOS_JWT" \\
-  "$TACOS/v1/monitors/42/state?state=SILENT"`
+  "$TACOS/v1/monitors/42/state?state=SILENT&silentFor=1h"`
 
 const useCaseWebhook = `{
   "type": "HTTP",
@@ -264,7 +264,7 @@ probe_success == 0</code></pre>
     <h3>Monitors from your deploy pipeline</h3>
     <p>
       Add a monitor when you ship a new service. Set it to <code>SILENT</code> during maintenance:
-      it keeps the checks but sends no alerts.
+      it keeps the checks but sends no alerts. After 1h, 24h, 3d or 7d the alerts start again.
     </p>
     <pre class="dev-code"><code>{{ useCaseCi }}</code></pre>
 

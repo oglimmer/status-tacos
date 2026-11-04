@@ -13,7 +13,8 @@ export type BulkEditField =
   | 'useSystemDns'
   | 'showOnPublicPage'
 
-export type BulkPatch = Partial<Pick<MonitorRequest, BulkEditField>>
+/** silentFor goes with state SILENT: how long the silence is. */
+export type BulkPatch = Partial<Pick<MonitorRequest, BulkEditField | 'silentFor'>>
 
 /** The full update request of the monitor with the changed fields. The PUT needs all fields. */
 export function toBulkRequest(monitor: MonitorResponse, patch: BulkPatch): MonitorRequest {

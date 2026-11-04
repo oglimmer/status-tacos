@@ -2,12 +2,14 @@
 package de.oglimmer.status_tacos.dto;
 
 import de.oglimmer.status_tacos.persistence.MonitorState;
+import de.oglimmer.status_tacos.persistence.SilenceDuration;
 import de.oglimmer.status_tacos.validation.HttpUrl;
 import de.oglimmer.status_tacos.validation.MultipleOf15;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.util.Map;
 import lombok.AllArgsConstructor;
@@ -34,6 +36,15 @@ public class MonitorRequestDto {
   private Integer tenantId;
 
   @Builder.Default private MonitorState state = MonitorState.ACTIVE;
+
+  /**
+   * Only for state SILENT: 1h, 24h, 3d or 7d. Empty: a running silence keeps its end, a new silence
+   * gets 24h.
+   */
+  @Pattern(
+      regexp = SilenceDuration.CODE_PATTERN,
+      message = "Silence duration must be one of 1h, 24h, 3d, 7d")
+  private String silentFor;
 
   private Map<String, String> httpHeaders;
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
-import { useMonitorsStore, isPeerMonitor, type MonitorResponse, type MonitorState } from '../stores/monitors'
+import { useMonitorsStore, isPeerMonitor, type MonitorResponse, type MonitorState, type SilentFor } from '../stores/monitors'
 import MonitorForm from '../components/MonitorForm.vue'
 import MonitorEditForm from '../components/MonitorEditForm.vue'
 import DashboardHeader from '../components/DashboardHeader.vue'
@@ -190,9 +190,9 @@ const handleMonitorDelete = async (id: number) => {
   }
 }
 
-const handleStateChange = async (id: number, newState: MonitorState) => {
+const handleStateChange = async (id: number, newState: MonitorState, silentFor?: SilentFor) => {
   try {
-    await monitorsStore.updateMonitorState(id, newState)
+    await monitorsStore.updateMonitorState(id, newState, silentFor)
     // Refresh monitor statuses to immediately show current UP/DOWN status
     await monitorsStore.fetchMonitorStatusesSilently()
   } catch (err) {

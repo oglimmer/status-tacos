@@ -5,6 +5,7 @@ import de.oglimmer.status_tacos.validation.MultipleOf15;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -23,7 +24,8 @@ import org.hibernate.type.SqlTypes;
       @Index(name = "idx_monitors_state", columnList = "state"),
       @Index(name = "idx_monitors_created", columnList = "createdAt"),
       @Index(name = "idx_monitors_tenant", columnList = "tenantId"),
-      @Index(name = "idx_monitors_alerting_threshold", columnList = "alertingThreshold")
+      @Index(name = "idx_monitors_alerting_threshold", columnList = "alertingThreshold"),
+      @Index(name = "idx_monitors_silent_until", columnList = "silentUntil")
     })
 @Data
 @NoArgsConstructor
@@ -59,6 +61,10 @@ public class Monitor {
   @Column(name = "state", nullable = false)
   @Builder.Default
   private MonitorState state = MonitorState.ACTIVE;
+
+  /** End of the silence of a SILENT monitor. Then it is ACTIVE again. Null in the other states. */
+  @Column(name = "silent_until")
+  private Instant silentUntil;
 
   @Column(name = "http_headers", columnDefinition = "JSON")
   @JdbcTypeCode(SqlTypes.JSON)

@@ -41,6 +41,9 @@ change the interval, the uptime of the past stays correct.
 
 Use Silent for planned maintenance.
 
+Silent always ends. Pick 1 hour, 24 hours, 3 days or 7 days. At the end the monitor is Active
+again and sends alerts. "End silence" makes it Active before that.
+
 ## DNS
 
 By default, each check asks the nameservers of the domain for the IP address. It starts at the

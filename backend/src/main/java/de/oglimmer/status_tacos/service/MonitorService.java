@@ -4,7 +4,11 @@ package de.oglimmer.status_tacos.service;
 import de.oglimmer.status_tacos.dto.MonitorRequestDto;
 import de.oglimmer.status_tacos.persistence.Monitor;
 import de.oglimmer.status_tacos.persistence.MonitorState;
+import de.oglimmer.status_tacos.persistence.SilenceDuration;
 import de.oglimmer.status_tacos.repository.MonitorRepository;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -23,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class MonitorService {
 
   private final MonitorRepository monitorRepository;
+  private final Clock clock;
 
   public Monitor createMonitor(Integer tenantId, MonitorRequestDto requestDto) {
     log.info("Creating new monitor: {}", requestDto.getName());
@@ -37,7 +42,6 @@ public class MonitorService {
         Monitor.builder()
             .name(requestDto.getName())
             .url(requestDto.getUrl())
-            .state(requestDto.getState())
             .tenantId(tenantId)
             .httpHeaders(requestDto.getHttpHeaders())
             .statusCodeRegex(requestDto.getStatusCodeRegex())
@@ -51,6 +55,7 @@ public class MonitorService {
             .alertingThreshold(requestDto.getAlertingThreshold())
             .showOnPublicPage(Boolean.TRUE.equals(requestDto.getShowOnPublicPage()))
             .build();
+    applyState(monitor, requestDto.getState(), SilenceDuration.fromCode(requestDto.getSilentFor()));
 
     Monitor savedMonitor = monitorRepository.save(monitor);
     log.info("Monitor created with ID: {}", savedMonitor.getId());
@@ -123,7 +128,10 @@ public class MonitorService {
 
     existingMonitor.setName(requestDto.getName());
     existingMonitor.setUrl(requestDto.getUrl());
-    existingMonitor.setState(requestDto.getState());
+    applyState(
+        existingMonitor,
+        requestDto.getState(),
+        SilenceDuration.fromCode(requestDto.getSilentFor()));
     existingMonitor.setHttpHeaders(requestDto.getHttpHeaders());
     existingMonitor.setStatusCodeRegex(requestDto.getStatusCodeRegex());
     existingMonitor.setResponseBodyRegex(requestDto.getResponseBodyRegex());
@@ -162,14 +170,20 @@ public class MonitorService {
   }
 
   public Monitor updateMonitorState(Integer tenantId, Integer id, MonitorState newState) {
-    log.info("Updating state for monitor ID: {} to {}", id, newState);
+    return updateMonitorState(tenantId, id, newState, null);
+  }
+
+  /** silentFor is only for SILENT. Null: a running silence keeps its end, else 24h. */
+  public Monitor updateMonitorState(
+      Integer tenantId, Integer id, MonitorState newState, SilenceDuration silentFor) {
+    log.info("Updating state for monitor ID: {} to {} ({})", id, newState, silentFor);
 
     Monitor monitor =
         monitorRepository
             .findByIdAndTenantId(id, tenantId)
             .orElseThrow(() -> new IllegalArgumentException("Monitor not found with ID: " + id));
 
-    monitor.setState(newState);
+    applyState(monitor, newState, silentFor);
     Monitor updatedMonitor = monitorRepository.save(monitor);
 
     log.info("Monitor {} state changed to: {}", id, updatedMonitor.getState());
@@ -214,5 +228,39 @@ public class MonitorService {
   public List<Monitor> getAllMonitorsWithStatusAndTenant(Set<Integer> tenantIds) {
     log.debug("Fetching all monitors with status and tenant info for tenants: {}", tenantIds);
     return monitorRepository.findByTenantIdInWithStatusAndTenant(tenantIds);
+  }
+
+  /** SILENT monitors whose silence ended are ACTIVE again and send alerts. */
+  public int endExpiredSilences() {
+    int count =
+        monitorRepository.endExpiredSilences(
+            clock.instant(), LocalDateTime.ofInstant(clock.instant(), clock.getZone()));
+    if (count > 0) {
+      log.info("Silence ended for {} monitor(s), they are active again", count);
+    }
+    return count;
+  }
+
+  /**
+   * Sets the state. A SILENT monitor always has an end of the silence: now plus silentFor. Without
+   * silentFor a running silence keeps its end, and a new silence gets the default (24h).
+   */
+  private void applyState(Monitor monitor, MonitorState state, SilenceDuration silentFor) {
+    if (state != MonitorState.SILENT) {
+      monitor.setState(state);
+      monitor.setSilentUntil(null);
+      return;
+    }
+    Instant now = clock.instant();
+    boolean silenceRuns =
+        monitor.getState() == MonitorState.SILENT
+            && monitor.getSilentUntil() != null
+            && monitor.getSilentUntil().isAfter(now);
+    if (silentFor != null) {
+      monitor.setSilentUntil(now.plus(silentFor.getDuration()));
+    } else if (!silenceRuns) {
+      monitor.setSilentUntil(now.plus(SilenceDuration.DEFAULT.getDuration()));
+    }
+    monitor.setState(MonitorState.SILENT);
   }
 }

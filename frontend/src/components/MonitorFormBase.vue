@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { useMonitorsStore, type MonitorRequest, type MonitorResponse, type MonitorState } from '../stores/monitors'
+import { useMonitorsStore, type MonitorRequest, type MonitorResponse, type MonitorState, type SilentFor } from '../stores/monitors'
+import { silenceEnd } from '../utils/silence'
 import { useAuthStore } from '../stores/auth'
 import FormModal from './FormModal.vue'
 import HttpHeadersInput from './HttpHeadersInput.vue'
@@ -42,6 +43,18 @@ const form = ref<MonitorRequest>({
   alertingThreshold: 30,
   showOnPublicPage: false
 })
+
+// The end of the silence the form shows: the new choice, else the running silence
+const formSilentUntil = computed(() => {
+  if (form.value.state !== 'SILENT') return null
+  if (form.value.silentFor) return silenceEnd(form.value.silentFor).toISOString()
+  return props.monitor?.state === 'SILENT' ? props.monitor.silentUntil ?? null : null
+})
+
+const onStateChange = (newState: MonitorState, silentFor?: SilentFor) => {
+  form.value.state = newState
+  form.value.silentFor = newState === 'SILENT' ? silentFor : undefined
+}
 
 const isSubmitting = ref(false)
 const error = ref<string | null>(null)
@@ -246,6 +259,7 @@ const handleSubmit = async () => {
   try {
     const submitData = {
       ...form.value,
+      silentFor: form.value.state === 'SILENT' ? form.value.silentFor : undefined,
       prometheusMinValue: form.value.prometheusMinValue === undefined || isNaN(form.value.prometheusMinValue!) ? undefined : form.value.prometheusMinValue,
       prometheusMaxValue: form.value.prometheusMaxValue === undefined || isNaN(form.value.prometheusMaxValue!) ? undefined : form.value.prometheusMaxValue
     }
@@ -435,7 +449,8 @@ const handleClose = () => {
         <label class="form-label">Monitor State</label>
         <MonitorStateButton
           :state="form.state"
-          @state-change="(newState) => form.state = newState"
+          :silent-until="formSilentUntil"
+          @state-change="onStateChange"
         />
       </div>
 

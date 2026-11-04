@@ -13,7 +13,7 @@ alerts you by email, webhook, Microsoft Teams or iPhone push when one goes down.
   a maximum. Own request headers, for example a token.
 - Each check asks the nameservers of the domain for the IP address, so a moved domain shows at
   the next check. Per monitor you can use the DNS server of the backend instead.
-- States: active, silent (checks, no alerts) and inactive.
+- States: active, silent (checks, no alerts, for 1h, 24h, 3d or 7d) and inactive.
 - Change the settings of many monitors at once, with progress per monitor.
 
 **Alerts**

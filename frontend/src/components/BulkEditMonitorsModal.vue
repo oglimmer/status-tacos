@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onUnmounted, reactive, ref } from 'vue'
 import FormModal from './FormModal.vue'
-import { useMonitorsStore, type MonitorResponse, type MonitorState } from '../stores/monitors'
+import { useMonitorsStore, type MonitorResponse, type MonitorState, type SilentFor } from '../stores/monitors'
+import SilencePicker from './SilencePicker.vue'
 import { runWithConcurrency, toBulkRequest, type BulkEditField, type BulkPatch } from '../utils/bulkEdit'
 
 const props = defineProps<{
@@ -44,6 +45,7 @@ const enabled = reactive<Record<BulkEditField, boolean>>({
 const first = props.monitors[0]
 const values = reactive({
   state: (first?.state ?? 'ACTIVE') as MonitorState,
+  silentFor: '24h' as SilentFor,
   checkInterval: first?.checkInterval ?? 15,
   connectTimeout: first?.connectTimeout ?? 5,
   alertingThreshold: first?.alertingThreshold ?? 30,
@@ -96,6 +98,7 @@ const patch = computed<BulkPatch>(() => {
   for (const field of enabledFields.value) {
     ;(result as Record<string, unknown>)[field] = values[field]
   }
+  if (enabled.state && values.state === 'SILENT') result.silentFor = values.silentFor
   return result
 })
 
@@ -264,6 +267,14 @@ const title = computed(() => {
             {{ s === 'ACTIVE' ? 'Active' : s === 'SILENT' ? 'Silent (no alerts)' : 'Inactive (no checks)' }}
           </label>
         </div>
+        <div v-if="enabled.state && values.state === 'SILENT'" class="silence-choice">
+          <span class="unit">Silent for</span>
+          <SilencePicker
+            :selected="values.silentFor"
+            label="Silent for"
+            @pick="(code) => (values.silentFor = code)"
+          />
+        </div>
       </div>
 
       <div class="field" :class="{ on: enabled.checkInterval }">
@@ -427,6 +438,16 @@ const title = computed(() => {
 </template>
 
 <style scoped>
+.silence-choice {
+  margin-top: 0.75rem;
+  max-width: 24rem;
+}
+
+.silence-choice .unit {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
 .intro {
   margin: 0 0 1rem;
   color: var(--text-muted);

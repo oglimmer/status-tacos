@@ -96,7 +96,14 @@ const MONITOR_FIELDS: Param[] = [
     in: 'body',
     type: 'ACTIVE | SILENT | INACTIVE',
     description:
-      'ACTIVE: checks and alerts. SILENT: checks, no alerts. INACTIVE: no checks. Default ACTIVE.',
+      'ACTIVE: checks and alerts. SILENT: checks, no alerts, until silentUntil. INACTIVE: no checks. Default ACTIVE.',
+  },
+  {
+    name: 'silentFor',
+    in: 'body',
+    type: '1h | 24h | 3d | 7d',
+    description:
+      'Only for SILENT: how long. Then the monitor is ACTIVE again. Empty: a running silence keeps its end, a new silence gets 24h.',
   },
   {
     name: 'checkInterval',
@@ -462,9 +469,16 @@ export const API_GROUPS: EndpointGroup[] = [
             required: true,
             description: 'The new state.',
           },
+          {
+            name: 'silentFor',
+            in: 'query',
+            type: '1h | 24h | 3d | 7d',
+            description:
+              'Only for SILENT: how long. Then the monitor is ACTIVE again. Default 24h. The response has silentUntil.',
+          },
         ],
         response: MONITOR_EXAMPLE,
-        errors: ['404: no such monitor in your tenants.'],
+        errors: ['400: silentFor is not 1h, 24h, 3d or 7d.', '404: no such monitor in your tenants.'],
         notes: [
           'PATCH /v1/monitors/{id}/toggle-status is the old form: it switches between ACTIVE and INACTIVE.',
         ],

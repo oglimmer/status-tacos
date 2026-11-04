@@ -4,6 +4,8 @@ package de.oglimmer.status_tacos.repository;
 import de.oglimmer.status_tacos.persistence.Monitor;
 import de.oglimmer.status_tacos.persistence.MonitorState;
 import jakarta.persistence.LockModeType;
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -109,4 +111,11 @@ public interface MonitorRepository extends JpaRepository<Monitor, Integer> {
   @Modifying
   @Query("DELETE FROM Monitor m WHERE m.tenantId = :tenantId")
   int deleteAllByTenantId(@Param("tenantId") Integer tenantId);
+
+  /** SILENT monitors whose silence ended are ACTIVE again. Returns the number of monitors. */
+  @Modifying
+  @Query(
+      "UPDATE Monitor m SET m.state = 'ACTIVE', m.silentUntil = NULL, m.updatedAt = :updatedAt"
+          + " WHERE m.state = 'SILENT' AND m.silentUntil <= :now")
+  int endExpiredSilences(@Param("now") Instant now, @Param("updatedAt") LocalDateTime updatedAt);
 }

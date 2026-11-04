@@ -6,11 +6,16 @@ import type { StatsPeriodParam } from '../utils/uptime'
 
 export type MonitorState = 'ACTIVE' | 'SILENT' | 'INACTIVE'
 
+/** How long a silent monitor sends no alerts. Then it is active again. */
+export type SilentFor = '1h' | '24h' | '3d' | '7d'
+
 export interface MonitorRequest {
   name: string
   url: string
   tenantId: number
   state: MonitorState
+  // Only for SILENT. Empty: a running silence keeps its end, a new one gets 24h.
+  silentFor?: SilentFor
   httpHeaders?: Record<string, string>
   statusCodeRegex?: string
   responseBodyRegex?: string
@@ -39,6 +44,8 @@ export interface MonitorResponse {
     updatedAt: string
   }
   state: MonitorState
+  // End of the silence (UTC, with Z). Only for SILENT.
+  silentUntil?: string
   httpHeaders?: Record<string, string>
   statusCodeRegex?: string
   responseBodyRegex?: string
@@ -299,9 +306,10 @@ export const useMonitorsStore = defineStore('monitors', () => {
     }
   }
 
-  const updateMonitorState = async (id: number, state: MonitorState): Promise<MonitorResponse> => {
+  const updateMonitorState = async (id: number, state: MonitorState, silentFor?: SilentFor): Promise<MonitorResponse> => {
     try {
-      const updatedMonitor = await apiService.patch<MonitorResponse>(`/monitors/${id}/state?state=${state}`, authStore.user)
+      const query = state === 'SILENT' && silentFor ? `state=${state}&silentFor=${silentFor}` : `state=${state}`
+      const updatedMonitor = await apiService.patch<MonitorResponse>(`/monitors/${id}/state?${query}`, authStore.user)
       const index = monitors.value.findIndex(m => m.id === id)
       if (index !== -1) {
         monitors.value[index] = updatedMonitor

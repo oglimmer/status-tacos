@@ -6,6 +6,7 @@ import de.oglimmer.status_tacos.dto.MonitorResponseDto;
 import de.oglimmer.status_tacos.mapper.EntityMapper;
 import de.oglimmer.status_tacos.persistence.Monitor;
 import de.oglimmer.status_tacos.persistence.MonitorState;
+import de.oglimmer.status_tacos.persistence.SilenceDuration;
 import de.oglimmer.status_tacos.service.MonitorLimitService;
 import de.oglimmer.status_tacos.service.MonitorMoveService;
 import de.oglimmer.status_tacos.service.MonitorService;
@@ -174,13 +175,21 @@ public class MonitorController {
 
   @PatchMapping("/{id}/state")
   public ResponseEntity<MonitorResponseDto> updateMonitorState(
-      @PathVariable Integer id, @RequestParam MonitorState state) {
+      @PathVariable Integer id,
+      @RequestParam MonitorState state,
+      @RequestParam(required = false) String silentFor) {
+    SilenceDuration silence;
+    try {
+      silence = SilenceDuration.fromCode(silentFor);
+    } catch (IllegalArgumentException e) {
+      return ResponseEntity.badRequest().build();
+    }
     Set<Integer> tenantIds = userTenantResolver.getCurrentUserTenantIds();
     log.info("Updating state for monitor ID: {} to {} for tenants: {}", id, state, tenantIds);
 
     for (Integer tenantId : tenantIds) {
       try {
-        Monitor monitor = monitorService.updateMonitorState(tenantId, id, state);
+        Monitor monitor = monitorService.updateMonitorState(tenantId, id, state, silence);
         MonitorResponseDto responseDto = entityMapper.toDto(monitor);
         return ResponseEntity.ok(responseDto);
       } catch (IllegalArgumentException e) {

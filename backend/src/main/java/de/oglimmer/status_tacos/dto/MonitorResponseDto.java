@@ -2,6 +2,7 @@
 package de.oglimmer.status_tacos.dto;
 
 import de.oglimmer.status_tacos.persistence.MonitorState;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Map;
 import lombok.AllArgsConstructor;
@@ -21,6 +22,10 @@ public class MonitorResponseDto {
   private Integer tenantId;
   private TenantResponseDto tenant;
   private MonitorState state;
+
+  /** End of the silence. Only for state SILENT. */
+  private Instant silentUntil;
+
   private Map<String, String> httpHeaders;
   private String statusCodeRegex;
   private String responseBodyRegex;
