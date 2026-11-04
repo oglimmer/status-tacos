@@ -8,6 +8,7 @@ import EnhancedStatusChart from './EnhancedStatusChart.vue'
 import ResponseTimeChart from './ResponseTimeChart.vue'
 import type { MonitorResponse, UptimeStats, MonitorState, PeerResult } from '../stores/monitors'
 import MonitorStateButton from './MonitorStateButton.vue'
+import { formatUptime, getTimeframeLabel } from '../utils/uptime'
 
 interface MonitorStatus {
   currentStatus: 'up' | 'down'
@@ -93,6 +94,23 @@ const currentStats = computed(() => {
   }
 })
 
+// Uptime of the selected timeframe, for the minimal view
+const currentUptime = computed(() =>
+  props.selectedTimeframe === '24h'
+    ? props.responseTimeHistory?.uptimePercentage24h
+    : currentStats.value?.uptimePercentage
+)
+
+const minimalBadgeText = computed(() =>
+  currentUptime.value === undefined || currentUptime.value === null
+    ? props.status?.currentStatus || 'unknown'
+    : formatUptime(currentUptime.value)
+)
+
+const minimalBadgeTitle = computed(() =>
+  `${(props.status?.currentStatus || 'unknown').toUpperCase()} · ${getTimeframeLabel(props.selectedTimeframe)} uptime: ${formatUptime(currentUptime.value)}`
+)
+
 const get24hResponseTimeData = (history: ResponseTimeHistory | null): number[] => {
   if (!history || !history.dataPoints || history.dataPoints.length === 0) {
     return []
@@ -139,8 +157,9 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
         <div class="monitor-status">
           <span
             :class="getStatusBadgeClass(status?.currentStatus || 'down')"
+            :title="minimalBadgeTitle"
           >
-            {{ status?.currentStatus || 'unknown' }}
+            {{ minimalBadgeText }}
           </span>
         </div>
       </div>
