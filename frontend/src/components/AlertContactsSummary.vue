@@ -85,10 +85,10 @@ defineEmits<{
 }
 
 .summary-card {
-  background: white;
+  background: var(--surface);
   padding: 0.75rem 1rem;
   border-radius: 6px;
-  border: 1px solid #e9ecef;
+  border: 1px solid var(--border-subtle);
   text-align: center;
   min-width: 80px;
 }
@@ -96,23 +96,23 @@ defineEmits<{
 .summary-number {
   font-size: 1.25rem;
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--text);
   margin-bottom: 0.25rem;
 }
 
 .summary-label {
   font-size: 0.75rem;
-  color: #6c757d;
+  color: var(--text-muted);
   text-transform: uppercase;
   font-weight: 500;
 }
 
 .summary-number.active {
-  color: #28a745;
+  color: var(--success-text);
 }
 
 .summary-number.inactive {
-  color: #6c757d;
+  color: var(--text-muted);
 }
 
 .tenant-filter {

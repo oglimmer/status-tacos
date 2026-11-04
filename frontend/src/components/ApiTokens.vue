@@ -210,8 +210,8 @@ onMounted(loadTokens)
 
 <style scoped>
 .card {
-  background: white;
-  border: 1px solid #e9ecef;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
   border-radius: 12px;
   padding: 1.5rem;
 }
@@ -219,18 +219,18 @@ onMounted(loadTokens)
 .card h2 {
   margin: 0 0 1rem;
   font-size: 1.15rem;
-  color: #2c3e50;
+  color: var(--text);
 }
 
 .muted {
-  color: #6c757d;
+  color: var(--text-muted);
   margin: 0 0 1rem;
   line-height: 1.5;
 }
 
 .new-token {
-  background: #e8f5e9;
-  border: 1px solid #a5d6a7;
+  background: var(--success-soft);
+  border: 1px solid var(--success-soft-border);
   border-radius: 8px;
   padding: 0.75rem 1rem;
   margin: 0 0 1rem;
@@ -238,7 +238,7 @@ onMounted(loadTokens)
 
 .new-token-title {
   margin: 0 0 0.5rem;
-  color: #2c3e50;
+  color: var(--text);
   font-weight: 600;
 }
 
@@ -252,8 +252,8 @@ onMounted(loadTokens)
   flex: 1;
   min-width: 0;
   padding: 0.4rem 0.6rem;
-  background: white;
-  border: 1px solid #ced4da;
+  background: var(--surface);
+  border: 1px solid var(--input-border);
   border-radius: 4px;
   font-size: 0.85rem;
   word-break: break-all;
@@ -262,7 +262,7 @@ onMounted(loadTokens)
 
 .new-token-note {
   margin: 0.5rem 0;
-  color: #856404;
+  color: var(--warning-soft-text);
   font-weight: 600;
   font-size: 0.9rem;
 }
@@ -279,7 +279,7 @@ onMounted(loadTokens)
   align-items: center;
   gap: 1rem;
   padding: 0.6rem 0;
-  border-bottom: 1px solid #f1f3f5;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .token-info {
@@ -291,21 +291,21 @@ onMounted(loadTokens)
 }
 
 .token-name {
-  color: #2c3e50;
+  color: var(--text);
   font-weight: 500;
   word-break: break-word;
 }
 
 .token-prefix {
-  color: #6c757d;
+  color: var(--text-muted);
   font-size: 0.85rem;
 }
 
 .token-scope {
   padding: 0.05rem 0.4rem;
   border-radius: 999px;
-  background: #e8f4ff;
-  color: #004085;
+  background: var(--info-soft);
+  color: var(--info-soft-text);
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -313,15 +313,15 @@ onMounted(loadTokens)
 
 .create-form select {
   padding: 0.75rem;
-  border: 1px solid #ced4da;
+  border: 1px solid var(--input-border);
   border-radius: 8px;
   font-size: 1rem;
-  background: white;
+  background: var(--surface);
 }
 
 .token-dates {
   flex-basis: 100%;
-  color: #6c757d;
+  color: var(--text-muted);
   font-size: 0.85rem;
 }
 
@@ -335,14 +335,14 @@ onMounted(loadTokens)
   flex: 1;
   min-width: 0;
   padding: 0.75rem;
-  border: 1px solid #ced4da;
+  border: 1px solid var(--input-border);
   border-radius: 8px;
   font-size: 1rem;
 }
 
 .create-form input:focus {
   outline: none;
-  border-color: #007bff;
+  border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.15);
 }
 
@@ -356,13 +356,13 @@ onMounted(loadTokens)
 }
 
 .grafana {
-  color: #495057;
+  color: var(--text-2);
   line-height: 1.6;
 }
 
 .grafana summary {
   cursor: pointer;
-  color: #007bff;
+  color: var(--link);
   font-weight: 500;
 }
 
@@ -385,7 +385,7 @@ onMounted(loadTokens)
   border: none;
   background: none;
   padding: 0;
-  color: #007bff;
+  color: var(--link);
   cursor: pointer;
   font-size: inherit;
 }
@@ -400,7 +400,7 @@ onMounted(loadTokens)
 }
 
 .link-btn.danger {
-  color: #dc3545;
+  color: var(--danger-text);
 }
 
 .btn {
@@ -428,22 +428,22 @@ onMounted(loadTokens)
 }
 
 .btn-primary {
-  background: #007bff;
+  background: var(--accent);
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #0056b3;
+  background: var(--accent-hover);
 }
 
 .btn-outline {
   background: transparent;
-  color: #007bff;
-  border: 2px solid #007bff;
+  color: var(--link);
+  border: 2px solid var(--accent);
 }
 
 .btn-outline:hover:not(:disabled) {
-  background: #007bff;
+  background: var(--accent);
   color: white;
 }
 

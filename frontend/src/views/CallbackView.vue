@@ -59,7 +59,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #f8f9fa;
+  background-color: var(--surface-2);
 }
 
 .callback-content {
@@ -71,20 +71,20 @@ onMounted(async () => {
 .processing h2,
 .error-state h2 {
   margin-bottom: 1rem;
-  color: #2c3e50;
+  color: var(--text);
 }
 
 .processing p,
 .error-state p {
-  color: #6c757d;
+  color: var(--text-muted);
   margin-bottom: 2rem;
 }
 
 .spinner {
   width: 40px;
   height: 40px;
-  border: 4px solid #e9ecef;
-  border-top: 4px solid #007bff;
+  border: 4px solid var(--border-subtle);
+  border-top: 4px solid var(--accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin: 0 auto 2rem;
@@ -105,11 +105,11 @@ onMounted(async () => {
 }
 
 .btn-primary {
-  background-color: #007bff;
+  background-color: var(--accent);
   color: white;
 }
 
 .btn-primary:hover {
-  background-color: #0056b3;
+  background-color: var(--accent-hover);
 }
 </style>

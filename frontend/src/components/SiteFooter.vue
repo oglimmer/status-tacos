@@ -1,3 +1,7 @@
+<script setup lang="ts">
+import ThemeToggle from './ThemeToggle.vue'
+</script>
+
 <template>
   <footer class="foot">
     <router-link to="/" class="tacos-brand brand-small">
@@ -12,6 +16,7 @@
       <router-link to="/terms">Terms</router-link>
       <router-link to="/imprint">Imprint</router-link>
     </nav>
+    <ThemeToggle />
   </footer>
 </template>
 

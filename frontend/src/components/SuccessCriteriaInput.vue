@@ -203,22 +203,22 @@ const updateField = (field: keyof SuccessCriteriaData, value: unknown) => {
   display: block;
   margin-bottom: 0.5rem;
   font-weight: 500;
-  color: #2c3e50;
+  color: var(--text);
 }
 
 .success-criteria-container {
-  border: 1px solid #dee2e6;
+  border: 1px solid var(--border);
   border-radius: 4px;
   padding: 1rem;
-  background: #f8f9fa;
+  background: var(--surface-2);
   box-sizing: border-box;
   width: 100%;
 }
 
 .criteria-toggle {
   display: flex;
-  background: #fff;
-  border: 1px solid #dee2e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 6px;
   overflow: hidden;
   margin-bottom: 1rem;
@@ -228,13 +228,13 @@ const updateField = (field: keyof SuccessCriteriaData, value: unknown) => {
   flex: 1;
   padding: 0.75rem 1rem;
   border: none;
-  background: #fff;
-  color: #6c757d;
+  background: var(--surface);
+  color: var(--text-muted);
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
-  border-right: 1px solid #dee2e6;
+  border-right: 1px solid var(--border);
   position: relative;
   z-index: 1;
   pointer-events: auto;
@@ -245,12 +245,12 @@ const updateField = (field: keyof SuccessCriteriaData, value: unknown) => {
 }
 
 .toggle-option:hover {
-  background: #f8f9fa;
-  color: #495057;
+  background: var(--surface-2);
+  color: var(--text-2);
 }
 
 .toggle-option.active {
-  background: #007bff;
+  background: var(--accent);
   color: white;
 }
 
@@ -270,7 +270,7 @@ const updateField = (field: keyof SuccessCriteriaData, value: unknown) => {
   display: block;
   margin-bottom: 0.25rem;
   font-weight: 500;
-  color: #495057;
+  color: var(--text-2);
   font-size: 0.875rem;
 }
 
@@ -278,7 +278,7 @@ const updateField = (field: keyof SuccessCriteriaData, value: unknown) => {
 .form-subgroup input[type="number"] {
   width: 100%;
   padding: 0.5rem;
-  border: 1px solid #dee2e6;
+  border: 1px solid var(--border);
   border-radius: 4px;
   font-size: 0.875rem;
   transition: border-color 0.2s;
@@ -287,7 +287,7 @@ const updateField = (field: keyof SuccessCriteriaData, value: unknown) => {
 
 .form-subgroup input:focus {
   outline: none;
-  border-color: #007bff;
+  border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
 }
 
@@ -299,7 +299,7 @@ const updateField = (field: keyof SuccessCriteriaData, value: unknown) => {
 }
 
 .form-help-text {
-  color: #6c757d;
+  color: var(--text-muted);
   font-size: 0.85rem;
   margin-top: 0.5rem;
   display: block;

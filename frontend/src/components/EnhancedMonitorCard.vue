@@ -360,9 +360,9 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
 }
 
 .enhanced-monitor-card.selected {
-  border-color: #007bff !important;
+  border-color: var(--accent) !important;
   box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.35) !important;
-  background: #f5f9ff;
+  background: var(--surface-2);
 }
 
 .select-box {
@@ -371,13 +371,13 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
   margin: 0 0.5rem 0 0;
   vertical-align: -0.15rem;
   cursor: pointer;
-  accent-color: #007bff;
+  accent-color: var(--accent);
 }
 
 .enhanced-monitor-card {
-  background: white;
+  background: var(--surface);
   border-radius: 8px;
-  border: 1px solid #e9ecef;
+  border: 1px solid var(--border-subtle);
   padding: 1.5rem;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
@@ -405,7 +405,7 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
 
 .monitor-header h3 {
   margin: 0;
-  color: #2c3e50;
+  color: var(--text);
   font-size: 1.1rem;
 }
 
@@ -428,13 +428,13 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
 }
 
 .status-up {
-  background: #d4edda;
-  color: #155724;
+  background: var(--success-soft);
+  color: var(--success-soft-text);
 }
 
 .status-down {
-  background: #f8d7da;
-  color: #721c24;
+  background: var(--danger-soft);
+  color: var(--danger-soft-text);
 }
 
 .monitor-details {
@@ -449,12 +449,12 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
 }
 
 .detail-item strong {
-  color: #495057;
+  color: var(--text-2);
   min-width: 80px;
 }
 
 .detail-item a {
-  color: #007bff;
+  color: var(--link);
   text-decoration: none;
   word-break: break-all;
 }
@@ -464,12 +464,12 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
 }
 
 .detail-item .active {
-  color: #28a745;
+  color: var(--success-text);
   font-weight: 500;
 }
 
 .detail-item .inactive {
-  color: #dc3545;
+  color: var(--danger-text);
   font-weight: 500;
 }
 
@@ -481,27 +481,27 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
 
 .header-item {
   font-size: 0.8rem;
-  background: #f8f9fa;
+  background: var(--surface-2);
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
-  border: 1px solid #e9ecef;
+  border: 1px solid var(--border-subtle);
 }
 
 .criteria-code {
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 0.8rem;
-  color: #2c3e50;
+  color: var(--text);
 }
 
 .prometheus-range {
   font-size: 0.8rem;
-  color: #6c757d;
+  color: var(--text-muted);
   margin-left: 0.5rem;
 }
 
 .monitor-stats,
 .monitor-stats-compact {
-  background: #f8f9fa;
+  background: var(--surface-2);
   padding: 1rem 0;
   border-radius: 6px;
   margin-bottom: 1rem;
@@ -532,20 +532,20 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
 }
 
 .stat-label {
-  color: #6c757d;
+  color: var(--text-muted);
 }
 
 .stat-value {
   font-weight: 500;
-  color: #2c3e50;
+  color: var(--text);
 }
 
 .peer-badge {
   margin-left: 0.4rem;
   padding: 0.1rem 0.45rem;
   border-radius: 999px;
-  background: #e8f4ff;
-  color: #004085;
+  background: var(--info-soft);
+  color: var(--info-soft-text);
   font-size: 0.7rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -554,29 +554,29 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
 }
 
 .stat-value.peer-only-here {
-  color: #7a4d00;
+  color: var(--warning-soft-text);
   font-weight: 600;
 }
 
 .stat-value.stat-error {
-  color: #dc3545;
+  color: var(--danger-text);
   overflow-wrap: anywhere;
   text-align: right;
   margin-left: 1rem;
 }
 
 .stat-value.failure-count {
-  color: #dc3545;
+  color: var(--danger-text);
   font-weight: 600;
 }
 
 .stat-value.uptime-excellent {
-  color: #28a745;
+  color: var(--success-text);
   font-weight: 600;
 }
 
 .stat-value.uptime-good {
-  color: #6f7e08;
+  color: var(--olive-text);
   font-weight: 600;
 }
 
@@ -586,12 +586,12 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
 }
 
 .stat-value.uptime-poor {
-  color: #dc3545;
+  color: var(--danger-text);
   font-weight: 600;
 }
 
 .stat-value.no-data {
-  color: #6c757d;
+  color: var(--text-muted);
   font-style: italic;
 }
 
@@ -605,10 +605,10 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
 
 .btn-icon {
   padding: 0.5rem;
-  border: 1px solid #dee2e6;
+  border: 1px solid var(--border);
   border-radius: 4px;
-  background: white;
-  color: #6c757d;
+  background: var(--surface);
+  color: var(--text-muted);
   cursor: pointer;
   transition: all 0.2s;
   display: flex;
@@ -617,19 +617,19 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
 }
 
 .btn-icon:hover {
-  background: #f8f9fa;
-  color: #495057;
-  border-color: #adb5bd;
+  background: var(--surface-2);
+  color: var(--text-2);
+  border-color: var(--input-border);
 }
 
 .btn-expand:hover {
-  color: #007bff;
-  border-color: #007bff;
+  color: var(--link);
+  border-color: var(--accent);
 }
 
 .btn-collapse:hover {
-  color: #6c757d;
-  border-color: #6c757d;
+  color: var(--text-muted);
+  border-color: var(--secondary);
 }
 
 .monitor-actions {
@@ -659,39 +659,39 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
 }
 
 .btn-primary {
-  background: #007bff;
+  background: var(--accent);
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #0056b3;
+  background: var(--accent-hover);
 }
 
 .btn-secondary {
-  background: #6c757d;
+  background: var(--secondary);
   color: white;
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: #545b62;
+  background: var(--secondary-hover);
 }
 
 .btn-success {
-  background: #28a745;
+  background: var(--success);
   color: white;
 }
 
 .btn-success:hover:not(:disabled) {
-  background: #1e7e34;
+  background: var(--success-hover);
 }
 
 .btn-danger {
-  background: #dc3545;
+  background: var(--danger);
   color: white;
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: #c82333;
+  background: var(--danger-hover);
 }
 
 /* Mobile styles */

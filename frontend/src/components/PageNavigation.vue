@@ -33,7 +33,7 @@ const navigationItems: NavigationItem[] = [
 <style scoped>
 .page-navigation {
   display: flex;
-  border-bottom: 2px solid #e9ecef;
+  border-bottom: 2px solid var(--border-subtle);
   margin-bottom: 2rem;
   gap: 0;
 }
@@ -42,7 +42,7 @@ const navigationItems: NavigationItem[] = [
   padding: 1rem 2rem;
   border: none;
   background: transparent;
-  color: #6c757d;
+  color: var(--text-muted);
   cursor: pointer;
   font-size: 1rem;
   font-weight: 500;
@@ -52,13 +52,13 @@ const navigationItems: NavigationItem[] = [
 }
 
 .nav-button:hover {
-  color: #495057;
-  background: #f8f9fa;
+  color: var(--text-2);
+  background: var(--surface-2);
 }
 
 .nav-button.active {
-  color: #007bff;
-  border-bottom-color: #007bff;
-  background: white;
+  color: var(--link);
+  border-bottom-color: var(--accent);
+  background: var(--surface);
 }
 </style>

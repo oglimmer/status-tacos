@@ -44,22 +44,22 @@ const viewModes = [
 
 .switcher-buttons {
   display: flex;
-  border: 1px solid #dee2e6;
+  border: 1px solid var(--border);
   border-radius: 6px;
   overflow: hidden;
-  background: white;
+  background: var(--surface);
 }
 
 .viewmode-btn {
   padding: 0.5rem 1rem;
   border: none;
-  background: white;
-  color: #6c757d;
+  background: var(--surface);
+  color: var(--text-muted);
   cursor: pointer;
   font-size: 0.875rem;
   font-weight: 500;
   transition: all 0.2s ease;
-  border-right: 1px solid #dee2e6;
+  border-right: 1px solid var(--border);
 }
 
 .viewmode-btn:last-child {
@@ -67,12 +67,12 @@ const viewModes = [
 }
 
 .viewmode-btn:hover:not(.active) {
-  background: #f8f9fa;
-  color: #495057;
+  background: var(--surface-2);
+  color: var(--text-2);
 }
 
 .viewmode-btn.active {
-  background: #28a745;
+  background: var(--success);
   color: white;
 }
 

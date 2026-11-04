@@ -47,10 +47,10 @@ onMounted(async () => {
 .peer-warning {
   margin-bottom: 1.5rem;
   padding: 0.75rem 1rem;
-  border: 1px solid #ffd699;
+  border: 1px solid var(--warning-soft-border);
   border-radius: 8px;
-  background: #fff6e5;
-  color: #7a4d00;
+  background: var(--warning-soft);
+  color: var(--warning-soft-text);
   font-size: 0.9rem;
 }
 

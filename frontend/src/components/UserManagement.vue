@@ -99,12 +99,12 @@ const handleRemoveUser = async (email: string) => {
 .user-management {
   margin-top: 1rem;
   padding-top: 1rem;
-  border-top: 1px solid #e9ecef;
+  border-top: 1px solid var(--border-subtle);
 }
 
 .user-management h4 {
   margin: 0 0 1rem 0;
-  color: #495057;
+  color: var(--text-2);
   font-size: 1rem;
 }
 
@@ -120,19 +120,19 @@ const handleRemoveUser = async (email: string) => {
 .input-group input {
   flex: 1;
   padding: 0.375rem 0.5rem;
-  border: 1px solid #ced4da;
+  border: 1px solid var(--input-border);
   border-radius: 4px;
   font-size: 0.875rem;
 }
 
 .input-group input:focus {
   outline: none;
-  border-color: #007bff;
+  border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
 }
 
 .loading, .empty-users {
-  color: #6c757d;
+  color: var(--text-muted);
   font-style: italic;
   text-align: center;
   padding: 1rem;
@@ -149,9 +149,9 @@ const handleRemoveUser = async (email: string) => {
   justify-content: space-between;
   align-items: center;
   padding: 0.5rem;
-  background: #f8f9fa;
+  background: var(--surface-2);
   border-radius: 4px;
-  border: 1px solid #e9ecef;
+  border: 1px solid var(--border-subtle);
 }
 
 .user-info {
@@ -160,12 +160,12 @@ const handleRemoveUser = async (email: string) => {
 
 .user-name {
   font-weight: 500;
-  color: #495057;
+  color: var(--text-2);
 }
 
 .user-email {
   font-size: 0.875rem;
-  color: #6c757d;
+  color: var(--text-muted);
 }
 
 .btn {
@@ -189,20 +189,20 @@ const handleRemoveUser = async (email: string) => {
 }
 
 .btn-primary {
-  background: #007bff;
+  background: var(--accent);
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #0056b3;
+  background: var(--accent-hover);
 }
 
 .btn-danger {
-  background: #dc3545;
+  background: var(--danger);
   color: white;
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: #c82333;
+  background: var(--danger-hover);
 }
 </style>

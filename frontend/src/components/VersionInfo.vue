@@ -111,24 +111,24 @@ onMounted(() => {
   gap: 0.25rem;
   padding: 0.25rem 0.5rem;
   background: transparent;
-  border: 1px solid #dee2e6;
+  border: 1px solid var(--border);
   border-radius: 12px;
   cursor: pointer;
   font-size: 0.75rem;
-  color: #6c757d;
+  color: var(--text-muted);
   transition: all 0.2s ease;
 }
 
 .version-toggle:hover {
-  background: #f8f9fa;
-  border-color: #adb5bd;
-  color: #495057;
+  background: var(--surface-2);
+  border-color: var(--input-border);
+  color: var(--text-2);
 }
 
 .version-toggle.active {
-  background: #e9ecef;
-  border-color: #adb5bd;
-  color: #495057;
+  background: var(--surface-3);
+  border-color: var(--input-border);
+  color: var(--text-2);
 }
 
 .version-icon {
@@ -146,8 +146,8 @@ onMounted(() => {
   top: 100%;
   right: 0;
   margin-top: 0.5rem;
-  background: white;
-  border: 1px solid #dee2e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 6px;
   padding: 0.75rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -172,7 +172,7 @@ onMounted(() => {
 }
 
 .version-item strong {
-  color: #495057;
+  color: var(--text-2);
   margin-right: 0.5rem;
 }
 
@@ -186,12 +186,12 @@ onMounted(() => {
 
 .version-section-title {
   font-weight: 600;
-  color: #343a40;
+  color: var(--text);
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 0.5rem;
-  border-bottom: 1px solid #e9ecef;
+  border-bottom: 1px solid var(--border-subtle);
   padding-bottom: 0.25rem;
 }
 </style>

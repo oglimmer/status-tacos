@@ -85,7 +85,7 @@ const getUptimeClass = (percentage: number | undefined): string => {
 
 <style scoped>
 .uptime-metrics {
-  background: #f8f9fa;
+  background: var(--surface-2);
   border-radius: 6px;
   padding: 1rem;
   margin-bottom: 1rem;
@@ -98,7 +98,7 @@ const getUptimeClass = (percentage: number | undefined): string => {
 .metrics-title {
   margin: 0;
   font-size: 0.9rem;
-  color: #495057;
+  color: var(--text-2);
   font-weight: 600;
 }
 
@@ -113,8 +113,8 @@ const getUptimeClass = (percentage: number | undefined): string => {
 .loading-spinner {
   width: 20px;
   height: 20px;
-  border: 2px solid #dee2e6;
-  border-top: 2px solid #007bff;
+  border: 2px solid var(--border);
+  border-top: 2px solid var(--accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -125,7 +125,7 @@ const getUptimeClass = (percentage: number | undefined): string => {
 }
 
 .loading-text {
-  color: #6c757d;
+  color: var(--text-muted);
   font-size: 0.875rem;
 }
 
@@ -137,7 +137,7 @@ const getUptimeClass = (percentage: number | undefined): string => {
 }
 
 .no-data-text {
-  color: #6c757d;
+  color: var(--text-muted);
   font-size: 0.875rem;
   font-style: italic;
 }
@@ -154,14 +154,14 @@ const getUptimeClass = (percentage: number | undefined): string => {
   align-items: center;
   text-align: center;
   padding: 0.75rem;
-  background: white;
+  background: var(--surface);
   border-radius: 4px;
-  border: 1px solid #e9ecef;
+  border: 1px solid var(--border-subtle);
 }
 
 .metric-label {
   font-size: 0.75rem;
-  color: #6c757d;
+  color: var(--text-muted);
   font-weight: 500;
   margin-bottom: 0.25rem;
   text-transform: uppercase;
@@ -171,15 +171,15 @@ const getUptimeClass = (percentage: number | undefined): string => {
 .metric-value {
   font-size: 0.9rem;
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--text);
 }
 
 .metric-value.uptime-excellent {
-  color: #28a745;
+  color: var(--success-text);
 }
 
 .metric-value.uptime-good {
-  color: #6f7e08;
+  color: var(--olive-text);
 }
 
 .metric-value.uptime-warning {
@@ -187,11 +187,11 @@ const getUptimeClass = (percentage: number | undefined): string => {
 }
 
 .metric-value.uptime-poor {
-  color: #dc3545;
+  color: var(--danger-text);
 }
 
 .metric-value.no-data {
-  color: #6c757d;
+  color: var(--text-muted);
   font-style: italic;
   font-weight: 400;
 }

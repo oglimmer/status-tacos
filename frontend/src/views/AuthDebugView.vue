@@ -146,26 +146,26 @@ onMounted(() => {
 }
 
 h1 {
-  color: #2c3e50;
+  color: var(--text);
   margin-bottom: 2rem;
 }
 
 .debug-section {
-  background: #f8f9fa;
-  border: 1px solid #dee2e6;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 1.5rem;
   margin-bottom: 2rem;
 }
 
 .debug-section h2 {
-  color: #495057;
+  color: var(--text-2);
   margin-bottom: 1rem;
   font-size: 1.5rem;
 }
 
 .debug-section h3 {
-  color: #6c757d;
+  color: var(--text-muted);
   margin-bottom: 0.5rem;
   font-size: 1.2rem;
 }
@@ -186,12 +186,12 @@ h1 {
 }
 
 .success {
-  color: #28a745;
+  color: var(--success-text);
   font-weight: bold;
 }
 
 .error {
-  color: #dc3545;
+  color: var(--danger-text);
   font-weight: bold;
 }
 
@@ -238,30 +238,30 @@ h1 {
 }
 
 .btn-primary {
-  background: #007bff;
+  background: var(--accent);
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #0056b3;
+  background: var(--accent-hover);
 }
 
 .btn-secondary {
-  background: #6c757d;
+  background: var(--secondary);
   color: white;
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: #545b62;
+  background: var(--secondary-hover);
 }
 
 .btn-danger {
-  background: #dc3545;
+  background: var(--danger);
   color: white;
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: #c82333;
+  background: var(--danger-hover);
 }
 
 ol {

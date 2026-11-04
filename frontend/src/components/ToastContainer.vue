@@ -31,9 +31,9 @@ import { dismissToast, toasts } from '../services/toasts'
   gap: 0.75rem;
   padding: 0.75rem 1rem;
   border-radius: 8px;
-  background: #f8d7da;
-  color: #721c24;
-  border: 1px solid #f5c6cb;
+  background: var(--danger-soft);
+  color: var(--danger-soft-text);
+  border: 1px solid var(--danger-soft-border);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   pointer-events: auto;
 }

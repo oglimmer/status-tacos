@@ -21,7 +21,7 @@ import PageNavigation from '../components/PageNavigation.vue'
 <style scoped>
 .tenants-container {
   min-height: 100vh;
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 50%, #dee2e6 100%);
+  background: var(--page-bg);
   background-attachment: fixed;
 }
 
@@ -29,11 +29,11 @@ import PageNavigation from '../components/PageNavigation.vue'
   padding: 2rem;
   max-width: 1200px;
   margin: 0 auto;
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--glass);
   backdrop-filter: blur(10px);
   border-radius: 20px;
   margin-top: 2rem;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid var(--glass-border);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
 }
 

@@ -30,17 +30,17 @@ const limitReached = computed(() => props.monitorCount >= props.maxMonitors)
 .limit-info {
   margin-bottom: 1.5rem;
   padding: 0.75rem 1rem;
-  border: 1px solid #b8daff;
+  border: 1px solid var(--info-soft-border);
   border-radius: 8px;
-  background: #e8f4ff;
-  color: #004085;
+  background: var(--info-soft);
+  color: var(--info-soft-text);
   font-size: 0.9rem;
 }
 
 .limit-reached {
-  border-color: #ffd699;
-  background: #fff6e5;
-  color: #7a4d00;
+  border-color: var(--warning-soft-border);
+  background: var(--warning-soft);
+  color: var(--warning-soft-text);
 }
 
 .limit-info p {

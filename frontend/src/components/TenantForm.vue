@@ -139,12 +139,12 @@ const handleClose = () => {
 }
 
 .error-message {
-  background: #f8d7da;
-  color: #721c24;
+  background: var(--danger-soft);
+  color: var(--danger-soft-text);
   padding: 0.75rem;
   border-radius: 4px;
   margin-bottom: 1rem;
-  border: 1px solid #f5c6cb;
+  border: 1px solid var(--danger-soft-border);
 }
 
 .form-group {
@@ -155,14 +155,14 @@ const handleClose = () => {
   display: block;
   margin-bottom: 0.5rem;
   font-weight: 500;
-  color: #495057;
+  color: var(--text-2);
 }
 
 .form-group input,
 .form-group textarea {
   width: 100%;
   padding: 0.5rem;
-  border: 1px solid #ced4da;
+  border: 1px solid var(--input-border);
   border-radius: 4px;
   font-size: 1rem;
   transition: border-color 0.2s;
@@ -171,27 +171,27 @@ const handleClose = () => {
 .form-group input:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: #007bff;
+  border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
 }
 
 .form-group input:disabled,
 .form-group textarea:disabled {
-  background-color: #e9ecef;
+  background-color: var(--surface-3);
   opacity: 1;
 }
 
 .form-help {
   display: block;
   margin-top: 0.25rem;
-  color: #6c757d;
+  color: var(--text-muted);
   font-size: 0.875rem;
 }
 
 .form-warning {
   display: block;
   margin-top: 0.25rem;
-  color: #b45309;
+  color: var(--warning-text);
   font-size: 0.875rem;
 }
 
@@ -218,20 +218,20 @@ const handleClose = () => {
 }
 
 .btn-secondary {
-  background: #6c757d;
+  background: var(--secondary);
   color: white;
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: #545b62;
+  background: var(--secondary-hover);
 }
 
 .btn-primary {
-  background: #007bff;
+  background: var(--accent);
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #0056b3;
+  background: var(--accent-hover);
 }
 </style>

@@ -85,7 +85,7 @@ const cycleState = () => {
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease-in-out;
-  background: white;
+  background: var(--surface);
 }
 
 .state-btn:hover:not(:disabled) {
@@ -99,36 +99,36 @@ const cycleState = () => {
 }
 
 .state-to-silent {
-  color: #d97706;
+  color: var(--warning-text);
   border-color: #d97706;
 }
 
 .state-to-silent:hover:not(:disabled) {
-  background: #fffbeb;
+  background: var(--warning-soft);
   border-color: #b45309;
-  color: #b45309;
+  color: var(--warning-text);
 }
 
 .state-to-inactive {
-  color: #dc2626;
+  color: var(--danger-text);
   border-color: #dc2626;
 }
 
 .state-to-inactive:hover:not(:disabled) {
-  background: #fef2f2;
+  background: var(--danger-soft);
   border-color: #b91c1c;
-  color: #b91c1c;
+  color: var(--danger-text);
 }
 
 .state-to-active {
-  color: #059669;
+  color: var(--success-text);
   border-color: #059669;
 }
 
 .state-to-active:hover:not(:disabled) {
-  background: #ecfdf5;
+  background: var(--success-soft);
   border-color: #047857;
-  color: #047857;
+  color: var(--success-text);
 }
 
 .state-text {

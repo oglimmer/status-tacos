@@ -437,8 +437,9 @@ probe_success == 0</code></pre>
 .dev-auth {
   display: inline-block;
   padding: 0.05rem 0.5rem;
-  border: 1.5px solid var(--ink);
+  border: 1.5px solid var(--ink-on-light);
   border-radius: 999px;
+  color: var(--ink-on-light);
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -466,8 +467,8 @@ probe_success == 0</code></pre>
   margin: 0 0 1.25rem;
   padding: 1rem 1.1rem;
   overflow-x: auto;
-  background: var(--ink);
-  color: var(--agua);
+  background: var(--code-bg);
+  color: var(--code-fg);
   border-radius: 0.6rem;
   font-family: var(--mono);
   font-size: 0.85rem;
@@ -495,7 +496,7 @@ probe_success == 0</code></pre>
 .dev-table th,
 .dev-table td {
   padding: 0.45rem 0.6rem;
-  border-bottom: 1px solid rgb(16 46 42 / 0.2);
+  border-bottom: 1px solid var(--hairline);
   text-align: left;
   vertical-align: top;
 }
@@ -536,7 +537,7 @@ probe_success == 0</code></pre>
 }
 
 .dev-endpoint[open] {
-  background: #fff;
+  background: var(--paper-bright);
 }
 
 .dev-endpoint summary {
@@ -570,7 +571,8 @@ probe_success == 0</code></pre>
   font-size: 0.75rem;
   font-weight: 700;
   text-align: center;
-  background: var(--agua);
+  color: var(--ink-on-light);
+  background: #e9f2ee;
 }
 
 .dev-method-get {
@@ -606,7 +608,7 @@ probe_success == 0</code></pre>
 
 .dev-endpoint-body {
   padding: 0.25rem 0.9rem 0.5rem;
-  border-top: 1px solid rgb(16 46 42 / 0.2);
+  border-top: 1px solid var(--hairline);
 }
 
 .dev-endpoint-body h4 {

@@ -45,7 +45,7 @@ defineEmits<{
 }
 
 .modal-content {
-  background: white;
+  background: var(--surface);
   border-radius: 8px;
   width: 90%;
   max-width: 500px;
@@ -85,12 +85,12 @@ defineEmits<{
   justify-content: space-between;
   align-items: center;
   padding: 1.5rem;
-  border-bottom: 1px solid #e9ecef;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .modal-header h2 {
   margin: 0;
-  color: #2c3e50;
+  color: var(--text);
 }
 
 .close-btn {
@@ -98,7 +98,7 @@ defineEmits<{
   border: none;
   font-size: 1.5rem;
   cursor: pointer;
-  color: #6c757d;
+  color: var(--text-muted);
   padding: 0;
   width: 2rem;
   height: 2rem;
@@ -108,7 +108,7 @@ defineEmits<{
 }
 
 .close-btn:hover {
-  color: #495057;
+  color: var(--text-2);
 }
 
 .modal-body {

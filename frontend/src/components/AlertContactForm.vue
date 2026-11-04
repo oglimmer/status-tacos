@@ -472,7 +472,7 @@ const handleClose = () => {
 }
 
 .modal-content {
-  background: white;
+  background: var(--surface);
   border-radius: 8px;
   width: 90%;
   max-width: 500px;
@@ -486,12 +486,12 @@ const handleClose = () => {
   justify-content: space-between;
   align-items: center;
   padding: 1.5rem;
-  border-bottom: 1px solid #e9ecef;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .modal-header h2 {
   margin: 0;
-  color: #2c3e50;
+  color: var(--text);
 }
 
 .close-btn {
@@ -499,7 +499,7 @@ const handleClose = () => {
   border: none;
   font-size: 1.5rem;
   cursor: pointer;
-  color: #6c757d;
+  color: var(--text-muted);
   padding: 0;
   width: 2rem;
   height: 2rem;
@@ -509,7 +509,7 @@ const handleClose = () => {
 }
 
 .close-btn:hover {
-  color: #495057;
+  color: var(--text-2);
 }
 
 .alert-contact-form {
@@ -524,7 +524,7 @@ const handleClose = () => {
   display: block;
   margin-bottom: 0.5rem;
   font-weight: 500;
-  color: #2c3e50;
+  color: var(--text);
 }
 
 .form-group input[type="text"],
@@ -534,7 +534,7 @@ const handleClose = () => {
 .form-group textarea {
   width: 100%;
   padding: 0.75rem;
-  border: 1px solid #dee2e6;
+  border: 1px solid var(--border);
   border-radius: 4px;
   font-size: 1rem;
   transition: border-color 0.2s;
@@ -543,18 +543,18 @@ const handleClose = () => {
 .form-group input:focus,
 .form-group select:focus {
   outline: none;
-  border-color: #007bff;
+  border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
 }
 
 .form-group select:disabled {
-  background-color: #f8f9fa;
-  color: #6c757d;
+  background-color: var(--surface-2);
+  color: var(--text-muted);
   cursor: not-allowed;
 }
 
 .form-help-text {
-  color: #6c757d;
+  color: var(--text-muted);
   font-size: 0.875rem;
   margin-top: 0.5rem;
   display: block;
@@ -572,12 +572,12 @@ const handleClose = () => {
 }
 
 .error-message {
-  background: #f8d7da;
-  color: #721c24;
+  background: var(--danger-soft);
+  color: var(--danger-soft-text);
   padding: 0.75rem;
   border-radius: 4px;
   margin-bottom: 1rem;
-  border: 1px solid #f5c6cb;
+  border: 1px solid var(--danger-soft-border);
 }
 
 .form-actions {
@@ -603,28 +603,28 @@ const handleClose = () => {
 }
 
 .btn-cancel {
-  background: #6c757d;
+  background: var(--secondary);
   color: white;
 }
 
 .btn-cancel:hover:not(:disabled) {
-  background: #545b62;
+  background: var(--secondary-hover);
 }
 
 .btn-primary {
-  background: #007bff;
+  background: var(--accent);
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #0056b3;
+  background: var(--accent-hover);
 }
 
 .headers-container {
-  border: 1px solid #dee2e6;
+  border: 1px solid var(--border);
   border-radius: 4px;
   padding: 1rem;
-  background: #f8f9fa;
+  background: var(--surface-2);
   box-sizing: border-box;
   width: 100%;
 }
@@ -643,13 +643,13 @@ const handleClose = () => {
   flex: 1;
   min-width: 120px;
   padding: 0.5rem;
-  border: 1px solid #dee2e6;
+  border: 1px solid var(--border);
   border-radius: 4px;
   font-size: 0.875rem;
 }
 
 .remove-header-btn {
-  background: #dc3545;
+  background: var(--danger);
   color: white;
   border: none;
   border-radius: 4px;
@@ -664,11 +664,11 @@ const handleClose = () => {
 }
 
 .remove-header-btn:hover {
-  background: #c82333;
+  background: var(--danger-hover);
 }
 
 .add-header-btn {
-  background: #28a745;
+  background: var(--success);
   color: white;
   border: none;
   border-radius: 4px;
@@ -680,7 +680,7 @@ const handleClose = () => {
 }
 
 .add-header-btn:hover {
-  background: #218838;
+  background: var(--success-hover);
 }
 
 .form-group textarea {
@@ -689,17 +689,17 @@ const handleClose = () => {
 }
 
 .monitor-list {
-  border: 1px solid #dee2e6;
+  border: 1px solid var(--border);
   border-radius: 4px;
   padding: 0.5rem 0.75rem;
   margin-top: 0.5rem;
-  background: #f8f9fa;
+  background: var(--surface-2);
   max-height: 220px;
   overflow-y: auto;
 }
 
 .monitor-list-empty {
-  color: #6c757d;
+  color: var(--text-muted);
   font-size: 0.875rem;
 }
 
@@ -719,7 +719,7 @@ const handleClose = () => {
 }
 
 .monitor-option-text small {
-  color: #6c757d;
+  color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

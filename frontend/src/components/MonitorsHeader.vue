@@ -97,7 +97,7 @@ defineEmits<MonitorsHeaderEmits>()
 
 .dashboard-header-section h2 {
   margin: 0;
-  color: #2c3e50;
+  color: var(--text);
 }
 
 @media (max-width: 768px) {
@@ -139,22 +139,22 @@ defineEmits<MonitorsHeaderEmits>()
 }
 
 .btn-primary {
-  background: #007bff;
+  background: var(--accent);
   color: white;
 }
 
 .btn-outline {
-  background: white;
-  color: #007bff;
-  border: 1px solid #007bff;
+  background: var(--surface);
+  color: var(--link);
+  border: 1px solid var(--accent);
 }
 
 .btn-outline:hover,
 .btn-outline.active {
-  background: #e7f1ff;
+  background: var(--info-soft);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #0056b3;
+  background: var(--accent-hover);
 }
 </style>

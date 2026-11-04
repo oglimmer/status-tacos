@@ -229,26 +229,26 @@ onMounted(() => {
 }
 
 h1 {
-  color: #2c3e50;
+  color: var(--text);
   margin-bottom: 2rem;
 }
 
 .debug-section {
-  background: #f8f9fa;
-  border: 1px solid #dee2e6;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 1.5rem;
   margin-bottom: 2rem;
 }
 
 .debug-section h2 {
-  color: #495057;
+  color: var(--text-2);
   margin-bottom: 1rem;
   font-size: 1.5rem;
 }
 
 .debug-section h3 {
-  color: #6c757d;
+  color: var(--text-muted);
   margin-bottom: 0.5rem;
   font-size: 1.2rem;
 }
@@ -256,11 +256,11 @@ h1 {
 .loading, .error, .no-data {
   text-align: center;
   padding: 2rem;
-  color: #6c757d;
+  color: var(--text-muted);
 }
 
 .error {
-  color: #dc3545;
+  color: var(--danger-text);
 }
 
 .monitor-grid {
@@ -270,8 +270,8 @@ h1 {
 }
 
 .monitor-item {
-  background: white;
-  border: 2px solid #dee2e6;
+  background: var(--surface);
+  border: 2px solid var(--border);
   border-radius: 8px;
   padding: 1rem;
   cursor: pointer;
@@ -279,31 +279,31 @@ h1 {
 }
 
 .monitor-item:hover {
-  border-color: #007bff;
+  border-color: var(--accent);
   box-shadow: 0 2px 8px rgba(0, 123, 255, 0.1);
 }
 
 .monitor-item.selected {
-  border-color: #007bff;
-  background: #f8f9ff;
+  border-color: var(--accent);
+  background: var(--surface-2);
   box-shadow: 0 2px 8px rgba(0, 123, 255, 0.2);
 }
 
 .monitor-basic-info h3 {
   margin: 0 0 0.5rem 0;
-  color: #2c3e50;
+  color: var(--text);
   font-size: 1.1rem;
 }
 
 .monitor-url {
-  color: #007bff;
+  color: var(--link);
   font-size: 0.9rem;
   margin: 0.25rem 0;
   word-break: break-all;
 }
 
 .monitor-tenant {
-  color: #6c757d;
+  color: var(--text-muted);
   font-size: 0.85rem;
   margin: 0.25rem 0;
 }
@@ -323,33 +323,33 @@ h1 {
 }
 
 .status-badge.active {
-  background: #d4edda;
-  color: #155724;
+  background: var(--success-soft);
+  color: var(--success-soft-text);
 }
 
 .status-badge.silent {
-  background: #fff3cd;
-  color: #856404;
+  background: var(--warning-soft);
+  color: var(--warning-soft-text);
 }
 
 .status-badge.inactive {
-  background: #f8d7da;
-  color: #721c24;
+  background: var(--danger-soft);
+  color: var(--danger-soft-text);
 }
 
 .status-badge.up {
-  background: #d4edda;
-  color: #155724;
+  background: var(--success-soft);
+  color: var(--success-soft-text);
 }
 
 .status-badge.down {
-  background: #f8d7da;
-  color: #721c24;
+  background: var(--danger-soft);
+  color: var(--danger-soft-text);
 }
 
 .status-badge.unknown {
-  background: #e2e3e5;
-  color: #6c757d;
+  background: var(--surface-3);
+  color: var(--text-muted);
 }
 
 .data-tables {
@@ -359,8 +359,8 @@ h1 {
 }
 
 .data-table {
-  background: white;
-  border: 1px solid #dee2e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 6px;
   padding: 1rem;
 }
@@ -401,21 +401,21 @@ h1 {
 }
 
 .btn-primary {
-  background: #007bff;
+  background: var(--accent);
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #0056b3;
+  background: var(--accent-hover);
 }
 
 .btn-secondary {
-  background: #6c757d;
+  background: var(--secondary);
   color: white;
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: #545b62;
+  background: var(--secondary-hover);
 }
 
 .timeframe-selector {
@@ -424,7 +424,7 @@ h1 {
 
 .timeframe-selector h3 {
   margin-bottom: 0.75rem;
-  color: #495057;
+  color: var(--text-2);
   font-size: 1.1rem;
 }
 
@@ -436,10 +436,10 @@ h1 {
 
 .timeframe-btn {
   padding: 0.5rem 1rem;
-  border: 2px solid #dee2e6;
+  border: 2px solid var(--border);
   border-radius: 6px;
-  background: white;
-  color: #6c757d;
+  background: var(--surface);
+  color: var(--text-muted);
   font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
@@ -449,14 +449,14 @@ h1 {
 }
 
 .timeframe-btn:hover {
-  border-color: #007bff;
-  color: #007bff;
-  background: #f8f9ff;
+  border-color: var(--accent);
+  color: var(--link);
+  background: var(--surface-2);
 }
 
 .timeframe-btn.active {
-  border-color: #007bff;
-  background: #007bff;
+  border-color: var(--accent);
+  background: var(--accent);
   color: white;
   box-shadow: 0 2px 4px rgba(0, 123, 255, 0.2);
 }

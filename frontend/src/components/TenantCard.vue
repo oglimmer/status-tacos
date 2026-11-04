@@ -106,16 +106,16 @@ const handleToggleUserManagement = async (tenant: Tenant) => {
 
 <style scoped>
 .tenant-card {
-  background: white;
+  background: var(--surface);
   border-radius: 8px;
   padding: 1.5rem;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  border: 1px solid #e9ecef;
+  border: 1px solid var(--border-subtle);
 }
 
 .tenant-card.inactive {
   opacity: 0.7;
-  background: #f8f9fa;
+  background: var(--surface-2);
 }
 
 .tenant-header {
@@ -128,7 +128,7 @@ const handleToggleUserManagement = async (tenant: Tenant) => {
 
 .tenant-header h3 {
   margin: 0;
-  color: #2c3e50;
+  color: var(--text);
   font-size: 1.2rem;
   word-break: break-word;
 }
@@ -141,8 +141,8 @@ const handleToggleUserManagement = async (tenant: Tenant) => {
 }
 
 .tenant-code {
-  background: #f8f9fa;
-  color: #6c757d;
+  background: var(--surface-2);
+  color: var(--text-muted);
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
   font-size: 0.8rem;
@@ -154,12 +154,12 @@ const handleToggleUserManagement = async (tenant: Tenant) => {
   border-radius: 4px;
   font-size: 0.8rem;
   font-weight: 500;
-  background: #dc3545;
+  background: var(--danger);
   color: white;
 }
 
 .status-badge.active {
-  background: #28a745;
+  background: var(--success);
 }
 
 .tenant-details {
@@ -173,12 +173,12 @@ const handleToggleUserManagement = async (tenant: Tenant) => {
 }
 
 .detail-item strong {
-  color: #495057;
+  color: var(--text-2);
   min-width: 80px;
 }
 
 .detail-item span {
-  color: #6c757d;
+  color: var(--text-muted);
   word-break: break-word;
 }
 
@@ -212,27 +212,27 @@ const handleToggleUserManagement = async (tenant: Tenant) => {
 
 .btn-outline {
   background: transparent;
-  color: #007bff;
-  border: 1px solid #007bff;
+  color: var(--link);
+  border: 1px solid var(--accent);
 }
 
 .btn-outline:hover:not(:disabled) {
-  background: #007bff;
+  background: var(--accent);
   color: white;
 }
 
 .btn-success {
-  background: #28a745;
+  background: var(--success);
   color: white;
 }
 
 .btn-success:hover:not(:disabled) {
-  background: #1e7e34;
+  background: var(--success-hover);
 }
 
 .btn-warning {
   background: #ffc107;
-  color: #212529;
+  color: var(--text);
 }
 
 .btn-warning:hover:not(:disabled) {

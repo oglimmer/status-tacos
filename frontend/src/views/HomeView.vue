@@ -76,7 +76,7 @@ const events = [
 
 <template>
   <main class="home tacos-page">
-    <section class="hero">
+    <section class="hero tacos-band">
       <header class="bar">
         <span class="tacos-brand">
           <img src="../assets/logo.png" alt="" />
@@ -695,11 +695,11 @@ const events = [
 
 .rule {
   padding: 1rem 0;
-  border-top: 1px solid rgb(16 46 42 / 0.25);
+  border-top: 1px solid var(--hairline);
 }
 
 .rule:last-child {
-  border-bottom: 1px solid rgb(16 46 42 / 0.25);
+  border-bottom: 1px solid var(--hairline);
 }
 
 .rule dt {
@@ -726,8 +726,8 @@ const events = [
   font-size: 0.9rem;
   font-weight: 400;
   padding: 0.2rem 0.55rem;
-  background: var(--ink);
-  color: var(--agua);
+  background: var(--code-bg);
+  color: var(--code-fg);
   border-radius: 0.35rem;
 }
 

@@ -142,16 +142,16 @@ const formatDate = (dateString: string) => {
 
 <style scoped>
 .contact-card {
-  background: white;
+  background: var(--surface);
   border-radius: 8px;
-  border: 1px solid #e9ecef;
+  border: 1px solid var(--border-subtle);
   padding: 1.5rem;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .contact-card.inactive {
   opacity: 0.7;
-  background-color: #f8f9fa;
+  background-color: var(--surface-2);
 }
 
 .contact-header {
@@ -163,7 +163,7 @@ const formatDate = (dateString: string) => {
 
 .contact-header h3 {
   margin: 0;
-  color: #2c3e50;
+  color: var(--text);
   font-size: 1.1rem;
 }
 
@@ -173,13 +173,13 @@ const formatDate = (dateString: string) => {
   font-size: 0.75rem;
   font-weight: 500;
   text-transform: uppercase;
-  background: #e2e8f0;
-  color: #4a5568;
+  background: var(--surface-3);
+  color: var(--text-2);
 }
 
 .contact-status .contact-type[data-type="HTTP"] {
-  background: #dbeafe;
-  color: #1e40af;
+  background: var(--info-soft);
+  color: var(--info-soft-text);
 }
 
 .contact-status .contact-type[data-type="TEAMS"] {
@@ -188,13 +188,13 @@ const formatDate = (dateString: string) => {
 }
 
 .contact-status .contact-type[data-type="IOS_PUSH"] {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--warning-soft);
+  color: var(--warning-soft-text);
 }
 
 .contact-status .contact-type[data-type="EMAIL"] {
-  background: #dcfce7;
-  color: #166534;
+  background: var(--success-soft);
+  color: var(--success-soft-text);
 }
 
 .headers-list {
@@ -205,19 +205,19 @@ const formatDate = (dateString: string) => {
 
 .header-item {
   font-size: 0.8rem;
-  background: #f8f9fa;
+  background: var(--surface-2);
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
-  border: 1px solid #e9ecef;
+  border: 1px solid var(--border-subtle);
 }
 
 .body-preview {
   font-family: monospace;
   font-size: 0.8rem;
-  background: #f8f9fa;
+  background: var(--surface-2);
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
-  border: 1px solid #e9ecef;
+  border: 1px solid var(--border-subtle);
   max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -244,17 +244,17 @@ const formatDate = (dateString: string) => {
 }
 
 .detail-item strong {
-  color: #495057;
+  color: var(--text-2);
   min-width: 80px;
 }
 
 .detail-item .active {
-  color: #28a745;
+  color: var(--success-text);
   font-weight: 500;
 }
 
 .detail-item .inactive {
-  color: #dc3545;
+  color: var(--danger-text);
   font-weight: 500;
 }
 
@@ -277,7 +277,7 @@ const formatDate = (dateString: string) => {
 .managed-note {
   margin: 1rem 0 0;
   font-size: 0.85rem;
-  color: #6c757d;
+  color: var(--text-muted);
   font-style: italic;
 }
 
@@ -308,39 +308,39 @@ const formatDate = (dateString: string) => {
 }
 
 .btn-primary {
-  background: #007bff;
+  background: var(--accent);
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #0056b3;
+  background: var(--accent-hover);
 }
 
 .btn-secondary {
-  background: #6c757d;
+  background: var(--secondary);
   color: white;
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: #545b62;
+  background: var(--secondary-hover);
 }
 
 .btn-success {
-  background: #28a745;
+  background: var(--success);
   color: white;
 }
 
 .btn-success:hover:not(:disabled) {
-  background: #1e7e34;
+  background: var(--success-hover);
 }
 
 .btn-danger {
-  background: #dc3545;
+  background: var(--danger);
   color: white;
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: #c82333;
+  background: var(--danger-hover);
 }
 
 .btn-info {

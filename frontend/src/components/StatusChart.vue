@@ -145,7 +145,7 @@ const getTimeLabels = (): string[] => {
 
 .chart-title {
   font-size: 0.8rem;
-  color: #6c757d;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -164,7 +164,7 @@ const getTimeLabels = (): string[] => {
 
 .y-axis-label {
   font-size: 0.7rem;
-  color: #6c757d;
+  color: var(--text-muted);
   font-weight: 500;
   white-space: nowrap;
   writing-mode: horizontal-tb;
@@ -182,15 +182,15 @@ const getTimeLabels = (): string[] => {
 .chart-svg {
   width: 100%;
   height: 30px;
-  background: #f8f9fa;
-  border: 1px solid #e9ecef;
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
   border-radius: 4px;
 }
 
 .chart-placeholder {
   height: 30px;
-  background: #f8f9fa;
-  border: 1px solid #e9ecef;
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
   border-radius: 4px;
   display: flex;
   align-items: center;
@@ -206,14 +206,14 @@ const getTimeLabels = (): string[] => {
 .x-axis-label {
   position: absolute;
   font-size: 0.6rem;
-  color: #6c757d;
+  color: var(--text-muted);
   transform: translateX(-50%);
   white-space: nowrap;
 }
 
 .placeholder-text {
   font-size: 0.7rem;
-  color: #6c757d;
+  color: var(--text-muted);
   font-style: italic;
 }
 

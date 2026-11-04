@@ -23,7 +23,7 @@ defineEmits<{
 
 .dashboard-header-section h2 {
   margin: 0;
-  color: #2c3e50;
+  color: var(--text);
 }
 
 @media (max-width: 768px) {
@@ -55,11 +55,11 @@ defineEmits<{
 }
 
 .btn-primary {
-  background: #007bff;
+  background: var(--accent);
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #0056b3;
+  background: var(--accent-hover);
 }
 </style>

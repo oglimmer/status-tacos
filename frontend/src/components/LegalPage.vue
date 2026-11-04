@@ -31,7 +31,7 @@ onMounted(() => {
 
 <template>
   <main class="legal-page tacos-page">
-    <section class="legal-band">
+    <section class="legal-band tacos-band">
       <header class="legal-bar">
         <router-link to="/" class="tacos-brand">
           <img src="../assets/logo.png" alt="" />
@@ -212,7 +212,7 @@ onMounted(() => {
   line-height: 1.25;
   margin: 2.5rem 0 0.75rem;
   padding-top: 1.5rem;
-  border-top: 1px solid rgb(16 46 42 / 0.25);
+  border-top: 1px solid var(--hairline);
   scroll-margin-top: 1.5rem;
 }
 

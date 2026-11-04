@@ -429,12 +429,12 @@ const title = computed(() => {
 <style scoped>
 .intro {
   margin: 0 0 1rem;
-  color: #6c757d;
+  color: var(--text-muted);
   font-size: 0.9rem;
 }
 
 .field {
-  border: 1px solid #e9ecef;
+  border: 1px solid var(--border-subtle);
   border-radius: 6px;
   padding: 0.6rem 0.75rem;
   margin-bottom: 0.5rem;
@@ -442,8 +442,8 @@ const title = computed(() => {
 }
 
 .field.on {
-  border-color: #007bff;
-  background: #f5f9ff;
+  border-color: var(--accent);
+  background: var(--surface-2);
 }
 
 .field-toggle {
@@ -455,13 +455,13 @@ const title = computed(() => {
 
 .field-name {
   font-weight: 500;
-  color: #2c3e50;
+  color: var(--text);
 }
 
 .current {
   margin: 0.15rem 0 0 1.6rem;
   font-size: 0.8rem;
-  color: #6c757d;
+  color: var(--text-muted);
   overflow-wrap: anywhere;
 }
 
@@ -479,7 +479,7 @@ const title = computed(() => {
 
 .input-row input {
   padding: 0.45rem 0.6rem;
-  border: 1px solid #ced4da;
+  border: 1px solid var(--input-border);
   border-radius: 4px;
   font-size: 0.95rem;
 }
@@ -499,7 +499,7 @@ const title = computed(() => {
 
 .unit {
   font-size: 0.8rem;
-  color: #6c757d;
+  color: var(--text-muted);
 }
 
 .segmented {
@@ -509,17 +509,17 @@ const title = computed(() => {
 }
 
 .segmented label {
-  border: 1px solid #ced4da;
+  border: 1px solid var(--input-border);
   border-radius: 4px;
   padding: 0.35rem 0.6rem;
   font-size: 0.85rem;
   cursor: pointer;
-  background: white;
+  background: var(--surface);
 }
 
 .segmented label.selected {
-  border-color: #007bff;
-  background: #007bff;
+  border-color: var(--accent);
+  background: var(--accent);
   color: white;
 }
 
@@ -528,12 +528,12 @@ const title = computed(() => {
 }
 
 .error-message {
-  background: #f8d7da;
-  color: #721c24;
+  background: var(--danger-soft);
+  color: var(--danger-soft-text);
   padding: 0.75rem;
   border-radius: 4px;
   margin-top: 0.75rem;
-  border: 1px solid #f5c6cb;
+  border: 1px solid var(--danger-soft-border);
 }
 
 .form-actions {
@@ -558,12 +558,12 @@ const title = computed(() => {
 }
 
 .btn-secondary {
-  background: #6c757d;
+  background: var(--secondary);
   color: white;
 }
 
 .btn-primary {
-  background: #007bff;
+  background: var(--accent);
   color: white;
 }
 
@@ -572,22 +572,22 @@ const title = computed(() => {
   margin: 0 0 1rem;
   padding: 0.5rem 0.75rem;
   list-style: none;
-  background: #f8f9fa;
+  background: var(--surface-2);
   border-radius: 6px;
   font-size: 0.85rem;
-  color: #495057;
+  color: var(--text-2);
 }
 
 .progress-bar {
   height: 10px;
   border-radius: 5px;
-  background: #e9ecef;
+  background: var(--surface-3);
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #007bff, #3d9bff, #007bff);
+  background: linear-gradient(90deg, var(--accent), #3d9bff, var(--accent));
   background-size: 200% 100%;
   animation: shimmer 1.2s linear infinite;
   transition: width 0.3s ease;
@@ -595,7 +595,7 @@ const title = computed(() => {
 
 .progress-bar.complete .progress-fill {
   animation: none;
-  background: #28a745;
+  background: var(--success);
 }
 
 .progress-bar.complete.has-failures .progress-fill {
@@ -619,18 +619,18 @@ const title = computed(() => {
 
 .main-stat {
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--text);
 }
 
 .side-stats {
   display: flex;
   gap: 0.75rem;
-  color: #6c757d;
+  color: var(--text-muted);
   font-size: 0.85rem;
 }
 
 .stat-failed {
-  color: #dc3545;
+  color: var(--danger-text);
   font-weight: 600;
 }
 
@@ -644,7 +644,7 @@ const title = computed(() => {
   padding: 0;
   max-height: 40vh;
   overflow-y: auto;
-  border: 1px solid #e9ecef;
+  border: 1px solid var(--border-subtle);
   border-radius: 6px;
 }
 
@@ -654,7 +654,7 @@ const title = computed(() => {
   align-items: center;
   padding: 0.35rem 0.6rem;
   font-size: 0.875rem;
-  border-bottom: 1px solid #f1f3f5;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .item-list li:last-child {
@@ -668,33 +668,33 @@ const title = computed(() => {
 
 .item-queued,
 .item-skipped {
-  color: #adb5bd;
+  color: var(--text-faint);
 }
 
 .item-ok .item-icon {
-  color: #28a745;
+  color: var(--success-text);
 }
 
 .item-failed {
-  background: #fff5f5;
+  background: var(--danger-soft);
 }
 
 .item-failed .item-icon {
-  color: #dc3545;
+  color: var(--danger-text);
   font-weight: 700;
 }
 
 .item-error {
   grid-column: 2;
   font-size: 0.8rem;
-  color: #dc3545;
+  color: var(--danger-text);
 }
 
 .spinner {
   width: 0.85rem;
   height: 0.85rem;
-  border: 2px solid #cfe2ff;
-  border-top-color: #007bff;
+  border: 2px solid var(--info-soft-border);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }

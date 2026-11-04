@@ -429,7 +429,7 @@ const CSS_VARIABLES = [
   align-items: center;
   gap: 0.75rem 1rem;
   font-size: 0.9rem;
-  color: #495057;
+  color: var(--text-2);
 }
 
 .badge {
@@ -437,13 +437,13 @@ const CSS_VARIABLES = [
   padding: 0.2rem 0.5rem;
   border-radius: 4px;
   font-size: 0.8rem;
-  background: #e9ecef;
-  color: #495057;
+  background: var(--surface-3);
+  color: var(--text-2);
 }
 
 .badge.custom {
-  background: #d1ecf1;
-  color: #0c5460;
+  background: var(--info-soft);
+  color: var(--info-soft-text);
 }
 
 .panes {
@@ -474,7 +474,7 @@ const CSS_VARIABLES = [
 .tabs {
   display: flex;
   gap: 0.25rem;
-  border-bottom: 1px solid #dee2e6;
+  border-bottom: 1px solid var(--border);
 }
 
 .tabs button {
@@ -484,16 +484,16 @@ const CSS_VARIABLES = [
   border-radius: 4px 4px 0 0;
   background: none;
   cursor: pointer;
-  color: #495057;
+  color: var(--text-2);
   font-size: 0.9rem;
 }
 
 .tabs button.active {
-  border-color: #dee2e6;
-  background: white;
+  border-color: var(--border);
+  background: var(--surface);
   margin-bottom: -1px;
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--text);
 }
 
 .tab-body {
@@ -507,14 +507,14 @@ const CSS_VARIABLES = [
 .hint {
   margin: 0 0 0.5rem;
   font-size: 0.85rem;
-  color: #6c757d;
+  color: var(--text-muted);
 }
 
 .link-btn {
   border: none;
   background: none;
   padding: 0;
-  color: #007bff;
+  color: var(--link);
   cursor: pointer;
   font-size: inherit;
   text-decoration: underline;
@@ -525,20 +525,20 @@ const CSS_VARIABLES = [
   min-height: 8rem;
   width: 100%;
   padding: 0.75rem;
-  border: 1px solid #dee2e6;
+  border: 1px solid var(--border);
   border-radius: 4px;
   font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   font-size: 0.85rem;
   line-height: 1.5;
   tab-size: 2;
   resize: none;
-  background: #fbfcfd;
-  color: #212529;
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .code:focus {
   outline: none;
-  border-color: #007bff;
+  border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
 }
 
@@ -576,12 +576,12 @@ const CSS_VARIABLES = [
 
 .asset-list td {
   padding: 0.35rem 0.5rem 0.35rem 0;
-  border-bottom: 1px solid #f1f3f5;
+  border-bottom: 1px solid var(--border-subtle);
   word-break: break-all;
 }
 
 .asset-list .size {
-  color: #6c757d;
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
@@ -595,7 +595,7 @@ const CSS_VARIABLES = [
 }
 
 .link-btn.danger {
-  color: #dc3545;
+  color: var(--danger-text);
 }
 
 .reference {
@@ -606,7 +606,7 @@ const CSS_VARIABLES = [
 .reference h3 {
   margin: 0.5rem 0;
   font-size: 0.95rem;
-  color: #2c3e50;
+  color: var(--text);
 }
 
 .reference table {
@@ -617,7 +617,7 @@ const CSS_VARIABLES = [
 .reference td {
   padding: 0.3rem 0.5rem 0.3rem 0;
   vertical-align: top;
-  border-bottom: 1px solid #f1f3f5;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .reference td:first-child {
@@ -641,12 +641,12 @@ const CSS_VARIABLES = [
   gap: 1rem;
   padding: 0.5rem 0;
   font-size: 0.85rem;
-  color: #6c757d;
+  color: var(--text-muted);
 }
 
 .device-switch {
   display: flex;
-  border: 1px solid #dee2e6;
+  border: 1px solid var(--border);
   border-radius: 4px;
   overflow: hidden;
 }
@@ -654,14 +654,14 @@ const CSS_VARIABLES = [
 .device-switch button {
   padding: 0.25rem 0.6rem;
   border: none;
-  background: white;
+  background: var(--surface);
   cursor: pointer;
   font-size: 0.8rem;
-  color: #495057;
+  color: var(--text-2);
 }
 
 .device-switch button.active {
-  background: #007bff;
+  background: var(--accent);
   color: white;
 }
 
@@ -671,17 +671,17 @@ const CSS_VARIABLES = [
   justify-content: center;
   min-height: 8rem;
   padding: 0.75rem;
-  background: repeating-conic-gradient(#f1f3f5 0% 25%, #fff 0% 50%) 50% / 16px 16px;
-  border: 1px solid #dee2e6;
+  background: repeating-conic-gradient(var(--surface-3) 0% 25%, var(--surface) 0% 50%) 50% / 16px 16px;
+  border: 1px solid var(--border);
   border-radius: 4px;
 }
 
 .preview {
   width: 100%;
   height: 100%;
-  border: 1px solid #ced4da;
+  border: 1px solid var(--input-border);
   border-radius: 4px;
-  background: white;
+  background: var(--surface);
   transition: width 0.2s;
 }
 
@@ -699,15 +699,15 @@ const CSS_VARIABLES = [
 }
 
 .error-message {
-  background: #f8d7da;
-  color: #721c24;
-  border: 1px solid #f5c6cb;
+  background: var(--danger-soft);
+  color: var(--danger-soft-text);
+  border: 1px solid var(--danger-soft-border);
 }
 
 .warning-message {
-  background: #fff3cd;
-  color: #856404;
-  border: 1px solid #ffeeba;
+  background: var(--warning-soft);
+  color: var(--warning-soft-text);
+  border: 1px solid var(--warning-soft-border);
 }
 
 .form-actions {
@@ -723,7 +723,7 @@ const CSS_VARIABLES = [
 
 .unsaved {
   font-size: 0.85rem;
-  color: #b45309;
+  color: var(--warning-text);
 }
 
 .btn {
@@ -746,28 +746,28 @@ const CSS_VARIABLES = [
 }
 
 .btn-primary {
-  background: #007bff;
+  background: var(--accent);
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #0056b3;
+  background: var(--accent-hover);
 }
 
 .btn-secondary {
-  background: #6c757d;
+  background: var(--secondary);
   color: white;
 }
 
 .btn-outline {
   background: transparent;
-  color: #007bff;
-  border: 1px solid #007bff;
+  color: var(--link);
+  border: 1px solid var(--accent);
 }
 
 .btn-danger-outline {
   background: transparent;
-  color: #dc3545;
-  border: 1px solid #dc3545;
+  color: var(--danger-text);
+  border: 1px solid var(--danger);
 }
 </style>

@@ -478,7 +478,7 @@ const handleClose = () => {
   display: block;
   margin-bottom: 0.5rem;
   font-weight: 500;
-  color: #2c3e50;
+  color: var(--text);
 }
 
 .form-group input[type="text"],
@@ -488,7 +488,7 @@ const handleClose = () => {
 .form-group select {
   width: 100%;
   padding: 0.75rem;
-  border: 1px solid #dee2e6;
+  border: 1px solid var(--border);
   border-radius: 4px;
   font-size: 1rem;
   transition: border-color 0.2s;
@@ -498,15 +498,15 @@ const handleClose = () => {
 .form-group input:focus,
 .form-group select:focus {
   outline: none;
-  border-color: #007bff;
+  border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
 }
 
 .check-settings {
-  border: 1px solid #dee2e6;
+  border: 1px solid var(--border);
   border-radius: 4px;
   padding: 1rem;
-  background: #f8f9fa;
+  background: var(--surface-2);
   box-sizing: border-box;
   width: 100%;
 }
@@ -521,25 +521,25 @@ const handleClose = () => {
 
 .form-group .form-subgroup label {
   margin-bottom: 0.25rem;
-  color: #495057;
+  color: var(--text-2);
   font-size: 0.875rem;
 }
 
 .disabled-field {
-  background-color: #f8f9fa !important;
-  color: #6c757d !important;
+  background-color: var(--surface-2) !important;
+  color: var(--text-muted) !important;
   cursor: not-allowed !important;
 }
 
 .field-note.tenant-move-note {
-  color: #b45309;
+  color: var(--warning-text);
 }
 
 .field-note {
   display: block;
   margin-top: 0.25rem;
   font-size: 0.875rem;
-  color: #6c757d;
+  color: var(--text-muted);
   font-style: italic;
 }
 
@@ -556,12 +556,12 @@ const handleClose = () => {
 }
 
 .error-message {
-  background: #f8d7da;
-  color: #721c24;
+  background: var(--danger-soft);
+  color: var(--danger-soft-text);
   padding: 0.75rem;
   border-radius: 4px;
   margin-bottom: 1rem;
-  border: 1px solid #f5c6cb;
+  border: 1px solid var(--danger-soft-border);
 }
 
 .form-actions {
@@ -587,20 +587,20 @@ const handleClose = () => {
 }
 
 .btn-secondary {
-  background: #6c757d;
+  background: var(--secondary);
   color: white;
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: #545b62;
+  background: var(--secondary-hover);
 }
 
 .btn-primary {
-  background: #007bff;
+  background: var(--accent);
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #0056b3;
+  background: var(--accent-hover);
 }
 </style>

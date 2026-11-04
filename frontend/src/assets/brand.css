@@ -6,15 +6,21 @@
 @import '@fontsource/atkinson-hyperlegible-mono/400.css';
 
 .tacos-page {
-  /* Colors from the logo: its teal, the tortilla, the salsa, the lettuce. */
-  --agua: #e9f2ee;
-  --paper: #f8fbf9;
+  /* Colors from the logo: its teal, the tortilla, the salsa, the lettuce. Dark mode: a night taqueria. */
+  --agua: light-dark(#e9f2ee, #0c1a18);
+  --paper: light-dark(#f8fbf9, #132724);
+  --paper-bright: light-dark(#ffffff, #17302c);
   --teal: #33ada4;
-  --ink: #102e2a;
-  --ink-soft: #3d5a55;
+  --ink: light-dark(#102e2a, #e4f1ed);
+  --ink-soft: light-dark(#3d5a55, #a3bfb9);
   --masa: #f2b53c;
-  --salsa: #d2412b;
-  --cilantro: #2e8b47;
+  --salsa: light-dark(#d2412b, #ff7a63);
+  --cilantro: light-dark(#2e8b47, #5cc97a);
+  /* Text on a light color (the tortilla, the pastel labels). It stays dark in both modes. */
+  --ink-on-light: #102e2a;
+  --hairline: light-dark(rgb(16 46 42 / 0.25), rgb(228 241 237 / 0.2));
+  --code-bg: light-dark(#102e2a, #050d0c);
+  --code-fg: light-dark(#e9f2ee, #e4f1ed);
   --line: 2px solid var(--ink);
 
   --sign: 'Bungee', 'Arial Black', sans-serif;
@@ -30,6 +36,18 @@
   font-family: var(--text);
   font-size: 1.125rem;
   line-height: 1.55;
+}
+
+/* The teal band stays light in dark mode too, so its text stays dark. */
+.tacos-band {
+  --ink: var(--ink-on-light);
+  --ink-soft: #3d5a55;
+  --paper: #f8fbf9;
+  --agua: #e9f2ee;
+  --salsa: #d2412b;
+  --cilantro: #2e8b47;
+  --line: 2px solid var(--ink);
+  color: var(--ink);
 }
 
 .tacos-brand {

@@ -24,18 +24,18 @@ defineEmits<{
 .empty-state {
   text-align: center;
   padding: 3rem;
-  background: white;
+  background: var(--surface);
   border-radius: 8px;
-  border: 1px solid #e9ecef;
+  border: 1px solid var(--border-subtle);
 }
 
 .empty-state h3 {
-  color: #2c3e50;
+  color: var(--text);
   margin-bottom: 1rem;
 }
 
 .empty-state p {
-  color: #6c757d;
+  color: var(--text-muted);
   margin-bottom: 2rem;
 }
 
@@ -55,11 +55,11 @@ defineEmits<{
 }
 
 .btn-primary {
-  background: #007bff;
+  background: var(--accent);
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #0056b3;
+  background: var(--accent-hover);
 }
 </style>

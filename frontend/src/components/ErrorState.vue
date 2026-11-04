@@ -16,8 +16,8 @@ defineProps<{
   padding: 2rem;
   border-radius: 8px;
   margin-bottom: 2rem;
-  background: #f8d7da;
-  color: #721c24;
-  border: 1px solid #f5c6cb;
+  background: var(--danger-soft);
+  color: var(--danger-soft-text);
+  border: 1px solid var(--danger-soft-border);
 }
 </style>

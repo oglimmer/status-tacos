@@ -86,7 +86,7 @@ const handleDelete = async () => {
 
 <style scoped>
 .delete-account {
-  color: #495057;
+  color: var(--text-2);
   line-height: 1.6;
 }
 
@@ -95,8 +95,8 @@ const handleDelete = async () => {
   gap: 0.5rem;
   align-items: flex-start;
   background: rgba(220, 53, 69, 0.08);
-  border: 1px solid rgba(220, 53, 69, 0.25);
-  color: #b02a37;
+  border: 1px solid var(--danger-soft-border);
+  color: var(--danger-text);
   border-radius: 8px;
   padding: 0.75rem 1rem;
   margin: 0 0 1rem;
@@ -115,26 +115,26 @@ const handleDelete = async () => {
 .confirm-label {
   display: block;
   margin-bottom: 0.5rem;
-  color: #2c3e50;
+  color: var(--text);
 }
 
 .confirm-input {
   width: 100%;
   padding: 0.75rem;
-  border: 1px solid #ced4da;
+  border: 1px solid var(--input-border);
   border-radius: 8px;
   font-size: 1rem;
 }
 
 .confirm-input:focus {
   outline: none;
-  border-color: #dc3545;
+  border-color: var(--danger);
   box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.15);
 }
 
 .error-message {
   margin-top: 1rem;
-  color: #dc3545;
+  color: var(--danger-text);
   font-weight: 500;
 }
 
@@ -164,21 +164,21 @@ const handleDelete = async () => {
 }
 
 .btn-secondary {
-  background: #f8f9fa;
-  color: #495057;
-  border: 1px solid #ced4da;
+  background: var(--surface-2);
+  color: var(--text-2);
+  border: 1px solid var(--input-border);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: #e9ecef;
+  background: var(--surface-3);
 }
 
 .btn-danger {
-  background: #dc3545;
+  background: var(--danger);
   color: white;
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: #bb2d3b;
+  background: var(--danger-hover);
 }
 </style>

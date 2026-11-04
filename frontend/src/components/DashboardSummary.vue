@@ -116,10 +116,10 @@ defineEmits<{
 }
 
 .summary-card {
-  background: white;
+  background: var(--surface);
   padding: 0.75rem 1rem;
   border-radius: 6px;
-  border: 1px solid #e9ecef;
+  border: 1px solid var(--border-subtle);
   text-align: center;
   min-width: 80px;
 }
@@ -130,15 +130,15 @@ defineEmits<{
 }
 
 .summary-card.clickable:hover {
-  background: #f8f9fa;
-  border-color: #dee2e6;
+  background: var(--surface-2);
+  border-color: var(--border);
   transform: translateY(-1px);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .summary-card.active {
-  background: #007bff;
-  border-color: #007bff;
+  background: var(--accent);
+  border-color: var(--accent);
   color: white;
 }
 
@@ -153,23 +153,23 @@ defineEmits<{
 .summary-number {
   font-size: 1.25rem;
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--text);
   margin-bottom: 0.25rem;
 }
 
 .summary-label {
   font-size: 0.75rem;
-  color: #6c757d;
+  color: var(--text-muted);
   text-transform: uppercase;
   font-weight: 500;
 }
 
 .summary-number.up {
-  color: #28a745;
+  color: var(--success-text);
 }
 
 .summary-number.down {
-  color: #dc3545;
+  color: var(--danger-text);
 }
 
 .tenant-filter,

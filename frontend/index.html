@@ -7,6 +7,13 @@
     <title>Status Tacos</title>
     <meta name="description" content="Status Tacos checks your URLs every 15 seconds and alerts you by email, webhook, Microsoft Teams or iPhone when one goes down.">
     <meta name="theme-color" content="#33ada4">
+    <script>
+      // Apply the saved theme before the first paint. Same key as src/services/theme.ts.
+      try {
+        var t = localStorage.getItem('status-tacos-theme')
+        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="app"></div>

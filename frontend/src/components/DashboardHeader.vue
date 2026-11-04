@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useAuthStore } from '../stores/auth'
 import VersionInfo from './VersionInfo.vue'
+import ThemeToggle from './ThemeToggle.vue'
 
 const authStore = useAuthStore()
 
@@ -19,6 +20,7 @@ const handleLogout = () => {
       <span class="welcome-text">¡Hola {{ authStore.user?.profile?.name || 'Amigo' }}! 🌮</span>
       <div class="user-actions">
         <VersionInfo />
+        <ThemeToggle class="header-theme" />
         <router-link to="/account" class="btn btn-link" active-class="active">
           Account
         </router-link>
@@ -36,9 +38,9 @@ const handleLogout = () => {
   justify-content: space-between;
   align-items: center;
   padding: 1rem 2rem;
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--glass-strong);
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  border-bottom: 1px solid var(--glass-border);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -59,7 +61,7 @@ const handleLogout = () => {
 .brand-name {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #2c3e50;
+  color: var(--text);
 }
 
 .user-info {
@@ -69,7 +71,7 @@ const handleLogout = () => {
 }
 
 .welcome-text {
-  color: #2c3e50;
+  color: var(--text);
   font-weight: 500;
   font-size: 1rem;
 }
@@ -78,6 +80,10 @@ const handleLogout = () => {
   display: flex;
   align-items: center;
   gap: 1rem;
+}
+
+.header-theme {
+  color: var(--text-muted);
 }
 
 /* Mobile styles */
@@ -89,9 +95,9 @@ const handleLogout = () => {
     padding: 1rem;
     border-radius: 0;
     position: static;
-    background: rgba(255, 255, 255, 0.95);
+    background: var(--glass-strong);
     backdrop-filter: blur(10px);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    border-bottom: 1px solid var(--glass-border);
   }
 
   .user-info {
@@ -134,25 +140,25 @@ const handleLogout = () => {
 
 .btn-outline {
   background: transparent;
-  color: #007bff;
-  border: 2px solid #007bff;
+  color: var(--link);
+  border: 2px solid var(--accent);
 }
 
 .btn-outline:hover:not(:disabled) {
-  background: #007bff;
+  background: var(--accent);
   color: white;
   transform: translateY(-2px);
 }
 
 .btn-link {
   background: transparent;
-  color: #6c757d;
+  color: var(--text-muted);
   padding: 0.75rem 0.5rem;
   font-weight: 500;
 }
 
 .btn-link:hover,
 .btn-link.active {
-  color: #007bff;
+  color: var(--link);
 }
 </style>

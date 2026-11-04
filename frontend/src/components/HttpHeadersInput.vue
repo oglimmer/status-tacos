@@ -133,14 +133,14 @@ const updateHttpHeaders = () => {
   display: block;
   margin-bottom: 0.5rem;
   font-weight: 500;
-  color: #2c3e50;
+  color: var(--text);
 }
 
 .headers-container {
-  border: 1px solid #dee2e6;
+  border: 1px solid var(--border);
   border-radius: 4px;
   padding: 1rem;
-  background: #f8f9fa;
+  background: var(--surface-2);
   box-sizing: border-box;
   width: 100%;
 }
@@ -159,7 +159,7 @@ const updateHttpHeaders = () => {
   flex: 1;
   min-width: 120px;
   padding: 0.5rem;
-  border: 1px solid #dee2e6;
+  border: 1px solid var(--border);
   border-radius: 4px;
   font-size: 0.875rem;
 }
@@ -167,12 +167,12 @@ const updateHttpHeaders = () => {
 .header-key:focus,
 .header-value:focus {
   outline: none;
-  border-color: #007bff;
+  border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
 }
 
 .remove-header-btn {
-  background: #dc3545;
+  background: var(--danger);
   color: white;
   border: none;
   border-radius: 4px;
@@ -187,11 +187,11 @@ const updateHttpHeaders = () => {
 }
 
 .remove-header-btn:hover {
-  background: #c82333;
+  background: var(--danger-hover);
 }
 
 .add-header-btn {
-  background: #28a745;
+  background: var(--success);
   color: white;
   border: none;
   border-radius: 4px;
@@ -206,11 +206,11 @@ const updateHttpHeaders = () => {
 }
 
 .add-header-btn:hover {
-  background: #218838;
+  background: var(--success-hover);
 }
 
 .form-help-text {
-  color: #6c757d;
+  color: var(--text-muted);
   font-size: 0.85rem;
   margin-top: 0.5rem;
   display: block;

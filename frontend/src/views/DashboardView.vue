@@ -435,7 +435,7 @@ onUnmounted(() => {
 <style scoped>
 .dashboard-container {
   min-height: 100vh;
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 50%, #dee2e6 100%);
+  background: var(--page-bg);
   background-attachment: fixed;
 }
 
@@ -443,11 +443,11 @@ onUnmounted(() => {
   padding: 2rem;
   max-width: 1200px;
   margin: 0 auto;
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--glass);
   backdrop-filter: blur(10px);
   border-radius: 20px;
   margin-top: 2rem;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid var(--glass-border);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
 }
 
@@ -478,8 +478,8 @@ onUnmounted(() => {
   flex-wrap: wrap;
   padding: 0.6rem 1rem;
   margin-bottom: 1rem;
-  background: #ffffff;
-  border: 1px solid #007bff;
+  background: var(--surface);
+  border: 1px solid var(--accent);
   border-radius: 8px;
   box-shadow: 0 4px 14px rgba(0, 123, 255, 0.15);
 }
@@ -489,18 +489,18 @@ onUnmounted(() => {
   align-items: center;
   gap: 0.5rem;
   cursor: pointer;
-  color: #2c3e50;
+  color: var(--text);
   font-size: 0.9rem;
 }
 
 .select-all input {
   width: 1.05rem;
   height: 1.05rem;
-  accent-color: #007bff;
+  accent-color: var(--accent);
 }
 
 .selection-count {
-  color: #6c757d;
+  color: var(--text-muted);
   font-size: 0.9rem;
   font-variant-numeric: tabular-nums;
 }
@@ -510,7 +510,7 @@ onUnmounted(() => {
   padding: 0.5rem 1rem;
   border: none;
   border-radius: 4px;
-  background: #007bff;
+  background: var(--accent);
   color: white;
   font-weight: 500;
   cursor: pointer;

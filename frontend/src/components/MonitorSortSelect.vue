@@ -66,40 +66,40 @@ const toggleDirection = () => {
 
 .filters label {
   font-weight: 500;
-  color: #495057;
+  color: var(--text-2);
   font-size: 0.9rem;
   margin-right: 0.5rem;
 }
 
 .filters select {
   padding: 0.5rem;
-  border: 1px solid #dee2e6;
+  border: 1px solid var(--border);
   border-radius: 4px;
   font-size: 0.9rem;
-  background: white;
+  background: var(--surface);
   width: 170px;
 }
 
 .direction-btn {
   padding: 0.5rem 0.75rem;
-  border: 1px solid #dee2e6;
+  border: 1px solid var(--border);
   border-radius: 4px;
   font-size: 0.9rem;
-  background: white;
-  color: #495057;
+  background: var(--surface);
+  color: var(--text-2);
   cursor: pointer;
   white-space: nowrap;
   min-width: 72px;
 }
 
 .direction-btn:hover {
-  background: #f8f9fa;
+  background: var(--surface-2);
 }
 
 .filters select:focus,
 .direction-btn:focus-visible {
   outline: none;
-  border-color: #3b82f6;
+  border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 </style>

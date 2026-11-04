@@ -246,9 +246,9 @@ const getUptimeClass = (history: ResponseTimeHistory | null): string => {
 
 <style scoped>
 .monitor-card {
-  background: white;
+  background: var(--surface);
   border-radius: 8px;
-  border: 1px solid #e9ecef;
+  border: 1px solid var(--border-subtle);
   padding: 1.5rem;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
@@ -262,7 +262,7 @@ const getUptimeClass = (history: ResponseTimeHistory | null): string => {
 
 .monitor-header h3 {
   margin: 0;
-  color: #2c3e50;
+  color: var(--text);
   font-size: 1.1rem;
 }
 
@@ -275,13 +275,13 @@ const getUptimeClass = (history: ResponseTimeHistory | null): string => {
 }
 
 .status-up {
-  background: #d4edda;
-  color: #155724;
+  background: var(--success-soft);
+  color: var(--success-soft-text);
 }
 
 .status-down {
-  background: #f8d7da;
-  color: #721c24;
+  background: var(--danger-soft);
+  color: var(--danger-soft-text);
 }
 
 .monitor-details {
@@ -296,12 +296,12 @@ const getUptimeClass = (history: ResponseTimeHistory | null): string => {
 }
 
 .detail-item strong {
-  color: #495057;
+  color: var(--text-2);
   min-width: 80px;
 }
 
 .detail-item a {
-  color: #007bff;
+  color: var(--link);
   text-decoration: none;
   word-break: break-all;
 }
@@ -311,12 +311,12 @@ const getUptimeClass = (history: ResponseTimeHistory | null): string => {
 }
 
 .detail-item .active {
-  color: #28a745;
+  color: var(--success-text);
   font-weight: 500;
 }
 
 .detail-item .inactive {
-  color: #dc3545;
+  color: var(--danger-text);
   font-weight: 500;
 }
 
@@ -328,26 +328,26 @@ const getUptimeClass = (history: ResponseTimeHistory | null): string => {
 
 .header-item {
   font-size: 0.8rem;
-  background: #f8f9fa;
+  background: var(--surface-2);
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
-  border: 1px solid #e9ecef;
+  border: 1px solid var(--border-subtle);
 }
 
 .criteria-code {
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 0.8rem;
-  color: #2c3e50;
+  color: var(--text);
 }
 
 .prometheus-range {
   font-size: 0.8rem;
-  color: #6c757d;
+  color: var(--text-muted);
   margin-left: 0.5rem;
 }
 
 .monitor-stats {
-  background: #f8f9fa;
+  background: var(--surface-2);
   padding: 1rem 0;
   border-radius: 6px;
   margin-bottom: 1rem;
@@ -369,33 +369,33 @@ const getUptimeClass = (history: ResponseTimeHistory | null): string => {
 }
 
 .stat-label {
-  color: #6c757d;
+  color: var(--text-muted);
 }
 
 .stat-value {
   font-weight: 500;
-  color: #2c3e50;
+  color: var(--text);
 }
 
 .stat-value.stat-error {
-  color: #dc3545;
+  color: var(--danger-text);
   overflow-wrap: anywhere;
   text-align: right;
   margin-left: 1rem;
 }
 
 .stat-value.failure-count {
-  color: #dc3545;
+  color: var(--danger-text);
   font-weight: 600;
 }
 
 .stat-value.uptime-excellent {
-  color: #28a745;
+  color: var(--success-text);
   font-weight: 600;
 }
 
 .stat-value.uptime-good {
-  color: #6f7e08;
+  color: var(--olive-text);
   font-weight: 600;
 }
 
@@ -405,12 +405,12 @@ const getUptimeClass = (history: ResponseTimeHistory | null): string => {
 }
 
 .stat-value.uptime-poor {
-  color: #dc3545;
+  color: var(--danger-text);
   font-weight: 600;
 }
 
 .stat-value.no-data {
-  color: #6c757d;
+  color: var(--text-muted);
   font-style: italic;
 }
 
@@ -424,10 +424,10 @@ const getUptimeClass = (history: ResponseTimeHistory | null): string => {
 
 .btn-icon {
   padding: 0.5rem;
-  border: 1px solid #dee2e6;
+  border: 1px solid var(--border);
   border-radius: 4px;
-  background: white;
-  color: #6c757d;
+  background: var(--surface);
+  color: var(--text-muted);
   cursor: pointer;
   transition: all 0.2s;
   display: flex;
@@ -436,19 +436,19 @@ const getUptimeClass = (history: ResponseTimeHistory | null): string => {
 }
 
 .btn-icon:hover {
-  background: #f8f9fa;
-  color: #495057;
-  border-color: #adb5bd;
+  background: var(--surface-2);
+  color: var(--text-2);
+  border-color: var(--input-border);
 }
 
 .btn-expand:hover {
-  color: #007bff;
-  border-color: #007bff;
+  color: var(--link);
+  border-color: var(--accent);
 }
 
 .btn-collapse:hover {
-  color: #6c757d;
-  border-color: #6c757d;
+  color: var(--text-muted);
+  border-color: var(--secondary);
 }
 
 .monitor-actions {
@@ -478,39 +478,39 @@ const getUptimeClass = (history: ResponseTimeHistory | null): string => {
 }
 
 .btn-primary {
-  background: #007bff;
+  background: var(--accent);
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #0056b3;
+  background: var(--accent-hover);
 }
 
 .btn-secondary {
-  background: #6c757d;
+  background: var(--secondary);
   color: white;
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: #545b62;
+  background: var(--secondary-hover);
 }
 
 .btn-success {
-  background: #28a745;
+  background: var(--success);
   color: white;
 }
 
 .btn-success:hover:not(:disabled) {
-  background: #1e7e34;
+  background: var(--success-hover);
 }
 
 .btn-danger {
-  background: #dc3545;
+  background: var(--danger);
   color: white;
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: #c82333;
+  background: var(--danger-hover);
 }
 
 /* Mobile styles */

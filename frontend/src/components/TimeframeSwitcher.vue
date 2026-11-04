@@ -44,22 +44,22 @@ const timeframes = [
 
 .switcher-buttons {
   display: flex;
-  border: 1px solid #dee2e6;
+  border: 1px solid var(--border);
   border-radius: 6px;
   overflow: hidden;
-  background: white;
+  background: var(--surface);
 }
 
 .timeframe-btn {
   padding: 0.5rem 1rem;
   border: none;
-  background: white;
-  color: #6c757d;
+  background: var(--surface);
+  color: var(--text-muted);
   cursor: pointer;
   font-size: 0.875rem;
   font-weight: 500;
   transition: all 0.2s ease;
-  border-right: 1px solid #dee2e6;
+  border-right: 1px solid var(--border);
 }
 
 .timeframe-btn:last-child {
@@ -67,12 +67,12 @@ const timeframes = [
 }
 
 .timeframe-btn:hover:not(.active) {
-  background: #f8f9fa;
-  color: #495057;
+  background: var(--surface-2);
+  color: var(--text-2);
 }
 
 .timeframe-btn.active {
-  background: #007bff;
+  background: var(--accent);
   color: white;
 }
 

@@ -12,7 +12,7 @@ defineProps<{
 
 <template>
   <main class="error-page tacos-page">
-    <section class="error-band">
+    <section class="error-band tacos-band">
       <header class="error-bar">
         <router-link to="/" class="tacos-brand">
           <img src="../assets/logo.png" alt="" />
@@ -113,7 +113,7 @@ defineProps<{
   display: inline-block;
   padding: 0.7rem 1.3rem;
   background: var(--masa);
-  color: var(--ink);
+  color: var(--ink-on-light);
   border: var(--line);
   border-radius: 0.6rem;
   box-shadow: 0.2rem 0.2rem 0 var(--ink);

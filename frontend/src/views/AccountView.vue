@@ -120,7 +120,7 @@ onMounted(async () => {
 <style scoped>
 .account-container {
   min-height: 100vh;
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 50%, #dee2e6 100%);
+  background: var(--page-bg);
   background-attachment: fixed;
 }
 
@@ -128,11 +128,11 @@ onMounted(async () => {
   padding: 2rem;
   max-width: 1200px;
   margin: 0 auto;
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--glass);
   backdrop-filter: blur(10px);
   border-radius: 20px;
   margin-top: 2rem;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid var(--glass-border);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
 }
 
@@ -144,8 +144,8 @@ onMounted(async () => {
 }
 
 .card {
-  background: white;
-  border: 1px solid #e9ecef;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
   border-radius: 12px;
   padding: 1.5rem;
 }
@@ -153,15 +153,15 @@ onMounted(async () => {
 .card h2 {
   margin: 0 0 1rem;
   font-size: 1.15rem;
-  color: #2c3e50;
+  color: var(--text);
 }
 
 .card-danger {
-  border-color: rgba(220, 53, 69, 0.3);
+  border-color: var(--danger-soft-border);
 }
 
 .card-danger h2 {
-  color: #b02a37;
+  color: var(--danger-text);
 }
 
 .fields {
@@ -172,12 +172,12 @@ onMounted(async () => {
 }
 
 .fields dt {
-  color: #6c757d;
+  color: var(--text-muted);
 }
 
 .fields dd {
   margin: 0;
-  color: #2c3e50;
+  color: var(--text);
   font-weight: 500;
   word-break: break-word;
 }
@@ -186,14 +186,14 @@ onMounted(async () => {
   margin-left: 0.5rem;
   padding: 0.1rem 0.5rem;
   border-radius: 999px;
-  background: #fff3cd;
-  color: #856404;
+  background: var(--warning-soft);
+  color: var(--warning-soft-text);
   font-size: 0.75rem;
   font-weight: 600;
 }
 
 .muted {
-  color: #6c757d;
+  color: var(--text-muted);
   margin: 0 0 1rem;
   line-height: 1.5;
 }
@@ -209,21 +209,21 @@ onMounted(async () => {
   justify-content: space-between;
   gap: 1rem;
   padding: 0.6rem 0;
-  border-bottom: 1px solid #f1f3f5;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .tenant-name {
-  color: #2c3e50;
+  color: var(--text);
   font-weight: 500;
 }
 
 .tenant-code {
-  color: #6c757d;
+  color: var(--text-muted);
   font-size: 0.85rem;
 }
 
 .link {
-  color: #007bff;
+  color: var(--link);
   text-decoration: none;
   font-weight: 500;
 }
@@ -247,7 +247,7 @@ onMounted(async () => {
 }
 
 .legal a {
-  color: #495057;
+  color: var(--text-2);
   text-underline-offset: 0.2em;
 }
 
@@ -273,32 +273,32 @@ onMounted(async () => {
 
 .btn-outline {
   background: transparent;
-  color: #007bff;
-  border: 2px solid #007bff;
+  color: var(--link);
+  border: 2px solid var(--accent);
 }
 
 .btn-outline:hover {
-  background: #007bff;
+  background: var(--accent);
   color: white;
 }
 
 .btn-secondary {
-  background: #f8f9fa;
-  color: #495057;
-  border: 1px solid #ced4da;
+  background: var(--surface-2);
+  color: var(--text-2);
+  border: 1px solid var(--input-border);
 }
 
 .btn-secondary:hover {
-  background: #e9ecef;
+  background: var(--surface-3);
 }
 
 .btn-danger {
-  background: #dc3545;
+  background: var(--danger);
   color: white;
 }
 
 .btn-danger:hover {
-  background: #bb2d3b;
+  background: var(--danger-hover);
 }
 
 /* Mobile styles */

@@ -308,7 +308,7 @@ const formatDuration = (ms: number): string => {
 
 .chart-title {
   font-size: 0.8rem;
-  color: #6c757d;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -320,28 +320,28 @@ const formatDuration = (ms: number): string => {
 }
 
 .uptime-badge.excellent {
-  background: #d4edda;
-  color: #155724;
+  background: var(--success-soft);
+  color: var(--success-soft-text);
 }
 
 .uptime-badge.good {
-  background: #d1ecf1;
-  color: #0c5460;
+  background: var(--info-soft);
+  color: var(--info-soft-text);
 }
 
 .uptime-badge.warning {
-  background: #ffeaa7;
-  color: #856404;
+  background: var(--warning-soft);
+  color: var(--warning-soft-text);
 }
 
 .uptime-badge.no-data {
-  background: #e9ecef;
-  color: #6c757d;
+  background: var(--surface-3);
+  color: var(--text-muted);
 }
 
 .uptime-badge.poor {
-  background: #f8d7da;
-  color: #721c24;
+  background: var(--danger-soft);
+  color: var(--danger-soft-text);
 }
 
 .uptime-badge.clickable {
@@ -368,7 +368,7 @@ const formatDuration = (ms: number): string => {
 
 .y-axis-label {
   font-size: 0.7rem;
-  color: #6c757d;
+  color: var(--text-muted);
   font-weight: 500;
   white-space: nowrap;
   writing-mode: horizontal-tb;
@@ -386,19 +386,19 @@ const formatDuration = (ms: number): string => {
 .chart-svg {
   width: 100%;
   height: 30px;
-  background: linear-gradient(to bottom, #f8f9fa 0%, #ffffff 100%);
-  border: 1px solid #e9ecef;
+  background: linear-gradient(to bottom, var(--surface-2) 0%, var(--surface) 100%);
+  border: 1px solid var(--border-subtle);
   border-radius: 4px;
 }
 
 .chart-svg .no-data {
-  fill: #dee2e6;
+  fill: var(--border);
 }
 
 .chart-placeholder {
   height: 30px;
-  background: #f8f9fa;
-  border: 1px solid #e9ecef;
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
   border-radius: 4px;
   display: flex;
   align-items: center;
@@ -414,14 +414,14 @@ const formatDuration = (ms: number): string => {
 .x-axis-label {
   position: absolute;
   font-size: 0.6rem;
-  color: #6c757d;
+  color: var(--text-muted);
   transform: translateX(-50%);
   white-space: nowrap;
 }
 
 .placeholder-text {
   font-size: 0.7rem;
-  color: #6c757d;
+  color: var(--text-muted);
   font-style: italic;
 }
 
@@ -442,7 +442,7 @@ const formatDuration = (ms: number): string => {
 }
 
 .modal-content {
-  background: white;
+  background: var(--surface);
   border-radius: 8px;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
   width: min(600px, 100%);
@@ -458,14 +458,14 @@ const formatDuration = (ms: number): string => {
   justify-content: space-between;
   align-items: center;
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid #e9ecef;
-  background: #f8f9fa;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-2);
 }
 
 .modal-title {
   margin: 0;
   font-size: 1.1rem;
-  color: #2c3e50;
+  color: var(--text);
   font-weight: 600;
 }
 
@@ -473,7 +473,7 @@ const formatDuration = (ms: number): string => {
   background: none;
   border: none;
   font-size: 1.5rem;
-  color: #6c757d;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 0;
   width: 30px;
@@ -486,8 +486,8 @@ const formatDuration = (ms: number): string => {
 }
 
 .modal-close:hover {
-  background: #e9ecef;
-  color: #495057;
+  background: var(--surface-3);
+  color: var(--text-2);
 }
 
 .modal-body {
@@ -498,7 +498,7 @@ const formatDuration = (ms: number): string => {
 
 .no-downtime {
   text-align: center;
-  color: #6c757d;
+  color: var(--text-muted);
   font-style: italic;
   padding: 2rem 0;
 }
@@ -517,12 +517,12 @@ const formatDuration = (ms: number): string => {
 .downtime-table td {
   text-align: left;
   padding: 0.75rem;
-  border-bottom: 1px solid #e9ecef;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .downtime-table th {
-  background: #f8f9fa;
-  color: #495057;
+  background: var(--surface-2);
+  color: var(--text-2);
   font-weight: 600;
   position: sticky;
   top: 0;
@@ -530,7 +530,7 @@ const formatDuration = (ms: number): string => {
 }
 
 .downtime-table tr:hover {
-  background: #f8f9fa;
+  background: var(--surface-2);
 }
 
 .downtime-table td:first-child,
@@ -541,7 +541,7 @@ const formatDuration = (ms: number): string => {
 
 .downtime-table td:last-child {
   font-weight: 500;
-  color: #dc3545;
+  color: var(--danger-text);
 }
 
 /* Mobile styles */
