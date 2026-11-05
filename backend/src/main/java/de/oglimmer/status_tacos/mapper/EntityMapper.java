@@ -34,6 +34,14 @@ public interface EntityMapper {
   @Mapping(target = "connectTimeout", source = "connectTimeout")
   @Mapping(target = "useSystemDns", source = "useSystemDns")
   @Mapping(target = "alertingThreshold", source = "alertingThreshold")
+  @Mapping(
+      target = "dailyPauseFrom",
+      expression =
+          "java(de.oglimmer.status_tacos.persistence.DailyPause.format(monitor.getDailyPauseFrom()))")
+  @Mapping(
+      target = "dailyPauseUntil",
+      expression =
+          "java(de.oglimmer.status_tacos.persistence.DailyPause.format(monitor.getDailyPauseUntil()))")
   MonitorResponseDto toDto(Monitor monitor);
 
   TenantResponseDto toDto(Tenant tenant);

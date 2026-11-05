@@ -26,6 +26,12 @@ public class MonitorResponseDto {
   /** End of the silence. Only for state SILENT. */
   private Instant silentUntil;
 
+  /** Daily pause without checks, HH:mm in dailyPauseTimezone. Null: no daily pause. */
+  private String dailyPauseFrom;
+
+  private String dailyPauseUntil;
+  private String dailyPauseTimezone;
+
   private Map<String, String> httpHeaders;
   private String statusCodeRegex;
   private String responseBodyRegex;

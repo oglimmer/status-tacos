@@ -12,7 +12,10 @@ import static org.mockito.Mockito.lenient;
 import de.oglimmer.status_tacos.persistence.*;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -674,6 +677,97 @@ class MonitorExecutionServiceTest {
         Clock.systemUTC(),
         checkIntervalMs,
         totalTimeout);
+  }
+
+  @Test
+  void executeAllActiveMonitors_skipsMonitorsInTheirDailyPause() {
+    // 02:10 in Berlin (winter, UTC+1)
+    Clock clock = Clock.fixed(Instant.parse("2026-11-05T01:10:00Z"), ZoneOffset.UTC);
+    MonitorExecutionService service =
+        new MonitorExecutionService(
+            httpClientService,
+            checkResultService,
+            monitorStatusService,
+            monitorService,
+            tenantService,
+            alertService,
+            peerService,
+            taskExecutor,
+            alertExecutor,
+            applicationContext,
+            clock,
+            0L,
+            Duration.ofSeconds(30));
+    ReflectionTestUtils.setField(service, "self", service);
+
+    Monitor paused =
+        Monitor.builder()
+            .id(1)
+            .name("DB dump")
+            .url("https://paused.example")
+            .state(MonitorState.ACTIVE)
+            .tenantId(TEST_TENANT_ID)
+            .dailyPauseFrom(LocalTime.of(2, 0))
+            .dailyPauseUntil(LocalTime.of(2, 30))
+            .dailyPauseTimezone("Europe/Berlin")
+            .build();
+    // Same times in UTC: 02:00 UTC is still to come
+    Monitor notPaused =
+        Monitor.builder()
+            .id(2)
+            .name("Other")
+            .url("https://checked.example")
+            .state(MonitorState.SILENT)
+            .tenantId(TEST_TENANT_ID)
+            .dailyPauseFrom(LocalTime.of(2, 0))
+            .dailyPauseUntil(LocalTime.of(2, 30))
+            .dailyPauseTimezone("UTC")
+            .build();
+
+    when(tenantService.getAllActiveTenants()).thenReturn(List.of(testTenant));
+    when(monitorService.getMonitorsByState(Set.of(TEST_TENANT_ID), MonitorState.ACTIVE))
+        .thenReturn(List.of(paused));
+    when(monitorService.getMonitorsByState(Set.of(TEST_TENANT_ID), MonitorState.SILENT))
+        .thenReturn(List.of(notPaused));
+    doAnswer(
+            invocation -> {
+              ((Runnable) invocation.getArgument(0)).run();
+              return null;
+            })
+        .when(taskExecutor)
+        .execute(any(Runnable.class));
+    when(httpClientService.performHealthCheck(
+            anyString(), any(), any(), any(), any(), any(), any(), any(), anyBoolean()))
+        .thenReturn(successfulHttpResult);
+    when(checkResultService.saveCheckResult(eq(TEST_TENANT_ID), any(), any()))
+        .thenReturn(testCheckResult);
+    when(monitorStatusService.updateMonitorStatus(eq(TEST_TENANT_ID), any(), any()))
+        .thenReturn(testMonitorStatus);
+
+    service.executeAllActiveMonitors();
+
+    verify(httpClientService)
+        .performHealthCheck(
+            eq("https://checked.example"),
+            any(),
+            any(),
+            any(),
+            any(),
+            any(),
+            any(),
+            any(),
+            anyBoolean());
+    verify(httpClientService, never())
+        .performHealthCheck(
+            eq("https://paused.example"),
+            any(),
+            any(),
+            any(),
+            any(),
+            any(),
+            any(),
+            any(),
+            anyBoolean());
   }
 
   @Test

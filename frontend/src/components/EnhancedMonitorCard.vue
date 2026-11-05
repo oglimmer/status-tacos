@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { type TimeframeType } from './TimeframeSwitcher.vue'
 import { type ViewModeType } from './ViewModeSwitcher.vue'
 import UptimeMetrics from './UptimeMetrics.vue'
@@ -8,6 +8,7 @@ import EnhancedStatusChart from './EnhancedStatusChart.vue'
 import ResponseTimeChart from './ResponseTimeChart.vue'
 import type { MonitorResponse, UptimeStats, MonitorState, PeerResult, SilentFor } from '../stores/monitors'
 import { formatSilenceEnd, formatSilenceEndLong } from '../utils/silence'
+import { formatPause, formatPauseInBrowserZone, isPaused, pauseOf } from '../utils/dailyPause'
 import MonitorStateButton from './MonitorStateButton.vue'
 import { formatUptime, getTimeframeLabel } from '../utils/uptime'
 
@@ -68,6 +69,26 @@ const silentEnd = computed(() =>
   props.monitor.state === 'SILENT' && props.monitor.silentUntil ? new Date(props.monitor.silentUntil) : null
 )
 const silentChipText = computed(() => (silentEnd.value ? `Silent until ${formatSilenceEnd(silentEnd.value)}` : null))
+// Daily pause: the card shows when the monitor has no checks now
+const now = ref(new Date())
+let nowTimer: ReturnType<typeof setInterval> | undefined
+onMounted(() => {
+  nowTimer = setInterval(() => (now.value = new Date()), 30_000)
+})
+onUnmounted(() => clearInterval(nowTimer))
+const dailyPause = computed(() => pauseOf(props.monitor))
+const dailyPauseText = computed(() => {
+  if (!dailyPause.value) return null
+  const local = formatPauseInBrowserZone(dailyPause.value, now.value)
+  return local ? `${formatPause(dailyPause.value)} (your time: ${local})` : formatPause(dailyPause.value)
+})
+const pausedNow = computed(
+  () => props.monitor.state !== 'INACTIVE' && !!dailyPause.value && isPaused(dailyPause.value, now.value)
+)
+const pausedChipTitle = computed(() =>
+  dailyPause.value ? `Daily pause ${dailyPauseText.value}: no checks and no alerts.` : undefined
+)
+
 const silentChipTitle = computed(() =>
   silentEnd.value ? `No alerts. Alerts start again ${formatSilenceEndLong(silentEnd.value)}.` : undefined
 )
@@ -168,6 +189,9 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
           <span v-if="silentChipText" class="silent-chip" :title="silentChipTitle">
             <i class="fas fa-bell-slash" aria-hidden="true"></i>{{ silentChipText }}
           </span>
+          <span v-if="pausedNow && dailyPause" class="silent-chip" :title="pausedChipTitle">
+            <i class="fas fa-pause" aria-hidden="true"></i>Paused until {{ dailyPause.until }} {{ dailyPause.timezone }}
+          </span>
           <span
             :class="getStatusBadgeClass(status?.currentStatus || 'down')"
             :title="minimalBadgeTitle"
@@ -202,6 +226,9 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
           <span v-if="silentChipText" class="silent-chip" :title="silentChipTitle">
             <i class="fas fa-bell-slash" aria-hidden="true"></i>{{ silentChipText }}
           </span>
+          <span v-if="pausedNow && dailyPause" class="silent-chip" :title="pausedChipTitle">
+            <i class="fas fa-pause" aria-hidden="true"></i>Paused until {{ dailyPause.until }} {{ dailyPause.timezone }}
+          </span>
           <span
             :class="getStatusBadgeClass(status?.currentStatus || 'down')"
           >
@@ -227,6 +254,10 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
           <span v-if="silentEnd" class="state-until" :title="silentChipTitle">
             until {{ formatSilenceEndLong(silentEnd) }}
           </span>
+        </div>
+        <div class="detail-item" v-if="dailyPauseText && (isExpanded || selectedViewMode === 'full')">
+          <strong>Daily pause:</strong>
+          <span :title="pausedChipTitle">{{ dailyPauseText }}</span>
         </div>
         <div class="detail-item" v-if="(isExpanded || selectedViewMode === 'full') && monitor.httpHeaders && Object.keys(monitor.httpHeaders).length > 0">
           <strong>Headers:</strong>

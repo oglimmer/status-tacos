@@ -16,6 +16,11 @@ export interface MonitorRequest {
   state: MonitorState
   // Only for SILENT. Empty: a running silence keeps its end, a new one gets 24h.
   silentFor?: SilentFor
+  // Daily pause without checks: HH:mm in dailyPauseTimezone. Both empty: no daily pause.
+  dailyPauseFrom?: string
+  dailyPauseUntil?: string
+  // IANA time zone, for example Europe/Berlin. Empty: UTC.
+  dailyPauseTimezone?: string
   httpHeaders?: Record<string, string>
   statusCodeRegex?: string
   responseBodyRegex?: string
@@ -46,6 +51,10 @@ export interface MonitorResponse {
   state: MonitorState
   // End of the silence (UTC, with Z). Only for SILENT.
   silentUntil?: string
+  // Daily pause without checks: HH:mm in dailyPauseTimezone. Missing: no daily pause.
+  dailyPauseFrom?: string | null
+  dailyPauseUntil?: string | null
+  dailyPauseTimezone?: string | null
   httpHeaders?: Record<string, string>
   statusCodeRegex?: string
   responseBodyRegex?: string

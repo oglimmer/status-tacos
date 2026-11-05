@@ -106,6 +106,27 @@ const MONITOR_FIELDS: Param[] = [
       'Only for SILENT: how long. Then the monitor is ACTIVE again. Empty: a running silence keeps its end, a new silence gets 24h.',
   },
   {
+    name: 'dailyPauseFrom',
+    in: 'body',
+    type: 'string (HH:mm)',
+    description:
+      'Start of the daily pause: no checks and no alerts from this time on, each day. Send it with dailyPauseUntil. Both empty: no daily pause (a PUT without them removes it).',
+  },
+  {
+    name: 'dailyPauseUntil',
+    in: 'body',
+    type: 'string (HH:mm)',
+    description:
+      'End of the daily pause (not in the pause). Before dailyPauseFrom: the pause goes past midnight. Must not be the same as dailyPauseFrom.',
+  },
+  {
+    name: 'dailyPauseTimezone',
+    in: 'body',
+    type: 'string',
+    description:
+      'IANA time zone of the two times, for example Europe/Berlin. The pause follows its summer and winter time. Empty: UTC.',
+  },
+  {
     name: 'checkInterval',
     in: 'body',
     type: 'integer',

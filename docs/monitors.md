@@ -44,6 +44,22 @@ Use Silent for planned maintenance.
 Silent always ends. Pick 1 hour, 24 hours, 3 days or 7 days. At the end the monitor is Active
 again and sends alerts. "End silence" makes it Active before that.
 
+## Daily pause
+
+Some systems have a planned downtime each day, for example a database dump at night. Tick "Pause
+checks every day" and set a start, an end and a time zone.
+
+- In the pause the monitor has **no checks**. So it has no DOWN results, sends no alerts, and the
+  uptime does not count this time.
+- The start is in the pause, the end is not. 02:00 to 02:30 checks again at 02:30.
+- An end before the start goes past midnight: 23:30 to 00:30.
+- **Time zone:** the times are wall-clock times in the time zone you pick (default: the time zone of
+  your browser). The pause follows summer and winter time of that zone. The form shows the current
+  time in that zone, and the pause in your own time zone. The monitor card shows the pause with its
+  time zone, and "Paused until ..." while the pause runs.
+- Through the API, times without a time zone are in UTC.
+- A monitor that was down before the pause and is up after it still sends the UP alert.
+
 ## DNS
 
 By default, each check asks the nameservers of the domain for the IP address. It starts at the

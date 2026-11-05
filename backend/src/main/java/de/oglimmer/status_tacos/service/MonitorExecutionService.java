@@ -2,6 +2,7 @@
 package de.oglimmer.status_tacos.service;
 
 import de.oglimmer.status_tacos.persistence.CheckResult;
+import de.oglimmer.status_tacos.persistence.DailyPause;
 import de.oglimmer.status_tacos.persistence.Monitor;
 import de.oglimmer.status_tacos.persistence.MonitorState;
 import de.oglimmer.status_tacos.persistence.MonitorStatus;
@@ -9,6 +10,7 @@ import de.oglimmer.status_tacos.persistence.Tenant;
 import jakarta.annotation.PostConstruct;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -283,9 +285,14 @@ public class MonitorExecutionService {
       return;
     }
 
-    long slot = slotOf(clock.millis(), checkIntervalMs);
+    Instant now = clock.instant();
+    long slot = slotOf(now.toEpochMilli(), checkIntervalMs);
+    // A monitor in its daily pause has no check: no DOWN result, no alert, no uptime change
     List<Monitor> monitorsToCheck =
-        monitors.stream().filter(monitor -> isDue(monitor, slot, checkIntervalMs)).toList();
+        monitors.stream()
+            .filter(monitor -> isDue(monitor, slot, checkIntervalMs))
+            .filter(monitor -> !DailyPause.isPaused(monitor, now))
+            .toList();
 
     log.debug(
         "{} of {} monitors are due in slot {} ({} active, {} silent)",
@@ -393,6 +400,12 @@ public class MonitorExecutionService {
       if (twoIntervals.compareTo(window) > 0) {
         window = twoIntervals;
       }
+    }
+    DailyPause pause = DailyPause.of(monitor);
+    if (pause != null) {
+      // Down before the daily pause, up after it: the UP alert must still go out. Plus one hour
+      // for the day of the daylight saving change.
+      window = window.plus(pause.length()).plusHours(1);
     }
     return status != null
         && status.getLastDownAt() != null

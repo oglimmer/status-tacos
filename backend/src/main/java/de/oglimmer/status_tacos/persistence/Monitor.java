@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 import lombok.AllArgsConstructor;
@@ -65,6 +66,21 @@ public class Monitor {
   /** End of the silence of a SILENT monitor. Then it is ACTIVE again. Null in the other states. */
   @Column(name = "silent_until")
   private Instant silentUntil;
+
+  /**
+   * Start of the daily pause: no checks from this time on. Wall-clock time in dailyPauseTimezone.
+   * Null: no daily pause. See {@link DailyPause}.
+   */
+  @Column(name = "daily_pause_from")
+  private LocalTime dailyPauseFrom;
+
+  /** End of the daily pause (exclusive). Before dailyPauseFrom: the pause goes past midnight. */
+  @Column(name = "daily_pause_until")
+  private LocalTime dailyPauseUntil;
+
+  /** IANA time zone of the daily pause times, for example Europe/Berlin. */
+  @Column(name = "daily_pause_timezone", length = 64)
+  private String dailyPauseTimezone;
 
   @Column(name = "http_headers", columnDefinition = "JSON")
   @JdbcTypeCode(SqlTypes.JSON)

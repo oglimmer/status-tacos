@@ -34,6 +34,10 @@ export function toBulkRequest(monitor: MonitorResponse, patch: BulkPatch): Monit
     useSystemDns: monitor.useSystemDns ?? false,
     alertingThreshold: monitor.alertingThreshold,
     showOnPublicPage: monitor.showOnPublicPage ?? false,
+    // The PUT removes a daily pause that is not sent
+    dailyPauseFrom: monitor.dailyPauseFrom ?? undefined,
+    dailyPauseUntil: monitor.dailyPauseUntil ?? undefined,
+    dailyPauseTimezone: monitor.dailyPauseTimezone ?? undefined,
     ...patch
   }
 }

@@ -2,6 +2,7 @@
 package de.oglimmer.status_tacos.service;
 
 import de.oglimmer.status_tacos.dto.MonitorRequestDto;
+import de.oglimmer.status_tacos.persistence.DailyPause;
 import de.oglimmer.status_tacos.persistence.Monitor;
 import de.oglimmer.status_tacos.persistence.MonitorState;
 import de.oglimmer.status_tacos.persistence.SilenceDuration;
@@ -9,6 +10,7 @@ import de.oglimmer.status_tacos.repository.MonitorRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -56,6 +58,7 @@ public class MonitorService {
             .showOnPublicPage(Boolean.TRUE.equals(requestDto.getShowOnPublicPage()))
             .build();
     applyState(monitor, requestDto.getState(), SilenceDuration.fromCode(requestDto.getSilentFor()));
+    applyDailyPause(monitor, requestDto);
 
     Monitor savedMonitor = monitorRepository.save(monitor);
     log.info("Monitor created with ID: {}", savedMonitor.getId());
@@ -143,6 +146,7 @@ public class MonitorService {
     existingMonitor.setUseSystemDns(Boolean.TRUE.equals(requestDto.getUseSystemDns()));
     existingMonitor.setAlertingThreshold(requestDto.getAlertingThreshold());
     existingMonitor.setShowOnPublicPage(Boolean.TRUE.equals(requestDto.getShowOnPublicPage()));
+    applyDailyPause(existingMonitor, requestDto);
 
     Monitor updatedMonitor = monitorRepository.save(existingMonitor);
     log.info("Monitor updated: {}", updatedMonitor.getId());
@@ -262,5 +266,32 @@ public class MonitorService {
       monitor.setSilentUntil(now.plus(SilenceDuration.DEFAULT.getDuration()));
     }
     monitor.setState(MonitorState.SILENT);
+  }
+
+  /**
+   * Sets the daily pause. No start or no end: no daily pause. No time zone: UTC. The DTO validation
+   * already checks the values, so an error here is only for callers without validation.
+   */
+  private void applyDailyPause(Monitor monitor, MonitorRequestDto requestDto) {
+    LocalTime from = DailyPause.parseTime(requestDto.getDailyPauseFrom());
+    LocalTime until = DailyPause.parseTime(requestDto.getDailyPauseUntil());
+    if (from == null || until == null) {
+      monitor.setDailyPauseFrom(null);
+      monitor.setDailyPauseUntil(null);
+      monitor.setDailyPauseTimezone(null);
+      return;
+    }
+    if (from.equals(until)) {
+      throw new IllegalArgumentException("Daily pause start and end must not be the same");
+    }
+    String zone = requestDto.getDailyPauseTimezone();
+    if (zone == null || zone.isBlank()) {
+      zone = DailyPause.DEFAULT_TIMEZONE;
+    } else if (!DailyPause.isValidZone(zone)) {
+      throw new IllegalArgumentException("Unknown time zone: " + zone);
+    }
+    monitor.setDailyPauseFrom(from);
+    monitor.setDailyPauseUntil(until);
+    monitor.setDailyPauseTimezone(zone);
   }
 }

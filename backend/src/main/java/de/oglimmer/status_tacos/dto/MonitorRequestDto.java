@@ -1,10 +1,13 @@
 /* Copyright (c) 2025 by oglimmer.com / Oliver Zimpasser. All rights reserved. */
 package de.oglimmer.status_tacos.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import de.oglimmer.status_tacos.persistence.DailyPause;
 import de.oglimmer.status_tacos.persistence.MonitorState;
 import de.oglimmer.status_tacos.persistence.SilenceDuration;
 import de.oglimmer.status_tacos.validation.HttpUrl;
 import de.oglimmer.status_tacos.validation.MultipleOf15;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -45,6 +48,39 @@ public class MonitorRequestDto {
       regexp = SilenceDuration.CODE_PATTERN,
       message = "Silence duration must be one of 1h, 24h, 3d, 7d")
   private String silentFor;
+
+  /**
+   * Daily pause: no checks and no alerts from dailyPauseFrom to dailyPauseUntil each day (HH:mm).
+   * Until before from: past midnight. Both empty: no daily pause.
+   */
+  @Pattern(regexp = DailyPause.TIME_PATTERN, message = "Daily pause start must be HH:mm")
+  private String dailyPauseFrom;
+
+  @Pattern(regexp = DailyPause.TIME_PATTERN, message = "Daily pause end must be HH:mm")
+  private String dailyPauseUntil;
+
+  /** IANA time zone of the daily pause times, for example Europe/Berlin. Empty: UTC. */
+  @Size(max = 64, message = "Daily pause time zone must not exceed 64 characters")
+  private String dailyPauseTimezone;
+
+  @JsonIgnore
+  @AssertTrue(message = "Daily pause needs a start and an end, and they must not be the same")
+  public boolean isDailyPauseComplete() {
+    boolean hasFrom = dailyPauseFrom != null && !dailyPauseFrom.isBlank();
+    boolean hasUntil = dailyPauseUntil != null && !dailyPauseUntil.isBlank();
+    if (hasFrom != hasUntil) {
+      return false;
+    }
+    return !hasFrom || !dailyPauseFrom.equals(dailyPauseUntil);
+  }
+
+  @JsonIgnore
+  @AssertTrue(message = "Daily pause time zone is not a known time zone, for example Europe/Berlin")
+  public boolean isDailyPauseTimezoneValid() {
+    return dailyPauseTimezone == null
+        || dailyPauseTimezone.isBlank()
+        || DailyPause.isValidZone(dailyPauseTimezone);
+  }
 
   private Map<String, String> httpHeaders;
 

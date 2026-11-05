@@ -14,6 +14,7 @@ import de.oglimmer.status_tacos.repository.MonitorRepository;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -115,5 +116,58 @@ class MonitorSilenceTest {
 
     assertThat(service.endExpiredSilences()).isEqualTo(2);
     verify(repository).endExpiredSilences(eq(NOW), any());
+  }
+
+  @Test
+  void dailyPauseIsSavedAndWithoutTimezoneUsesUtc() {
+    MonitorRequestDto edit =
+        MonitorRequestDto.builder()
+            .name("Shop")
+            .url("https://shop.example")
+            .tenantId(TENANT)
+            .dailyPauseFrom("23:30")
+            .dailyPauseUntil("00:15")
+            .build();
+
+    Monitor result = service.updateMonitor(TENANT, 7, edit);
+
+    assertThat(result.getDailyPauseFrom()).isEqualTo(LocalTime.of(23, 30));
+    assertThat(result.getDailyPauseUntil()).isEqualTo(LocalTime.of(0, 15));
+    assertThat(result.getDailyPauseTimezone()).isEqualTo("UTC");
+  }
+
+  @Test
+  void dailyPauseIsRemovedWhenTheRequestHasNoTimes() {
+    monitor.setDailyPauseFrom(LocalTime.of(2, 0));
+    monitor.setDailyPauseUntil(LocalTime.of(3, 0));
+    monitor.setDailyPauseTimezone("Europe/Berlin");
+    MonitorRequestDto edit =
+        MonitorRequestDto.builder()
+            .name("Shop")
+            .url("https://shop.example")
+            .tenantId(TENANT)
+            .build();
+
+    Monitor result = service.updateMonitor(TENANT, 7, edit);
+
+    assertThat(result.getDailyPauseFrom()).isNull();
+    assertThat(result.getDailyPauseUntil()).isNull();
+    assertThat(result.getDailyPauseTimezone()).isNull();
+  }
+
+  @Test
+  void dailyPauseRequestValidation() {
+    MonitorRequestDto.MonitorRequestDtoBuilder base =
+        MonitorRequestDto.builder().name("Shop").url("https://shop.example").tenantId(TENANT);
+
+    assertThat(base.dailyPauseFrom("02:00").dailyPauseUntil(null).build().isDailyPauseComplete())
+        .isFalse();
+    assertThat(base.dailyPauseFrom("02:00").dailyPauseUntil("02:00").build().isDailyPauseComplete())
+        .isFalse();
+    assertThat(base.dailyPauseFrom("02:00").dailyPauseUntil("02:30").build().isDailyPauseComplete())
+        .isTrue();
+    assertThat(base.dailyPauseTimezone("Mars/Base").build().isDailyPauseTimezoneValid()).isFalse();
+    assertThat(base.dailyPauseTimezone("Europe/Berlin").build().isDailyPauseTimezoneValid())
+        .isTrue();
   }
 }

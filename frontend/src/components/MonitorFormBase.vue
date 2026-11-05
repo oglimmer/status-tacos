@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useMonitorsStore, type MonitorRequest, type MonitorResponse, type MonitorState, type SilentFor } from '../stores/monitors'
 import { silenceEnd } from '../utils/silence'
+import { browserTimeZone, formatPauseInBrowserZone, timeZones, wallTime } from '../utils/dailyPause'
 import { useAuthStore } from '../stores/auth'
 import FormModal from './FormModal.vue'
 import HttpHeadersInput from './HttpHeadersInput.vue'
@@ -56,6 +57,39 @@ const onStateChange = (newState: MonitorState, silentFor?: SilentFor) => {
   form.value.silentFor = newState === 'SILENT' ? silentFor : undefined
 }
 
+// Daily pause: no checks in a time window each day, for example for a nightly database dump
+const pauseEnabled = ref(false)
+const allTimeZones = timeZones()
+const pauseTimeZoneOptions = computed(() => {
+  const tz = form.value.dailyPauseTimezone
+  return tz && !allTimeZones.includes(tz) ? [tz, ...allTimeZones] : allTimeZones
+})
+const pauseIsValid = computed(
+  () => !!form.value.dailyPauseFrom && !!form.value.dailyPauseUntil && form.value.dailyPauseFrom !== form.value.dailyPauseUntil
+)
+const pausePastMidnight = computed(
+  () => pauseIsValid.value && form.value.dailyPauseUntil! < form.value.dailyPauseFrom!
+)
+const pauseZoneNow = computed(() => wallTime(form.value.dailyPauseTimezone || 'UTC'))
+const pauseInBrowserZone = computed(() =>
+  pauseIsValid.value
+    ? formatPauseInBrowserZone({
+        from: form.value.dailyPauseFrom!,
+        until: form.value.dailyPauseUntil!,
+        timezone: form.value.dailyPauseTimezone || 'UTC'
+      })
+    : null
+)
+const myTimeZone = browserTimeZone()
+
+const onPauseToggle = () => {
+  if (pauseEnabled.value) {
+    form.value.dailyPauseFrom ||= '02:00'
+    form.value.dailyPauseUntil ||= '02:30'
+    form.value.dailyPauseTimezone ||= myTimeZone
+  }
+}
+
 const isSubmitting = ref(false)
 const error = ref<string | null>(null)
 const currentUser = ref<CurrentUser | null>(null)
@@ -108,8 +142,12 @@ const initializeForm = () => {
       connectTimeout: props.monitor.connectTimeout ?? 5,
       useSystemDns: props.monitor.useSystemDns ?? false,
       alertingThreshold: props.monitor.alertingThreshold,
-      showOnPublicPage: props.monitor.showOnPublicPage ?? false
+      showOnPublicPage: props.monitor.showOnPublicPage ?? false,
+      dailyPauseFrom: props.monitor.dailyPauseFrom ?? undefined,
+      dailyPauseUntil: props.monitor.dailyPauseUntil ?? undefined,
+      dailyPauseTimezone: props.monitor.dailyPauseTimezone ?? undefined
     }
+    pauseEnabled.value = !!(props.monitor.dailyPauseFrom && props.monitor.dailyPauseUntil)
   } else {
     // Reset form for new monitor
     const defaultTenantId = props.preselectedTenantId || currentUser.value?.tenants[0]?.id || 0
@@ -233,6 +271,11 @@ const validateForm = (): boolean => {
     }
   }
 
+  if (pauseEnabled.value && !pauseIsValid.value) {
+    error.value = 'The daily pause needs a start and an end, and they must not be the same'
+    return false
+  }
+
   if (form.value.alertingThreshold !== undefined) {
     if (form.value.alertingThreshold < 15) {
       error.value = 'Alerting threshold must be at least 15 seconds'
@@ -260,6 +303,10 @@ const handleSubmit = async () => {
     const submitData = {
       ...form.value,
       silentFor: form.value.state === 'SILENT' ? form.value.silentFor : undefined,
+      // No daily pause: send no times, the backend then removes it
+      dailyPauseFrom: pauseEnabled.value ? form.value.dailyPauseFrom : undefined,
+      dailyPauseUntil: pauseEnabled.value ? form.value.dailyPauseUntil : undefined,
+      dailyPauseTimezone: pauseEnabled.value ? form.value.dailyPauseTimezone || myTimeZone : undefined,
       prometheusMinValue: form.value.prometheusMinValue === undefined || isNaN(form.value.prometheusMinValue!) ? undefined : form.value.prometheusMinValue,
       prometheusMaxValue: form.value.prometheusMaxValue === undefined || isNaN(form.value.prometheusMaxValue!) ? undefined : form.value.prometheusMaxValue
     }
@@ -421,6 +468,45 @@ const handleClose = () => {
       </div>
 
       <div class="form-group">
+        <label class="checkbox-label" for="daily-pause-enabled">
+          <input id="daily-pause-enabled" v-model="pauseEnabled" type="checkbox" @change="onPauseToggle" />
+          Pause checks every day
+        </label>
+        <small class="field-note">
+          For a planned downtime each day, for example a database dump. In this time the monitor has no
+          checks and sends no alerts. The uptime does not count this time.
+        </small>
+        <div v-if="pauseEnabled" class="check-settings pause-settings">
+          <div class="pause-times">
+            <div class="form-subgroup">
+              <label for="daily-pause-from">From</label>
+              <input id="daily-pause-from" v-model="form.dailyPauseFrom" type="time" required />
+            </div>
+            <div class="form-subgroup">
+              <label for="daily-pause-until">Until</label>
+              <input id="daily-pause-until" v-model="form.dailyPauseUntil" type="time" required />
+            </div>
+          </div>
+          <div class="form-subgroup">
+            <label for="daily-pause-timezone">Time zone of these times</label>
+            <select id="daily-pause-timezone" v-model="form.dailyPauseTimezone" required>
+              <option v-for="tz in pauseTimeZoneOptions" :key="tz" :value="tz">
+                {{ tz }}{{ tz === myTimeZone ? ' (your time zone)' : '' }}
+              </option>
+            </select>
+            <small class="field-note">
+              The times are in {{ form.dailyPauseTimezone || 'UTC' }}. It is {{ pauseZoneNow }} there now.
+              The pause follows the summer and winter time of this zone.
+              <template v-if="pauseInBrowserZone">
+                Today in your time zone ({{ myTimeZone }}): {{ pauseInBrowserZone }}.
+              </template>
+              <template v-if="pausePastMidnight">The end is before the start, so the pause goes past midnight.</template>
+            </small>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group">
         <label class="checkbox-label" for="use-system-dns">
           <input id="use-system-dns" v-model="form.useSystemDns" type="checkbox" />
           Use the DNS server of the backend
@@ -500,6 +586,7 @@ const handleClose = () => {
 .form-group input[type="url"],
 .form-group input[type="email"],
 .form-group input[type="number"],
+.form-group input[type="time"],
 .form-group select {
   width: 100%;
   padding: 0.75rem;
@@ -528,6 +615,16 @@ const handleClose = () => {
 
 .form-subgroup {
   margin-bottom: 0.75rem;
+}
+
+.pause-settings {
+  margin-top: 0.75rem;
+}
+
+.pause-times {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
 }
 
 .form-subgroup:last-child {
