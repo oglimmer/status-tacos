@@ -60,6 +60,18 @@ checks every day" and set a start, an end and a time zone.
 - Through the API, times without a time zone are in UTC.
 - A monitor that was down before the pause and is up after it still sends the UP alert.
 
+## Environment
+
+Set the environment of the service: DEV, STAGE or PROD. The apps show it next to the name, so the
+name does not need it. It is only a label: checks and alerts are the same for all three.
+
+- Through the API the field is `environment`, with the value `"DEV"`, `"STAGE"` or `"PROD"` (upper
+  case). Missing, `null` or `""`: not set. A monitor without an environment has no `environment`
+  field in the answer.
+- A PUT replaces the monitor, so a PUT without `environment` removes it. A change of the state only
+  (`PATCH /v1/monitors/{id}/state`) keeps it.
+- Any other value gives a 400 with a message that names the allowed values.
+
 ## DNS
 
 By default, each check asks the nameservers of the domain for the IP address. It starts at the
@@ -93,6 +105,16 @@ a monitor to another tenant, edit the monitor.
 
 The dialog shows the progress of each monitor. It sends 4 updates at the same time. **Stop**
 stops the updates that did not start yet. At the end, **Retry** runs the failed ones again.
+
+## Status and response times in the API
+
+- `GET /v1/monitor-statuses` has `outageStartedAt`: the first failed check of the running outage,
+  in the same format as `lastDownAt`. It is not in the answer when the monitor is up.
+- `GET /v1/monitor-statuses/{id}/response-time-history-24h` (and the list for all monitors, without
+  `{id}`) has `minResponseTimeMs`, `maxResponseTimeMs`, `avgResponseTimeMs` and
+  `p99ResponseTimeMs` for the last 24 hours. Like the 7-day and 90-day stats they count only the
+  successful checks, and p99 can be up to 2.5 % off. They are not in the answer when there is no
+  successful check.
 
 ## Public status page
 

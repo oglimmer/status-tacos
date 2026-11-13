@@ -16,6 +16,7 @@ alerts you by email, webhook, Microsoft Teams or iPhone push when one goes down.
 - States: active, silent (checks, no alerts, for 1h, 24h, 3d or 7d) and inactive.
 - Daily pause: no checks in a time window each day (for example a nightly database dump), in a
   time zone you pick.
+- Environment label per monitor: DEV, STAGE or PROD.
 - Change the settings of many monitors at once, with progress per monitor.
 
 **Alerts**

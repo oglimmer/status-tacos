@@ -42,6 +42,7 @@ const MONITOR_EXAMPLE = `{
   "url": "https://shop.example.com/health",
   "tenantId": 7,
   "tenant": { "id": 7, "name": "Shop", "code": "shop", "isActive": true, … },
+  "environment": "PROD",
   "state": "ACTIVE",
   "httpHeaders": { "X-Probe": "tacos" },
   "statusCodeRegex": "^2\\\\d\\\\d$",
@@ -62,6 +63,7 @@ const MONITOR_BODY = `{
   "name": "Shop checkout",
   "url": "https://shop.example.com/health",
   "tenantId": 7,
+  "environment": "PROD",
   "state": "ACTIVE",
   "checkInterval": 60,
   "alertingThreshold": 120,
@@ -90,6 +92,13 @@ const MONITOR_FIELDS: Param[] = [
     type: 'integer',
     required: true,
     description: 'A tenant you are a member of.',
+  },
+  {
+    name: 'environment',
+    in: 'body',
+    type: 'DEV | STAGE | PROD',
+    description:
+      'Where the service runs. The apps show it next to the name, so the name does not need it. Missing or null: not set (a PUT without it removes it).',
   },
   {
     name: 'state',
@@ -559,11 +568,13 @@ export const API_GROUPS: EndpointGroup[] = [
     "lastStatusCode": 0,
     "lastErrorMessage": "Connect timed out",
     "peerResult": "CONFIRMED",
+    "outageStartedAt": "2026-11-01T09:12:30",
     "updatedAt": "2026-11-01T09:41:00"
   }
 ]`,
         notes: [
           'peerResult is what the other Status Tacos server saw before the DOWN alert: CONFIRMED, PEER_UP or NO_ANSWER. It is null when no peer was asked.',
+          'outageStartedAt is the start of the running outage. It is null when the monitor is not in an outage.',
         ],
       },
       {
@@ -580,9 +591,14 @@ export const API_GROUPS: EndpointGroup[] = [
   "successfulChecks24h": 1435,
   "dataPoints": [{ "timestamp": "2026-10-31T09:45:00", "maxResponseTimeMs": 120 }, …],
   "statusDownPeriods": [{ "start": "2026-11-01T03:14:00", "end": "2026-11-01T03:16:00" }],
-  "firstCheckAt": "2026-10-31T09:41:15"
+  "firstCheckAt": "2026-10-31T09:41:15",
+  "minResponseTimeMs": 48,
+  "maxResponseTimeMs": 912,
+  "avgResponseTimeMs": 121,
+  "p99ResponseTimeMs": 640
 }`,
         notes: [
+          'min, max, avg and p99 ResponseTimeMs are whole milliseconds of the successful checks in the 24 hours. They are null when there is no successful check.',
           'GET /v1/monitor-statuses/response-time-history-24h gives the same for all monitors, as a list.',
         ],
       },

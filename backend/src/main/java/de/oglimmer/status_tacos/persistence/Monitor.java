@@ -82,6 +82,11 @@ public class Monitor {
   @Column(name = "daily_pause_timezone", length = 64)
   private String dailyPauseTimezone;
 
+  /** Environment of the checked system: DEV, STAGE or PROD. Only a label. Null: not set. */
+  @Enumerated(EnumType.STRING)
+  @Column(name = "environment", length = 10)
+  private MonitorEnvironment environment;
+
   @Column(name = "http_headers", columnDefinition = "JSON")
   @JdbcTypeCode(SqlTypes.JSON)
   private Map<String, String> httpHeaders;

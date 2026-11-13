@@ -1,7 +1,9 @@
 import Charts
 import SwiftUI
+import UIKit
 
-/// Highest response time per time slot. Red areas are downtime.
+/// Highest response time per time slot, a teal line on a faint teal area. Red bands over the full
+/// height are downtime; short ones are widened so they stay visible.
 struct ResponseTimeChart: View {
     let snapshot: PeriodSnapshot
 
@@ -10,6 +12,11 @@ struct ResponseTimeChart: View {
         let milliseconds: Int
         var id: Date { date }
     }
+
+    /// Brand red, translucent. Stronger in dark mode, where a faint red disappears on the dark card.
+    private static let downtimeBand = Color(uiColor: UIColor { traits in
+        UIColor(Brand.down).resolvedColor(with: traits).withAlphaComponent(traits.userInterfaceStyle == .dark ? 0.35 : 0.25)
+    })
 
     private var points: [Point] {
         snapshot.dataPoints.compactMap { point in
@@ -26,7 +33,8 @@ struct ResponseTimeChart: View {
 
     var body: some View {
         let points = points
-        let outages = DowntimeTimeline.merged(snapshot.downPeriods, start: snapshot.start, end: snapshot.end)
+        let outages = DetailPresentation.chartBands(
+            periods: snapshot.downPeriods, start: snapshot.start, end: snapshot.end)
 
         if points.isEmpty && outages.isEmpty {
             Text("No response times in this time frame.")
@@ -37,9 +45,9 @@ struct ResponseTimeChart: View {
             Chart {
                 ForEach(outages.indices, id: \.self) { index in
                     RectangleMark(
-                        xStart: .value("Down from", outages[index].0),
-                        xEnd: .value("Down until", outages[index].1))
-                    .foregroundStyle(.red.opacity(0.2))
+                        xStart: .value("Down from", outages[index].start),
+                        xEnd: .value("Down until", outages[index].end))
+                    .foregroundStyle(Self.downtimeBand)
                 }
                 ForEach(points) { point in
                     AreaMark(
@@ -48,14 +56,14 @@ struct ResponseTimeChart: View {
                     .interpolationMethod(.monotone)
                     .foregroundStyle(
                         .linearGradient(
-                            colors: [Color.accentColor.opacity(0.35), Color.accentColor.opacity(0.02)],
+                            colors: [Brand.teal.opacity(0.2), Brand.teal.opacity(0.08)],
                             startPoint: .top, endPoint: .bottom))
                     LineMark(
                         x: .value("Time", point.date),
                         y: .value("Response time", point.milliseconds))
                     .interpolationMethod(.monotone)
                     .lineStyle(StrokeStyle(lineWidth: 1.5))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Brand.teal)
                 }
             }
             .chartXScale(domain: snapshot.start...snapshot.end)

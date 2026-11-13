@@ -45,6 +45,29 @@ struct FormatTests {
         #expect(Format.duration(seconds) == expected)
     }
 
+    @Test(arguments: [
+        (0.0, "0 s"), (-5, "0 s"), (45, "45 s"), (59.9, "59 s"), (60, "1 min"), (12 * 60 + 59, "12 min"),
+        (3600, "1 h"), (3 * 3600 + 3599, "3 h"), (86_400, "1 day"), (2 * 86_400 - 1, "1 day"),
+        (4 * 86_400 + 7200, "4 days"),
+    ] as [(TimeInterval, String)])
+    func durationsInWords(_ seconds: TimeInterval, _ expected: String) {
+        #expect(Format.durationWords(seconds) == expected)
+    }
+
+    @Test func downtimeOfAWindow() {
+        #expect(Format.downtime(0) == "No downtime")
+        #expect(Format.downtime(12 * 60 + 5) == "12 min down")
+        #expect(Format.downtime(30) == "30 s down")
+    }
+
+    @Test func uptimeLevelColorsUseTheBrand() {
+        #expect(UptimeLevel(99.5).color == Brand.up)
+        #expect(UptimeLevel(96).color == Brand.up)
+        #expect(UptimeLevel(91).color == Brand.silent)
+        #expect(UptimeLevel(50).color == Brand.down)
+        #expect(UptimeLevel(nil).color == .secondary)
+    }
+
     @Test func statusCodes() {
         #expect(Format.statusCode(200) == "HTTP 200")
         #expect(Format.statusCode(nil) == "–")
@@ -61,50 +84,57 @@ struct DowntimeTimelineTests {
         start.addingTimeInterval(TimeInterval(hour * 3600 + minute * 60))
     }
 
-    @Test func givesTheDownShareOfEachSlot() throws {
-        let columns = DowntimeTimeline.columns(
-            periods: [DownPeriod(start: at(2), end: at(2, 6))], start: start, end: end, slots: 10)
-        #expect(columns.count == 1)
-        let column = try #require(columns.first)
-        #expect(column.index == 2)
-        #expect(abs(column.fraction - 0.1) < 1e-9)
+    // A 10-hour window on a 1000 pt bar: 100 pt per hour.
+    private func marks(_ periods: [DownPeriod], width: CGFloat = 1000) -> [DowntimeTimeline.Mark] {
+        DowntimeTimeline.marks(periods: periods, start: start, end: end, width: width)
     }
 
-    @Test func splitsAPeriodOverSlotsAndMergesEqualNeighbours() {
-        let columns = DowntimeTimeline.columns(
-            periods: [DownPeriod(start: at(3, 30), end: at(7))], start: start, end: end, slots: 10)
-        #expect(columns == [
-            .init(index: 3, width: 1, fraction: 0.5),
-            .init(index: 4, width: 3, fraction: 1),
+    @Test func markHasTheTruePositionAndWidth() {
+        #expect(marks([DownPeriod(start: at(2), end: at(2, 30))]) == [.init(x: 200, width: 50, isShort: false)])
+    }
+
+    @Test func shortOutagesGetTheMinimumWidth() {
+        // 30 s is 0.83 pt.
+        let period = DownPeriod(start: at(5), end: at(5).addingTimeInterval(30))
+        #expect(marks([period]) == [.init(x: 500, width: 3, isShort: true)])
+    }
+
+    @Test func outagesOfAMinuteOrMoreAreLong() {
+        let oneMinute = DownPeriod(start: at(1), end: at(1, 1))
+        let almost = DownPeriod(start: at(3), end: at(3).addingTimeInterval(59.9))
+        #expect(marks([oneMinute, almost]).map(\.isShort) == [true, false])
+    }
+
+    @Test func shortMarksComeFirstSoRedIsDrawnOnTop() {
+        let long = DownPeriod(start: at(1), end: at(1, 10))
+        let short = DownPeriod(start: at(1, 30), end: at(1, 30).addingTimeInterval(20))
+        let result = marks([long, short])
+        #expect(result.map(\.isShort) == [true, false])
+        #expect(result.map(\.x) == [150, 100])
+    }
+
+    @Test func marksStayInsideTheBar() {
+        // 10 s at the very end, and the minimum width wider than the bar.
+        let atEnd = DownPeriod(start: end.addingTimeInterval(-10), end: end)
+        #expect(marks([atEnd]) == [.init(x: 997, width: 3, isShort: true)])
+        #expect(marks([atEnd], width: 2) == [.init(x: 0, width: 2, isShort: true)])
+    }
+
+    @Test func marksMergeOverlapsAndClipToTheWindow() {
+        let result = marks([
+            DownPeriod(start: at(0), end: at(0, 30)),
+            DownPeriod(start: at(0, 15), end: at(0, 45)),
+            DownPeriod(start: at(9, 30), end: at(24)),
+            DownPeriod(start: at(-5), end: at(-1)),
         ])
+        #expect(result == [.init(x: 0, width: 75, isShort: false), .init(x: 950, width: 50, isShort: false)])
     }
 
-    @Test func doesNotCountOverlapsTwiceAndClipsToTheWindow() {
-        let columns = DowntimeTimeline.columns(
-            periods: [
-                DownPeriod(start: at(0), end: at(0, 30)),
-                DownPeriod(start: at(0, 15), end: at(0, 45)),
-                DownPeriod(start: at(9, 30), end: at(24)),
-            ],
-            start: start, end: end, slots: 10)
-        #expect(columns.map(\.index) == [0, 9])
-        #expect(columns.map(\.fraction) == [0.75, 0.5])
-    }
-
-    @Test func ignoresPeriodsOutsideTheWindow() {
-        let columns = DowntimeTimeline.columns(
-            periods: [DownPeriod(start: at(-5), end: at(-1)), DownPeriod(start: at(11), end: at(12))],
-            start: start, end: end, slots: 10)
-        #expect(columns.isEmpty)
-    }
-
-    @Test func countsOnlyTheCheckedTimeOfASlot() {
-        // A new monitor, down since its first check 15 minutes before the end: the last slot is
-        // all down, not a quarter.
-        let columns = DowntimeTimeline.columns(
-            periods: [DownPeriod(start: at(9, 45), end: at(10))],
-            start: start, end: end, checkedFrom: at(9, 45), slots: 10)
-        #expect(columns == [.init(index: 9, width: 1, fraction: 1)])
+    @Test func emptyWindowGivesNoMarks() {
+        let period = DownPeriod(start: at(1), end: at(2))
+        #expect(DowntimeTimeline.marks(periods: [period], start: end, end: start, width: 100).isEmpty)
+        #expect(marks([period], width: 0).isEmpty)
+        #expect(marks([]).isEmpty)
     }
 
     @Test func checkedFromStartsAtTheFirstCheck() {
@@ -118,11 +148,6 @@ struct DowntimeTimelineTests {
         #expect(DowntimeTimeline.checkedFrom(firstCheckAt: nil, totalChecks: nil, start: start) == start)
     }
 
-    @Test func emptyWindowGivesNoColumns() {
-        #expect(DowntimeTimeline.columns(periods: [], start: end, end: start, slots: 10).isEmpty)
-        #expect(DowntimeTimeline.columns(periods: [], start: start, end: end, slots: 0).isEmpty)
-    }
-
     @Test func totalDowntimeMergesOverlaps() {
         let total = DowntimeTimeline.totalDowntime(
             periods: [
@@ -133,17 +158,45 @@ struct DowntimeTimelineTests {
             start: start, end: end)
         #expect(total == 2.5 * 3600)
     }
+}
 
-    @Test func colorsGoFromYellowToDarkRed() {
-        func hex(_ fraction: Double) -> String {
-            let (r, g, b) = DowntimeTimeline.rgb(for: fraction)
-            return String(format: "#%02lx%02lx%02lx", r, g, b)
-        }
-        #expect(hex(0) == "#fef9c3")
-        #expect(hex(0.25) == "#facc15")
-        #expect(hex(0.5) == "#f97316")
-        #expect(hex(1) == "#7f1d1d")
-        #expect(hex(2) == "#7f1d1d")
-        #expect(hex(-1) == "#fef9c3")
+struct StatusMessageTests {
+    private let now = Date(timeIntervalSince1970: 1_767_225_600)
+
+    private func status(
+        _ type: StatusType, code: Int? = nil, error: String? = nil, lastUpAt: Date? = nil,
+        lastDownAt: Date? = nil, outageStartedAt: Date? = nil
+    ) -> MonitorStatusDTO {
+        MonitorStatusDTO(
+            monitorId: 1, monitorName: nil, currentStatus: type, lastCheckedAt: nil, lastUpAt: lastUpAt,
+            lastDownAt: lastDownAt, consecutiveFailures: nil, lastResponseTimeMs: nil, lastStatusCode: code,
+            lastErrorMessage: error, outageStartedAt: outageStartedAt)
+    }
+
+    @Test func downMessageWithStatusCode() {
+        let s = status(.down, code: 503, error: "ignored", outageStartedAt: now.addingTimeInterval(-12 * 60))
+        #expect(s.downMessage(now: now) == "HTTP 503 · down 12 min")
+    }
+
+    @Test func downMessageUsesTheErrorWithoutStatusCode() {
+        let s = status(.down, code: 0, error: "  Read timed out\n after 10 s ", lastUpAt: now.addingTimeInterval(-45))
+        #expect(s.downMessage(now: now) == "Read timed out after 10 s · down 45 s")
+    }
+
+    @Test func downMessageFallsBackToDown() {
+        #expect(status(.down, error: " \n ").downMessage(now: now) == "Down")
+        #expect(status(.down, lastUpAt: now.addingTimeInterval(-3 * 3600)).downMessage(now: now) == "Down · down 3 h")
+    }
+
+    @Test func downMessagePrefersTheOutageStart() {
+        let s = status(.down, code: 500, lastUpAt: now.addingTimeInterval(-86_400 * 2),
+                       outageStartedAt: now.addingTimeInterval(-300))
+        #expect(s.downMessage(now: now) == "HTTP 500 · down 5 min")
+    }
+
+    @Test func upMessage() {
+        #expect(status(.up, lastDownAt: now.addingTimeInterval(-4 * 86_400 - 100)).upMessage(now: now) == "Up for 4 days")
+        #expect(status(.up, lastDownAt: now.addingTimeInterval(-86_400)).upMessage(now: now) == "Up for 1 day")
+        #expect(status(.up).upMessage(now: now) == "No downtime recorded")
     }
 }

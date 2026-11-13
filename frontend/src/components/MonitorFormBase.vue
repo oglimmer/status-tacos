@@ -31,6 +31,7 @@ const form = ref<MonitorRequest>({
   name: '',
   url: '',
   tenantId: 0,
+  environment: null,
   state: 'ACTIVE' as MonitorState,
   httpHeaders: {},
   statusCodeRegex: '^[23]\\d{2}$',
@@ -131,6 +132,7 @@ const initializeForm = () => {
       name: props.monitor.name,
       url: props.monitor.url,
       tenantId: props.monitor.tenant.id,
+      environment: props.monitor.environment ?? null,
       state: props.monitor.state,
       httpHeaders: props.monitor.httpHeaders || {},
       statusCodeRegex: props.monitor.statusCodeRegex || '',
@@ -155,6 +157,7 @@ const initializeForm = () => {
       name: '',
       url: '',
       tenantId: defaultTenantId,
+      environment: null,
       state: 'ACTIVE' as MonitorState,
       httpHeaders: {},
       statusCodeRegex: '^[23]\\d{2}$',
@@ -352,9 +355,20 @@ const handleClose = () => {
           id="monitor-name"
           v-model="form.name"
           type="text"
-          placeholder="e.g., Production API"
+          placeholder="e.g., Shop API"
           required
         />
+      </div>
+
+      <div class="form-group">
+        <label for="monitor-environment">Environment</label>
+        <select id="monitor-environment" v-model="form.environment">
+          <option :value="null">Not set</option>
+          <option value="PROD">Production</option>
+          <option value="STAGE">Stage</option>
+          <option value="DEV">Development</option>
+        </select>
+        <small class="field-note">Where the service runs. The card shows it next to the name, so the name does not need it.</small>
       </div>
 
       <div class="form-group">

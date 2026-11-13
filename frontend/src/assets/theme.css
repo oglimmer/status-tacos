@@ -58,6 +58,11 @@
   --info-soft-border: light-dark(#b8daff, #2a4a70);
 
   --olive-text: light-dark(#6f7e08, #c2d14a);
+
+  /* Environment badge of a monitor. The background is the same color, tinted. */
+  --env-prod: light-dark(#1f6fd1, #6aa8f0);
+  --env-stage: light-dark(#8e44c9, #c08ae8);
+  --env-dev: light-dark(#6e6e73, #a1a1a6);
 }
 
 :root[data-theme='light'] {

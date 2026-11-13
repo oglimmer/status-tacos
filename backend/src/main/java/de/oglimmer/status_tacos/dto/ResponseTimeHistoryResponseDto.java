@@ -23,6 +23,16 @@ public class ResponseTimeHistoryResponseDto {
   private BigDecimal uptimePercentage24h;
   private Integer totalChecks24h;
   private Integer successfulChecks24h;
+
+  /**
+   * Response times of the successful checks in the 24 hours, in ms, like in UptimeStatsResponseDto.
+   * Null when there are no successful checks.
+   */
+  private Integer minResponseTimeMs;
+
+  private Integer maxResponseTimeMs;
+  private Integer avgResponseTimeMs;
+  private Integer p99ResponseTimeMs;
   private List<ResponseTimeDataPointDto> dataPoints;
   private List<StatusDownPeriodsDto> statusDownPeriods;
 

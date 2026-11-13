@@ -23,10 +23,10 @@ enum MonitorHealth: Int, Comparable, CaseIterable, Sendable {
 
     var color: Color {
         switch self {
-        case .down: .red
+        case .down: Brand.down
         case .pending: .gray
-        case .up: .green
-        case .paused: .secondary
+        case .up: Brand.up
+        case .paused: Brand.paused
         }
     }
 
@@ -48,7 +48,7 @@ extension MonitorState {
         switch self {
         case .active: "Active"
         case .silent: "Silent"
-        case .inactive: "Inactive"
+        case .inactive: "Paused"
         case .unknown: "Unknown"
         }
     }
@@ -73,9 +73,9 @@ extension MonitorState {
 
     var color: Color {
         switch self {
-        case .active: .green
-        case .silent: .orange
-        case .inactive: .gray
+        case .active: Brand.up
+        case .silent: Brand.silent
+        case .inactive: Brand.paused
         case .unknown: .secondary
         }
     }
@@ -92,6 +92,8 @@ struct MonitorSummary: Identifiable, Sendable {
     let createdAt: Date?
     let status: MonitorStatusDTO?
     let week: UptimeStatsDTO?
+    /// Nil when not set, and from older servers.
+    var environment: MonitorEnvironment? = nil
 
     var health: MonitorHealth {
         if state == .inactive { return .paused }
@@ -105,7 +107,8 @@ struct MonitorSummary: Identifiable, Sendable {
     func with(state: MonitorState) -> MonitorSummary {
         MonitorSummary(
             id: id, name: name, url: url, tenant: tenant, state: state,
-            alertingThreshold: alertingThreshold, createdAt: createdAt, status: status, week: week)
+            alertingThreshold: alertingThreshold, createdAt: createdAt, status: status, week: week,
+            environment: environment)
     }
 
     var host: String { URL(string: url)?.host() ?? url }
@@ -131,7 +134,7 @@ struct MonitorSummary: Identifiable, Sendable {
         return (start, end, checkedFrom)
     }
 
-    /// Joins the API results by monitor ID and sorts by health, then by name.
+    /// Joins the API results by monitor ID and sorts like the status sort.
     static func merge(
         monitors: [MonitorDTO], statuses: [MonitorStatusDTO], weekStats: [UptimeStatsDTO]
     ) -> [MonitorSummary] {
@@ -148,7 +151,8 @@ struct MonitorSummary: Identifiable, Sendable {
                     alertingThreshold: monitor.alertingThreshold,
                     createdAt: monitor.createdAt,
                     status: statusByID[monitor.id],
-                    week: statsByID[monitor.id])
+                    week: statsByID[monitor.id],
+                    environment: monitor.environment)
             }
             .sortedForDisplay()
     }
@@ -156,7 +160,7 @@ struct MonitorSummary: Identifiable, Sendable {
 
 /// Sort order of the monitor list. The raw value is stored in the user defaults.
 enum MonitorSort: String, CaseIterable, Sendable {
-    /// Grouped by health, down first.
+    /// Grouped by health, down first. In a group: by environment (production first), then by name.
     case status
     case name
     /// The latest failed check.
@@ -206,10 +210,17 @@ extension MonitorSummary {
         }
     }
 
+    /// prod < stage < dev < none.
+    fileprivate var environmentRank: Int { environment?.rank ?? MonitorEnvironment.allCases.count }
+
     /// Ascending order by the sort alone. Ties go on by name.
     fileprivate func compare(to other: MonitorSummary, by sort: MonitorSort) -> ComparisonResult {
         switch sort {
-        case .status: comparison(health, other.health)
+        case .status:
+            switch comparison(health, other.health) {
+            case .orderedSame: comparison(environmentRank, other.environmentRank)
+            case let order: order
+            }
         case .name: .orderedSame
         case .lastDown: comparison(status?.lastDownAt ?? .distantPast, other.status?.lastDownAt ?? .distantPast)
         case .tenant: (tenant?.name ?? "").localizedStandardCompare(other.tenant?.name ?? "")
@@ -223,7 +234,8 @@ extension Array where Element == MonitorSummary {
         sorted(by: .status, ascending: true)
     }
 
-    /// Sorts by the key, then by name, then by ID. Descending reverses all of it. Monitors without a
+    /// Sorts by the key, then by name, then by ID. The status sort has the environment between health
+    /// and name (production first, monitors without an environment last). Descending reverses all of it. Monitors without a
     /// value for the key come last in both directions.
     func sorted(by sort: MonitorSort, ascending: Bool) -> [MonitorSummary] {
         sorted { lhs, rhs in

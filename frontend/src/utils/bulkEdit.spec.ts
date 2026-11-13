@@ -35,6 +35,16 @@ describe('toBulkRequest', () => {
       showOnPublicPage: false
     })
   })
+
+  it('keeps the environment when other fields change, and can set or remove it', () => {
+    const prod = { ...monitor, environment: 'PROD' } as MonitorResponse
+
+    expect(toBulkRequest(prod, { checkInterval: 300 }).environment).toBe('PROD')
+    expect(toBulkRequest(prod, { environment: 'STAGE' }).environment).toBe('STAGE')
+    expect(toBulkRequest(prod, { environment: null }).environment).toBeNull()
+    // Not set: sent as null, the PUT then keeps it not set
+    expect(toBulkRequest(monitor, {}).environment).toBeNull()
+  })
 })
 
 describe('runWithConcurrency', () => {

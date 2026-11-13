@@ -117,6 +117,56 @@ struct DecodingTests {
         #expect(history.firstCheckAt == utc(2026, 10, 6, 14, 40))
         #expect(history.dataPoints?.first?.timestamp == utc(2026, 10, 7, 12))
         #expect(history.statusDownPeriods?.isEmpty == true)
+        // An older server: no response time summary.
+        #expect(history.avgResponseTimeMs == nil)
+        #expect(PeriodSnapshot(history: history, fetchedAt: utc(2026, 10, 7, 12)).responseTimes == nil)
+    }
+
+    @Test func decodesMonitorEnvironments() throws {
+        let monitors = try decode([MonitorDTO].self, """
+        [{"id":1,"name":"A","url":"https://a.com","state":"ACTIVE","environment":"PROD"},
+         {"id":2,"name":"B","url":"https://b.com","state":"ACTIVE","environment":"stage"},
+         {"id":3,"name":"C","url":"https://c.com","state":"ACTIVE","environment":"Dev"},
+         {"id":4,"name":"D","url":"https://d.com","state":"ACTIVE","environment":"QA"},
+         {"id":5,"name":"E","url":"https://e.com","state":"ACTIVE","environment":null},
+         {"id":6,"name":"F","url":"https://f.com","state":"ACTIVE","environment":42},
+         {"id":7,"name":"G","url":"https://g.com","state":"ACTIVE"}]
+        """)
+        // Unknown values, wrong types and older servers give no environment and do not break the list.
+        #expect(monitors.map(\.environment) == [.prod, .stage, .dev, nil, nil, nil, nil])
+    }
+
+    @Test func environmentNamesAndOrder() {
+        #expect(MonitorEnvironment.allCases.map(\.badgeText) == ["PROD", "STAGE", "DEV"])
+        #expect(MonitorEnvironment.allCases.map(\.accessibilityName) == ["Production", "Stage", "Development"])
+        #expect(MonitorEnvironment.prod < .stage && MonitorEnvironment.stage < .dev)
+        #expect(MonitorEnvironment(wireValue: " prod ") == .prod)
+        #expect(MonitorEnvironment(wireValue: "") == nil)
+    }
+
+    @Test func decodesNewStatusFields() throws {
+        let statuses = try decode([MonitorStatusDTO].self, """
+        [{"monitorId":7,"currentStatus":"down","lastErrorMessage":"Connection refused",
+          "outageStartedAt":"2026-10-07T11:48:00"},
+         {"monitorId":8,"currentStatus":"up"}]
+        """)
+        #expect(statuses[0].lastErrorMessage == "Connection refused")
+        #expect(statuses[0].outageStartedAt == utc(2026, 10, 7, 11, 48))
+        #expect(statuses[1].lastErrorMessage == nil)
+        #expect(statuses[1].outageStartedAt == nil)
+    }
+
+    @Test func decodesResponseTimeSummaryOf24Hours() throws {
+        let history = try decode(ResponseTimeHistoryDTO.self, """
+        {"monitorId":7,"totalChecks24h":5760,"minResponseTimeMs":61,"maxResponseTimeMs":298,
+         "avgResponseTimeMs":82,"p99ResponseTimeMs":140}
+        """)
+        #expect(history.minResponseTimeMs == 61)
+        #expect(history.maxResponseTimeMs == 298)
+        #expect(history.avgResponseTimeMs == 82)
+        #expect(history.p99ResponseTimeMs == 140)
+        let snapshot = PeriodSnapshot(history: history, fetchedAt: utc(2026, 10, 7, 12))
+        #expect(snapshot.responseTimes == .init(average: 82, p99: 140, minimum: 61, maximum: 298))
     }
 
     @Test func periodPathValues() {

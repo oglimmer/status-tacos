@@ -34,6 +34,25 @@ enum Format {
         return text
     }
 
+    /// Duration in words with one unit, rounded down: "45 s", "12 min", "3 h", "1 day", "4 days".
+    /// For precise values use `duration`.
+    static func durationWords(_ interval: TimeInterval) -> String {
+        let seconds = max(0, Int(interval.rounded(.down)))
+        switch seconds {
+        case ..<60: return "\(seconds) s"
+        case ..<3_600: return "\(seconds / 60) min"
+        case ..<86_400: return "\(seconds / 3_600) h"
+        default:
+            let days = seconds / 86_400
+            return days == 1 ? "1 day" : "\(days) days"
+        }
+    }
+
+    /// Downtime of a time window for the uptime card: "No downtime" or "12 min down".
+    static func downtime(_ interval: TimeInterval) -> String {
+        interval > 0 ? "\(durationWords(interval)) down" : "No downtime"
+    }
+
     /// "HTTP 200", or "–" without a status code (for example a timeout).
     static func statusCode(_ code: Int?) -> String {
         guard let code, code > 0 else { return "–" }
@@ -61,11 +80,33 @@ enum UptimeLevel: Equatable {
 
     var color: Color {
         switch self {
-        case .excellent: .green
-        case .good: .mint
-        case .warning: .orange
-        case .poor: .red
+        case .excellent, .good: Brand.up
+        case .warning: Brand.silent
+        case .poor: Brand.down
         case .noData: .secondary
         }
+    }
+}
+
+extension MonitorStatusDTO {
+    /// Why and how long a down monitor is down: "HTTP 503 · down 12 min".
+    /// The reason is the HTTP status, else the error message, else "Down". The duration counts from
+    /// the start of the outage, else from the last up; it is left out when both are unknown.
+    func downMessage(now: Date) -> String {
+        var reason = "Down"
+        if let code = lastStatusCode, code > 0 {
+            reason = "HTTP \(code)"
+        } else if let message = lastErrorMessage?
+            .split(whereSeparator: \.isWhitespace).joined(separator: " "), !message.isEmpty {
+            reason = message
+        }
+        guard let since = outageStartedAt ?? lastUpAt else { return reason }
+        return "\(reason) · down \(Format.durationWords(now.timeIntervalSince(since)))"
+    }
+
+    /// How long an up monitor is up: "Up for 4 days", or "No downtime recorded".
+    func upMessage(now: Date) -> String {
+        guard let lastDownAt else { return "No downtime recorded" }
+        return "Up for \(Format.durationWords(now.timeIntervalSince(lastDownAt)))"
     }
 }

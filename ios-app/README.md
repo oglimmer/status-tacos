@@ -19,11 +19,11 @@ A native iPhone and iPad client for Status Tacos. It shows your monitors and the
 
 **Monitor detail**
 
-- Current status, URL, tenant.
-- Monitoring state: pick active (checks and alerts), silent (checks, no alerts) or inactive (no checks).
-- Push alerts: "Notify me" for this monitor.
-- Last check, response time, status code, failed checks in a row, last down, last up.
-- For 24 hours, 7 days or 90 days: uptime, checks, total downtime, response time chart with downtime marked, average/P99/min/max response time (7 and 90 days only), and the list of outages.
+- Header: status as a colored word ("Up", "Down", "Paused", "No data") with the environment badge, below it how long it is up ("Up for 4 days") or why and how long it is down ("HTTP 503 · down 12 min"). Then URL (host), endpoint (path) and tenant in two columns; tap them to open the URL in the browser.
+- Monitoring state: pick active (checks and alerts), silent (checks, no alerts) or paused (no checks). Each state has a color dot: green, orange, grey.
+- Push on this iPhone: "Notify me" for this monitor (greyed when push is on for the whole tenant).
+- Current status: last check, response time, status code, failed checks in a row, and last down (when up) or last up (when down). Status code and failed checks are red while the monitor is down.
+- For 24 hours, 7 days or 90 days: uptime with the downtime of the window, average/P99/min/max response time (for 24 hours only from servers that send them), response time chart with downtime as red bands (short outages are widened so they stay visible), and the list of outages with the running one marked "Ongoing".
 - Refreshes every 60 seconds.
 
 **Push alerts**
@@ -94,6 +94,33 @@ xcodebuild -project StatusTacos.xcodeproj -scheme StatusTacos \
   -destination 'platform=iOS Simulator,name=iPhone 18 Pro' test
 ```
 
+### Demo mode
+
+For screenshots without sign-in and server. Debug builds only (`App/DemoMode.swift`): the real screens and stores run against canned data (3 tenants, 23 monitors). No network, no Keychain, no push registration, no permission prompt.
+
+| Launch argument | Effect |
+| --- | --- |
+| `-demo allUp` | All monitors up. |
+| `-demo outage` | "Kammerportal Login" and "Meldebogen" (id 7) are down for 12 minutes, "Mail Gateway" is paused. |
+| `-demoDetail <id>` | Opens the detail of that monitor (Meldebogen is 7). |
+| `-demoScroll bottom` | With `-demoDetail`: scrolls the detail to its end. |
+| `-monitorDetail.timeframe 7d` | Detail opens on 7d (or `90d`). Works for every `@AppStorage` key. |
+
+Appearance comes from the simulator: `xcrun simctl ui <udid> appearance dark`.
+
+```sh
+cd ios-app
+UDID=$(xcrun simctl list devices available | grep -F '    iPhone 17 (' | head -n 1 | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
+xcrun simctl boot "$UDID"
+xcodebuild -project StatusTacos.xcodeproj -scheme StatusTacos -configuration Debug \
+  -destination "platform=iOS Simulator,id=$UDID" -derivedDataPath build/demo build
+xcrun simctl install "$UDID" build/demo/Build/Products/Debug-iphonesimulator/StatusTacos.app
+xcrun simctl launch "$UDID" de.oglimmer.statustacos -demo outage -demoDetail 7
+xcrun simctl io "$UDID" screenshot detail.png
+```
+
+Launch again with `xcrun simctl terminate "$UDID" de.oglimmer.statustacos` first. The data starts at the time of each request, so "down 12 min" stays 12 minutes.
+
 ### Local backend
 
 Start the backend (`docker compose up` in the repository root). In the app, open **Settings** and set the server to `http://localhost:8080`. The simulator reaches the Mac at `localhost`.
@@ -116,5 +143,5 @@ The project uses folder references: Xcode picks up new files in these folders. Y
 Some rules are shared with the web app and must stay the same:
 
 - Uptime is rounded down to 2 decimals (`Format.uptime`, `frontend/src/utils/uptime.ts`).
-- Downtime bar colors and slot math (`DowntimeTimeline`, `downFractionColumns`).
+- Merging and clipping of down periods (`DowntimeTimeline.merged`). The bar itself has its own rule on iOS: grey track, one mark per outage at least 3 pt wide, red from 60 s on, yellow below (`DowntimeTimeline.marks`).
 - Backend timestamps are UTC without a zone suffix (`BackendDate`).

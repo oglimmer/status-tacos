@@ -1,6 +1,7 @@
 /* Copyright (c) 2025 by oglimmer.com / Oliver Zimpasser. All rights reserved. */
 package de.oglimmer.status_tacos.dto;
 
+import de.oglimmer.status_tacos.persistence.MonitorEnvironment;
 import de.oglimmer.status_tacos.persistence.MonitorState;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -31,6 +32,9 @@ public class MonitorResponseDto {
 
   private String dailyPauseUntil;
   private String dailyPauseTimezone;
+
+  /** DEV, STAGE or PROD. Null (left out of the JSON): not set. */
+  private MonitorEnvironment environment;
 
   private Map<String, String> httpHeaders;
   private String statusCodeRegex;

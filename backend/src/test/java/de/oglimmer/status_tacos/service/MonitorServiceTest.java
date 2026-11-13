@@ -8,6 +8,7 @@ import static org.mockito.Mockito.*;
 
 import de.oglimmer.status_tacos.dto.MonitorRequestDto;
 import de.oglimmer.status_tacos.persistence.Monitor;
+import de.oglimmer.status_tacos.persistence.MonitorEnvironment;
 import de.oglimmer.status_tacos.persistence.MonitorState;
 import de.oglimmer.status_tacos.repository.MonitorRepository;
 import java.time.LocalDateTime;
@@ -260,5 +261,56 @@ class MonitorServiceTest {
     assertThat(result.get(0).getName()).contains("Test");
 
     verify(monitorRepository).findByTenantIdAndNameContainingIgnoreCase(TEST_TENANT_ID, "Test");
+  }
+
+  @Test
+  void createMonitor_storesEnvironment() {
+    when(monitorRepository.findByTenantIdAndUrlIgnoreCase(TEST_TENANT_ID, testRequestDto.getUrl()))
+        .thenReturn(Optional.empty());
+    when(monitorRepository.save(any(Monitor.class))).thenAnswer(inv -> inv.getArgument(0));
+    testRequestDto.setEnvironment(MonitorEnvironment.STAGE);
+
+    Monitor result = monitorService.createMonitor(TEST_TENANT_ID, testRequestDto);
+
+    assertThat(result.getEnvironment()).isEqualTo(MonitorEnvironment.STAGE);
+  }
+
+  @Test
+  void createMonitor_withoutEnvironment_hasNone() {
+    when(monitorRepository.findByTenantIdAndUrlIgnoreCase(TEST_TENANT_ID, testRequestDto.getUrl()))
+        .thenReturn(Optional.empty());
+    when(monitorRepository.save(any(Monitor.class))).thenAnswer(inv -> inv.getArgument(0));
+
+    Monitor result = monitorService.createMonitor(TEST_TENANT_ID, testRequestDto);
+
+    assertThat(result.getEnvironment()).isNull();
+  }
+
+  @Test
+  void updateMonitor_setsAndClearsEnvironment() {
+    when(monitorRepository.findByIdAndTenantId(1, TEST_TENANT_ID))
+        .thenReturn(Optional.of(testMonitor));
+    when(monitorRepository.save(any(Monitor.class))).thenAnswer(inv -> inv.getArgument(0));
+
+    testRequestDto.setEnvironment(MonitorEnvironment.PROD);
+    assertThat(monitorService.updateMonitor(TEST_TENANT_ID, 1, testRequestDto).getEnvironment())
+        .isEqualTo(MonitorEnvironment.PROD);
+
+    testRequestDto.setEnvironment(null);
+    assertThat(monitorService.updateMonitor(TEST_TENANT_ID, 1, testRequestDto).getEnvironment())
+        .isNull();
+  }
+
+  @Test
+  void updateMonitorState_keepsEnvironment() {
+    testMonitor.setEnvironment(MonitorEnvironment.DEV);
+    when(monitorRepository.findByIdAndTenantId(1, TEST_TENANT_ID))
+        .thenReturn(Optional.of(testMonitor));
+    when(monitorRepository.save(any(Monitor.class))).thenAnswer(inv -> inv.getArgument(0));
+
+    Monitor result = monitorService.updateMonitorState(TEST_TENANT_ID, 1, MonitorState.INACTIVE);
+
+    assertThat(result.getState()).isEqualTo(MonitorState.INACTIVE);
+    assertThat(result.getEnvironment()).isEqualTo(MonitorEnvironment.DEV);
   }
 }

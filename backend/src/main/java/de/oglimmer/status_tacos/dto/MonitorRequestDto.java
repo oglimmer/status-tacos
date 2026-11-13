@@ -3,6 +3,7 @@ package de.oglimmer.status_tacos.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import de.oglimmer.status_tacos.persistence.DailyPause;
+import de.oglimmer.status_tacos.persistence.MonitorEnvironment;
 import de.oglimmer.status_tacos.persistence.MonitorState;
 import de.oglimmer.status_tacos.persistence.SilenceDuration;
 import de.oglimmer.status_tacos.validation.HttpUrl;
@@ -81,6 +82,9 @@ public class MonitorRequestDto {
         || dailyPauseTimezone.isBlank()
         || DailyPause.isValidZone(dailyPauseTimezone);
   }
+
+  /** DEV, STAGE or PROD. Null or empty: not set. Other values give a 400. */
+  private MonitorEnvironment environment;
 
   private Map<String, String> httpHeaders;
 

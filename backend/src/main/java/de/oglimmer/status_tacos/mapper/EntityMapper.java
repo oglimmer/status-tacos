@@ -50,5 +50,11 @@ public interface EntityMapper {
   @Mapping(target = "monitorUrl", source = "monitor.url")
   @Mapping(target = "tenantId", source = "monitor.tenant.id")
   @Mapping(target = "tenant", source = "monitor.tenant")
+  // The column keeps the start of the last outage after the monitor is up again (for the UP
+  // alert). The API shows it only during an outage.
+  @Mapping(
+      target = "outageStartedAt",
+      expression =
+          "java(monitorStatus.getCurrentStatus() == MonitorStatus.StatusType.down ? monitorStatus.getOutageStartedAt() : null)")
   MonitorStatusResponseDto toDto(MonitorStatus monitorStatus);
 }

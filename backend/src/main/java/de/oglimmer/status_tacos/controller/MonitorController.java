@@ -1,6 +1,10 @@
 /* Copyright (c) 2025 by oglimmer.com / Oliver Zimpasser. All rights reserved. */
 package de.oglimmer.status_tacos.controller;
 
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
+import com.fasterxml.jackson.databind.exc.MismatchedInputException;
+import com.fasterxml.jackson.databind.exc.ValueInstantiationException;
 import de.oglimmer.status_tacos.dto.MonitorRequestDto;
 import de.oglimmer.status_tacos.dto.MonitorResponseDto;
 import de.oglimmer.status_tacos.mapper.EntityMapper;
@@ -12,13 +16,16 @@ import de.oglimmer.status_tacos.service.MonitorMoveService;
 import de.oglimmer.status_tacos.service.MonitorService;
 import de.oglimmer.status_tacos.service.UserTenantResolver;
 import jakarta.validation.Valid;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -224,6 +231,44 @@ public class MonitorController {
 
     log.warn("Failed to toggle monitor status: {} - not found in any accessible tenant", id);
     return ResponseEntity.notFound().build();
+  }
+
+  /**
+   * The JSON body cannot be read, for example an unknown environment or state. 400 with a message
+   * that names the field and the allowed values.
+   */
+  @ExceptionHandler(HttpMessageNotReadableException.class)
+  public ResponseEntity<Map<String, String>> unreadableRequest(HttpMessageNotReadableException e) {
+    String message = describe(e);
+    log.warn("Invalid monitor request: {}", message);
+    return ResponseEntity.badRequest().body(Map.of("error", "invalid_request", "message", message));
+  }
+
+  static String describe(HttpMessageNotReadableException e) {
+    Throwable cause = e.getCause();
+    if (cause instanceof ValueInstantiationException vie
+        && vie.getCause() instanceof IllegalArgumentException iae) {
+      // Our own JSON creators, for example MonitorEnvironment: their message is already clear
+      return iae.getMessage();
+    }
+    if (cause instanceof MismatchedInputException mie
+        && mie.getTargetType() != null
+        && mie.getTargetType().isEnum()) {
+      String allowed =
+          Arrays.stream(mie.getTargetType().getEnumConstants())
+              .map(Object::toString)
+              .collect(Collectors.joining(", "));
+      String value = mie instanceof InvalidFormatException ife ? ", not: " + ife.getValue() : "";
+      return fieldOf(mie) + " must be one of " + allowed + value;
+    }
+    if (cause instanceof JsonMappingException jme && !jme.getPath().isEmpty()) {
+      return "Invalid value for " + fieldOf(jme);
+    }
+    return "The request body is not valid JSON";
+  }
+
+  private static String fieldOf(JsonMappingException e) {
+    return e.getPath().isEmpty() ? "value" : String.valueOf(e.getPath().getLast().getFieldName());
   }
 
   /** The user has the maximum number of monitors. The frontend shows the message. */

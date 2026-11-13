@@ -3,6 +3,7 @@ import { } from 'vue'
 import ResponseTimeChart from './ResponseTimeChart.vue'
 import StatusChart from './StatusChart.vue'
 import MonitorStateButton from './MonitorStateButton.vue'
+import EnvironmentBadge from './EnvironmentBadge.vue'
 import type { MonitorResponse, MonitorState, SilentFor } from '../stores/monitors'
 
 interface MonitorStatus {
@@ -107,7 +108,7 @@ const getUptimeClass = (history: ResponseTimeHistory | null): string => {
 <template>
   <div class="monitor-card">
     <div class="monitor-header">
-      <h3>{{ monitor.name }}</h3>
+      <h3>{{ monitor.name }}<EnvironmentBadge :environment="monitor.environment" /></h3>
       <div class="monitor-status">
         <span
           :class="getStatusBadgeClass(status?.currentStatus || 'down')"

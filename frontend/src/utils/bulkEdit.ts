@@ -12,6 +12,7 @@ export type BulkEditField =
   | 'statusCodeRegex'
   | 'useSystemDns'
   | 'showOnPublicPage'
+  | 'environment'
 
 /** silentFor goes with state SILENT: how long the silence is. */
 export type BulkPatch = Partial<Pick<MonitorRequest, BulkEditField | 'silentFor'>>
@@ -38,6 +39,8 @@ export function toBulkRequest(monitor: MonitorResponse, patch: BulkPatch): Monit
     dailyPauseFrom: monitor.dailyPauseFrom ?? undefined,
     dailyPauseUntil: monitor.dailyPauseUntil ?? undefined,
     dailyPauseTimezone: monitor.dailyPauseTimezone ?? undefined,
+    // The PUT removes an environment that is not sent
+    environment: monitor.environment ?? null,
     ...patch
   }
 }

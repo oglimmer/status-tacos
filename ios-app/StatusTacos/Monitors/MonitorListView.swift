@@ -12,6 +12,7 @@ struct MonitorListView: View {
     @AppStorage("monitorList.sortAscending") private var sortAscending = true
     @Environment(\.scenePhase) private var scenePhase
     @Environment(APIClient.self) private var api
+    @Environment(AppSettings.self) private var settings
 
     private static let refreshInterval: Duration = .seconds(30)
 
@@ -21,10 +22,20 @@ struct MonitorListView: View {
 
     var body: some View {
         List {
+            // A header without rows: it sits closer to the toolbar than a first row.
+            Section {
+            } header: {
+                titleRow
+                    .textCase(nil)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4))
+            }
+            .listSectionSpacing(0)
+
             if !store.tenants.isEmpty {
                 Section {
                     tenantPicker
                 }
+                .listSectionSpacing(12)
             }
 
             if !store.monitors.isEmpty {
@@ -38,35 +49,24 @@ struct MonitorListView: View {
             if let error = store.errorMessage, !store.monitors.isEmpty {
                 Section {
                     Label(error, systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Brand.silent)
                         .font(.subheadline)
                 }
             }
 
-            let sorted = visibleMonitors.sorted(by: sort, ascending: sortAscending)
-            if sort == .status {
-                let healths = sortAscending ? MonitorHealth.allCases : MonitorHealth.allCases.reversed()
-                ForEach(healths, id: \.self) { health in
-                    let rows = sorted.filter { $0.health == health }
-                    if !rows.isEmpty {
-                        monitorSection(rows, title: "\(health.title) (\(rows.count))")
-                    }
-                }
-            } else if !sorted.isEmpty {
-                monitorSection(sorted, title: "All monitors (\(sorted.count))")
-            }
-
-            if let lastUpdated = store.lastUpdated {
-                Section {
-                } footer: {
-                    Text("Updated \(lastUpdated, format: .dateTime.hour().minute().second())")
-                        .frame(maxWidth: .infinity)
-                }
+            ForEach(MonitorListSection.sections(
+                visibleMonitors, sort: sort, ascending: sortAscending, tenantName: selectedTenant?.name)
+            ) { section in
+                monitorSection(section)
             }
         }
         .listStyle(.insetGrouped)
         .overlay { emptyState }
+        // The page shows its own title row with the update time. The navigation title stays for the
+        // back button of the detail screen.
         .navigationTitle("Monitors")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(removing: .title)
         .navigationDestination(for: Int.self) { id in
             MonitorDetailView(monitorID: id, monitors: store, api: api)
         }
@@ -75,12 +75,15 @@ struct MonitorListView: View {
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 sortMenu
+                    .tint(.primary)
             }
             ToolbarItem(placement: .topBarTrailing) {
-                Button("Notifications", systemImage: "bell.badge") { showsNotifications = true }
+                Button("Notifications", systemImage: "bell") { showsNotifications = true }
+                    .tint(.primary)
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Settings", systemImage: "gearshape") { showsSettings = true }
+                    .tint(.primary)
             }
         }
         .sheet(isPresented: $showsNotifications) { NotificationsView(monitors: store) }
@@ -113,7 +116,27 @@ struct MonitorListView: View {
         }
     }
 
-    private var showsTenant: Bool { store.tenants.count > 1 && tenantFilter == 0 }
+    /// "Monitors" with the time of the last refresh on the same baseline. It scrolls with the list.
+    private var titleRow: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text("Monitors")
+                .font(.largeTitle.bold())
+                // Explicit colors: a section header turns the hierarchical styles grey.
+                .foregroundStyle(Color(.label))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .layoutPriority(1)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 0)
+            if let lastUpdated = store.lastUpdated {
+                Text("Updated \(lastUpdated, format: .dateTime.hour().minute().second())")
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(Color(.secondaryLabel))
+                    .lineLimit(1)
+            }
+        }
+        .padding(.bottom, 6)
+    }
 
     private var filteredByTenant: [MonitorSummary] {
         guard tenantFilter != 0, store.tenants.contains(where: { $0.id == tenantFilter }) else {
@@ -130,18 +153,25 @@ struct MonitorListView: View {
         }
     }
 
-    private func monitorSection(_ rows: [MonitorSummary], title: String) -> some View {
+    private func monitorSection(_ section: MonitorListSection) -> some View {
         Section {
-            ForEach(rows) { monitor in
-                NavigationLink(value: monitor.id) {
-                    MonitorRow(monitor: monitor, showsTenant: showsTenant,
-                               isUpdating: store.updatingStateIDs.contains(monitor.id))
+            ForEach(section.monitors) { monitor in
+                // The link sits invisible behind the row: the row navigates on tap, without the chevron.
+                ZStack {
+                    NavigationLink(value: monitor.id) { EmptyView() }
+                        .opacity(0)
+                    MonitorRow(monitor: monitor, isUpdating: store.updatingStateIDs.contains(monitor.id),
+                               now: store.lastUpdated ?? .now)
                 }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(monitor.rowAccessibilityLabel(
+                    now: store.lastUpdated ?? .now, isUpdating: store.updatingStateIDs.contains(monitor.id)))
+                .accessibilityAddTraits(.isButton)
                 .swipeActions(edge: .trailing) { swipeActions(for: monitor) }
                 .contextMenu { stateMenu(for: monitor) }
             }
         } header: {
-            Text(title)
+            Text(section.title)
         }
     }
 
@@ -228,22 +258,18 @@ struct MonitorListView: View {
             }
         } label: {
             HStack(spacing: 8) {
-                Label {
-                    Text("Tenant").foregroundStyle(.primary)
-                } icon: {
-                    Image(systemName: "building.2")
-                }
-                .layoutPriority(1)
+                Label("Tenant", systemImage: "building.2")
+                    .layoutPriority(1)
                 Spacer(minLength: 12)
                 Text(selectedTenant?.name ?? "All tenants")
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .foregroundStyle(.secondary)
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.secondary)
             }
+            .foregroundStyle(settings.accentColor)
         }
+        .tint(settings.accentColor)
         .accessibilityLabel("Tenant")
         .accessibilityValue(selectedTenant?.name ?? "All tenants")
     }
@@ -281,7 +307,7 @@ struct MonitorListView: View {
     }
 }
 
-/// Counts per health, with the most important first.
+/// Counts per health, with the most important first. Number and word on one line.
 private struct SummaryHeader: View {
     let monitors: [MonitorSummary]
 
@@ -295,19 +321,93 @@ private struct SummaryHeader: View {
 
     private func tile(_ health: MonitorHealth) -> some View {
         let count = monitors.filter { $0.health == health }.count
-        let highlighted = health == .down && count > 0
-        return VStack(alignment: .leading, spacing: 4) {
-            Label(health.title, systemImage: health.symbol)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(highlighted ? .white : health.color)
-            Text("\(count)")
-                .font(.title.weight(.bold).monospacedDigit())
-                .foregroundStyle(highlighted ? .white : .primary)
+        let style = MonitorCounterStyle(health: health, count: count)
+        return ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                number(count, style)
+                word(health, style)
+            }
+            VStack(alignment: .leading, spacing: 0) {
+                number(count, style)
+                word(health, style)
+            }
         }
+        .lineLimit(1)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(highlighted ? AnyShapeStyle(Color.red) : AnyShapeStyle(Color(.secondarySystemGroupedBackground)),
-                    in: .rect(cornerRadius: 12))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 18))
         .accessibilityElement(children: .combine)
+    }
+
+    private func number(_ count: Int, _ style: MonitorCounterStyle) -> some View {
+        Text("\(count)")
+            .font(.title.weight(.medium).monospacedDigit())
+            .foregroundStyle(style.numberColor)
+    }
+
+    private func word(_ health: MonitorHealth, _ style: MonitorCounterStyle) -> some View {
+        Text(health.title)
+            .font(.subheadline)
+            .foregroundStyle(style.wordColor)
+    }
+}
+
+/// Colors of a counter tile: only the down count is red, and only when there is one.
+struct MonitorCounterStyle {
+    enum Tone: Equatable { case down, up, neutral }
+
+    let number: Tone
+    let word: Tone
+
+    init(health: MonitorHealth, count: Int) {
+        switch health {
+        case .down where count > 0:
+            number = .down
+            word = .down
+        case .up:
+            number = .up
+            word = .neutral
+        default:
+            number = .neutral
+            word = .neutral
+        }
+    }
+
+    var numberColor: AnyShapeStyle { Self.style(number) }
+    var wordColor: AnyShapeStyle { Self.style(word) }
+
+    private static func style(_ tone: Tone) -> AnyShapeStyle {
+        switch tone {
+        case .down: AnyShapeStyle(Brand.down)
+        case .up: AnyShapeStyle(Brand.up)
+        case .neutral: AnyShapeStyle(.secondary)
+        }
+    }
+}
+
+/// One group of the monitor list.
+struct MonitorListSection: Identifiable {
+    let id: String
+    let title: String
+    let monitors: [MonitorSummary]
+
+    /// The status sort groups by health: down, no data, up, paused (reversed when descending). With
+    /// a tenant filter the up group carries the tenant name. Other sorts: one group with all monitors.
+    static func sections(
+        _ monitors: [MonitorSummary], sort: MonitorSort, ascending: Bool, tenantName: String?
+    ) -> [MonitorListSection] {
+        let sorted = monitors.sorted(by: sort, ascending: ascending)
+        guard sort == .status else {
+            return sorted.isEmpty ? [] : [MonitorListSection(
+                id: "all", title: "All monitors (\(sorted.count))", monitors: sorted)]
+        }
+        let healths = ascending ? MonitorHealth.allCases : MonitorHealth.allCases.reversed()
+        return healths.compactMap { health in
+            let rows = sorted.filter { $0.health == health }
+            guard !rows.isEmpty else { return nil }
+            let name = health == .up ? (tenantName ?? health.title) : health.title
+            return MonitorListSection(id: "\(health)", title: "\(name) (\(rows.count))", monitors: rows)
+        }
     }
 }

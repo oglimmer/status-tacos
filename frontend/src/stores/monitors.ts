@@ -9,10 +9,15 @@ export type MonitorState = 'ACTIVE' | 'SILENT' | 'INACTIVE'
 /** How long a silent monitor sends no alerts. Then it is active again. */
 export type SilentFor = '1h' | '24h' | '3d' | '7d'
 
+/** Where the monitored service runs. Not set: null or missing. */
+export type MonitorEnvironment = 'DEV' | 'STAGE' | 'PROD'
+
 export interface MonitorRequest {
   name: string
   url: string
   tenantId: number
+  // Null or missing: not set. A PUT without it removes it.
+  environment?: MonitorEnvironment | null
   state: MonitorState
   // Only for SILENT. Empty: a running silence keeps its end, a new one gets 24h.
   silentFor?: SilentFor
@@ -48,6 +53,8 @@ export interface MonitorResponse {
     createdAt: string
     updatedAt: string
   }
+  // Missing from older servers. Null: not set.
+  environment?: MonitorEnvironment | null
   state: MonitorState
   // End of the silence (UTC, with Z). Only for SILENT.
   silentUntil?: string
@@ -97,6 +104,8 @@ export interface MonitorStatus {
   lastErrorMessage?: string | null
   // What the other server saw before the DOWN alert. Missing when it was not asked.
   peerResult?: PeerResult | null
+  // Start of the running outage. Null when the monitor is not in an outage. Missing from older servers.
+  outageStartedAt?: string | null
   updatedAt: string
 }
 
@@ -133,6 +142,12 @@ export interface ResponseTimeHistory {
   statusDownPeriods: StatusDownPeriod[]
   // First check in the 24 hours. Missing when there are no checks, and from older servers.
   firstCheckAt?: string
+  // Response times of the successful checks in the 24 hours, in ms. Null without successful checks.
+  // Missing from older servers.
+  minResponseTimeMs?: number | null
+  maxResponseTimeMs?: number | null
+  avgResponseTimeMs?: number | null
+  p99ResponseTimeMs?: number | null
 }
 
 /**

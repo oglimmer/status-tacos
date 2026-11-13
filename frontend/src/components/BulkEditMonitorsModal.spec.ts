@@ -60,4 +60,40 @@ describe('BulkEditMonitorsModal', () => {
 
     wrapper.unmount()
   })
+
+  it('keeps the environment on other changes, and sets it on many monitors', async () => {
+    updateMonitor.mockReset().mockImplementation(async (id: number, data: MonitorRequest) => ({ ...makeMonitor(id, 0), ...data }))
+    const monitors = [
+      { ...makeMonitor(1, 15), environment: 'PROD' },
+      { ...makeMonitor(2, 15), environment: 'DEV' },
+      makeMonitor(3, 15)
+    ] as MonitorResponse[]
+
+    // A change of another field keeps the environment of each monitor
+    let wrapper = mount(BulkEditMonitorsModal, { props: { monitors }, attachTo: document.body })
+    expect(document.body.textContent).toContain('Mixed: Production (1) · Development (1) · Not set (1)')
+    document.querySelectorAll<HTMLInputElement>('.field-toggle input')[1]!.click()
+    await flushPromises()
+    document.querySelector<HTMLFormElement>('.bulk-form')!.dispatchEvent(new Event('submit'))
+    await flushPromises()
+    expect(updateMonitor.mock.calls.map(([, data]) => data.environment)).toEqual(['PROD', 'DEV', null])
+    wrapper.unmount()
+
+    // Set the environment of all
+    updateMonitor.mockClear()
+    wrapper = mount(BulkEditMonitorsModal, { props: { monitors }, attachTo: document.body })
+    const toggles = document.querySelectorAll<HTMLInputElement>('.field-toggle input')
+    toggles[toggles.length - 1]!.click()
+    await flushPromises()
+    const stage = [...document.querySelectorAll<HTMLLabelElement>('.segmented label')].find((l) =>
+      l.textContent?.includes('Stage')
+    )!
+    stage.querySelector('input')!.click()
+    await flushPromises()
+    document.querySelector<HTMLFormElement>('.bulk-form')!.dispatchEvent(new Event('submit'))
+    await flushPromises()
+    expect(updateMonitor.mock.calls.map(([, data]) => data.environment)).toEqual(['STAGE', 'STAGE', 'STAGE'])
+    expect(document.body.textContent).toContain('Environment → Stage')
+    wrapper.unmount()
+  })
 })

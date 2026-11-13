@@ -202,12 +202,14 @@ public class UptimeStatsService {
                       .sum();
               long totalSeconds = checks.stream().mapToLong(CheckPoint::checkInterval).sum();
               TreeMap<LocalDateTime, Integer> maxByBucket = new TreeMap<>();
+              ResponseTimes responseTimes = new ResponseTimes();
               for (CheckPoint check : checks) {
                 if (check.isUp() && check.responseTimeMs() != null) {
                   maxByBucket.merge(
                       bucketStart(start, check.checkedAt(), HISTORY_24H_INTERVAL_MINUTES),
                       check.responseTimeMs(),
                       Math::max);
+                  responseTimes.add(check.responseTimeMs());
                 }
               }
               return ResponseTimeHistoryResponseDto.builder()
@@ -218,6 +220,10 @@ public class UptimeStatsService {
                   .uptimePercentage24h(uptimePercentage(upSeconds, totalSeconds))
                   .totalChecks24h(checks.size())
                   .successfulChecks24h((int) up)
+                  .minResponseTimeMs(responseTimes.min)
+                  .maxResponseTimeMs(responseTimes.max)
+                  .avgResponseTimeMs(responseTimes.avg())
+                  .p99ResponseTimeMs(responseTimes.p99())
                   .dataPoints(toDataPoints(maxByBucket))
                   .statusDownPeriods(downPeriods.getOrDefault(monitor.getId(), List.of()))
                   .firstCheckAt(
@@ -383,6 +389,35 @@ public class UptimeStatsService {
 
   private static <T> Map<Integer, List<T>> groupBy(List<T> rows, Function<T, Integer> key) {
     return rows.stream().collect(Collectors.groupingBy(key));
+  }
+
+  /**
+   * Min, max, average and p99 of raw response times, the same values as {@link Totals} and the
+   * histogram give for the roll-ups. The p99 uses the same histogram, so it matches the 7-day and
+   * 90-day values.
+   */
+  private static final class ResponseTimes {
+    long count;
+    long sum;
+    Integer min;
+    Integer max;
+    final ResponseTimeHistogram histogram = new ResponseTimeHistogram();
+
+    void add(int responseTimeMs) {
+      count++;
+      sum += responseTimeMs;
+      min = min == null ? responseTimeMs : Math.min(min, responseTimeMs);
+      max = max == null ? responseTimeMs : Math.max(max, responseTimeMs);
+      histogram.add(ResponseTimeHistogram.bucketOf(responseTimeMs), 1);
+    }
+
+    Integer avg() {
+      return count == 0 ? null : (int) Math.round((double) sum / count);
+    }
+
+    Integer p99() {
+      return histogram.percentile(99, min, max);
+    }
   }
 
   private static final class Totals {

@@ -16,8 +16,19 @@ enum Brand {
     static let ink = Color(light: 0x102E2A, dark: 0xE4EFEB)
     static let inkSoft = Color(light: 0x3D5A55, dark: 0xA9C2BC)
     static let line = Color(light: 0x102E2A, dark: 0x6F8F89)
+    /// The one green of the app: up, OK, healthy.
     static let up = Color(light: 0x2E8B47, dark: 0x4CB86A)
+    /// The one red of the app: down, failed, outage.
     static let down = Color(light: 0xD2412B, dark: 0xE85A43)
+    /// Silent monitors (checked, no alerts) and warnings.
+    static let silent = Color(light: 0xD9821E, dark: 0xF0A04B)
+    /// Paused monitors (not checked).
+    static let paused = Color(light: 0x8E8E93, dark: 0x98989D)
+
+    /// Environment badges. The dark variants are lighter so they read on the dark card (#1C1C1E).
+    static let environmentProd = Color(light: 0x1F6FD1, dark: 0x5A9CF0)
+    static let environmentStage = Color(light: 0x8E44C9, dark: 0xB57EE5)
+    static let environmentDev = Color(light: 0x6E6E73, dark: 0xA1A1A6)
 
     /// The sign font. It grows with Dynamic Type like the text style it is relative to.
     static func sign(_ size: CGFloat, relativeTo style: Font.TextStyle) -> Font {

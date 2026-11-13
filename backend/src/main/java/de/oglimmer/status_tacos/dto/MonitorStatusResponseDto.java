@@ -23,6 +23,10 @@ public class MonitorStatusResponseDto {
   private LocalDateTime lastCheckedAt;
   private LocalDateTime lastUpAt;
   private LocalDateTime lastDownAt;
+
+  /** First failed check of the current outage. Null when the monitor is up. */
+  private LocalDateTime outageStartedAt;
+
   private Integer consecutiveFailures;
   private Integer lastResponseTimeMs;
   private Integer lastStatusCode;

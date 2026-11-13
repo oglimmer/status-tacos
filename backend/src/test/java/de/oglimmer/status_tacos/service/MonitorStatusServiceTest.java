@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
+import de.oglimmer.status_tacos.dto.MonitorStatusResponseDto;
+import de.oglimmer.status_tacos.mapper.EntityMapper;
 import de.oglimmer.status_tacos.persistence.CheckResult;
 import de.oglimmer.status_tacos.persistence.Monitor;
 import de.oglimmer.status_tacos.persistence.MonitorStatus;
@@ -50,6 +52,23 @@ class MonitorStatusServiceTest {
 
     assertThat(status.getOutageStartedAt()).isEqualTo(T0.plusSeconds(15));
     assertThat(status.getConsecutiveFailures()).isEqualTo(2);
+  }
+
+  @Test
+  void apiShowsOutageStart_onlyDuringTheOutage() {
+    check(true, T0);
+    MonitorStatusResponseDto up = EntityMapper.INSTANCE.toDto(stored);
+    check(false, T0.plusSeconds(15));
+    MonitorStatusResponseDto down = EntityMapper.INSTANCE.toDto(check(false, T0.plusSeconds(30)));
+    MonitorStatus recovered = check(true, T0.plusSeconds(45));
+    MonitorStatusResponseDto upAgain = EntityMapper.INSTANCE.toDto(recovered);
+
+    assertThat(up.getOutageStartedAt()).isNull();
+    assertThat(down.getOutageStartedAt()).isEqualTo(T0.plusSeconds(15));
+    assertThat(down.getLastDownAt()).isEqualTo(T0.plusSeconds(30));
+    // The row keeps the start for the UP alert, the API does not show it
+    assertThat(recovered.getOutageStartedAt()).isEqualTo(T0.plusSeconds(15));
+    assertThat(upAgain.getOutageStartedAt()).isNull();
   }
 
   @Test

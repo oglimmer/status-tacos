@@ -268,6 +268,11 @@ class UptimeStatsIntegrationTest {
     // Before the first check the monitor did not exist: the downtime bar shows no data there.
     assertThat(stats.getFirstCheckAt()).isEqualTo(first);
     assertThat(history.getFirstCheckAt()).isEqualTo(first);
+    // No successful check: no response times
+    assertThat(history.getMinResponseTimeMs()).isNull();
+    assertThat(history.getMaxResponseTimeMs()).isNull();
+    assertThat(history.getAvgResponseTimeMs()).isNull();
+    assertThat(history.getP99ResponseTimeMs()).isNull();
     assertThat(stats.getStatusDownPeriods())
         .containsExactly(StatusDownPeriodsDto.builder().start(first).end(NOW).build());
   }
@@ -408,6 +413,17 @@ class UptimeStatsIntegrationTest {
     assertThat(history.getDataPoints()).isEqualTo(chart(window, start24h, 3));
     assertThat(history.getStatusDownPeriods()).isEqualTo(downPeriods(start24h, NOW));
     assertThat(history.getFirstCheckAt()).isEqualTo(window.getFirst().at());
+    List<Integer> rts24h = responseTimes(window);
+    assertThat(history.getMinResponseTimeMs()).isEqualTo(rts24h.getFirst());
+    assertThat(history.getMaxResponseTimeMs()).isEqualTo(rts24h.getLast());
+    assertThat(history.getAvgResponseTimeMs())
+        .isEqualTo(
+            (int)
+                Math.round(
+                    rts24h.stream().mapToLong(Integer::longValue).sum() / (double) rts24h.size()));
+    int exactP99 = rts24h.get((int) Math.ceil(0.99 * rts24h.size()) - 1);
+    assertThat((double) history.getP99ResponseTimeMs())
+        .isCloseTo(exactP99, within(exactP99 * 0.025));
 
     // The dashboard reads all monitors in one request: same result
     assertThat(statsService.getResponseTimeHistory24hOfAllMonitors(Set.of(tenant.getId())))

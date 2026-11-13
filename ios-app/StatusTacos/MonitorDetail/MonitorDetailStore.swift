@@ -16,7 +16,7 @@ struct PeriodSnapshot: Sendable {
     let uptimePercentage: Double?
     let totalChecks: Int?
     let successfulChecks: Int?
-    /// Only the 7 and 90 day stats have these.
+    /// 24h: nil when the server sends none of the values (older servers).
     let responseTimes: ResponseTimeSummary?
     let dataPoints: [ResponseTimeDataPoint]
     let downPeriods: [DownPeriod]
@@ -28,6 +28,8 @@ struct PeriodSnapshot: Sendable {
         let p99: Int?
         let minimum: Int?
         let maximum: Int?
+
+        var isEmpty: Bool { average == nil && p99 == nil && minimum == nil && maximum == nil }
     }
 
     /// The 24h history has no window: it ends at the time of the request.
@@ -37,7 +39,11 @@ struct PeriodSnapshot: Sendable {
         uptimePercentage = history.uptimePercentage24h
         totalChecks = history.totalChecks24h
         successfulChecks = history.successfulChecks24h
-        responseTimes = nil
+        let times = ResponseTimeSummary(
+            average: history.avgResponseTimeMs, p99: history.p99ResponseTimeMs,
+            minimum: history.minResponseTimeMs, maximum: history.maxResponseTimeMs)
+        // Older servers send none of them: the row is hidden.
+        responseTimes = times.isEmpty ? nil : times
         dataPoints = history.dataPoints ?? []
         downPeriods = history.statusDownPeriods ?? []
         checkedFrom = DowntimeTimeline.checkedFrom(

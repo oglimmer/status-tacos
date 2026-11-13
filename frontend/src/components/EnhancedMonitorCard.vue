@@ -10,6 +10,7 @@ import type { MonitorResponse, UptimeStats, MonitorState, PeerResult, SilentFor 
 import { formatSilenceEnd, formatSilenceEndLong } from '../utils/silence'
 import { formatPause, formatPauseInBrowserZone, isPaused, pauseOf } from '../utils/dailyPause'
 import MonitorStateButton from './MonitorStateButton.vue'
+import EnvironmentBadge from './EnvironmentBadge.vue'
 import { formatUptime, getTimeframeLabel } from '../utils/uptime'
 
 interface MonitorStatus {
@@ -179,6 +180,7 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
             @change="$emit('toggle-select', monitor.id)"
           />
           {{ monitor.name }}
+          <EnvironmentBadge :environment="monitor.environment" />
           <span
             v-if="isPeer"
             class="peer-badge"
@@ -216,6 +218,7 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
             @change="$emit('toggle-select', monitor.id)"
           />
           {{ monitor.name }}
+          <EnvironmentBadge :environment="monitor.environment" />
           <span
             v-if="isPeer"
             class="peer-badge"

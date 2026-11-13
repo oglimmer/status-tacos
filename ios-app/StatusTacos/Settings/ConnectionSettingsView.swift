@@ -25,7 +25,7 @@ struct ConnectionSettingsView: View {
                         .font(.subheadline)
                     } icon: {
                         Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(Brand.silent)
                     }
                     .padding(.vertical, 4)
                 }
@@ -69,7 +69,7 @@ struct ConnectionSettingsView: View {
                 if let validationMessage {
                     Section {
                         Label(validationMessage, systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.red)
+                            .foregroundStyle(Brand.down)
                     }
                 }
             }

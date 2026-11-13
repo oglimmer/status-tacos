@@ -56,6 +56,7 @@ public class MonitorService {
             .useSystemDns(Boolean.TRUE.equals(requestDto.getUseSystemDns()))
             .alertingThreshold(requestDto.getAlertingThreshold())
             .showOnPublicPage(Boolean.TRUE.equals(requestDto.getShowOnPublicPage()))
+            .environment(requestDto.getEnvironment())
             .build();
     applyState(monitor, requestDto.getState(), SilenceDuration.fromCode(requestDto.getSilentFor()));
     applyDailyPause(monitor, requestDto);
@@ -146,6 +147,8 @@ public class MonitorService {
     existingMonitor.setUseSystemDns(Boolean.TRUE.equals(requestDto.getUseSystemDns()));
     existingMonitor.setAlertingThreshold(requestDto.getAlertingThreshold());
     existingMonitor.setShowOnPublicPage(Boolean.TRUE.equals(requestDto.getShowOnPublicPage()));
+    // PUT replaces the monitor like the other fields: no environment in the request clears it
+    existingMonitor.setEnvironment(requestDto.getEnvironment());
     applyDailyPause(existingMonitor, requestDto);
 
     Monitor updatedMonitor = monitorRepository.save(existingMonitor);

@@ -3,9 +3,10 @@ import Testing
 @testable import StatusTacos
 
 private func monitor(_ id: Int, _ name: String, state: MonitorState = .active, tenant: Tenant? = nil,
-                     createdAt: Date? = nil) -> MonitorDTO {
+                     createdAt: Date? = nil, environment: MonitorEnvironment? = nil) -> MonitorDTO {
     MonitorDTO(id: id, name: name, url: "https://\(name.lowercased()).example.com/health",
-               tenantId: tenant?.id, tenant: tenant, state: state, alertingThreshold: 3, createdAt: createdAt)
+               tenantId: tenant?.id, tenant: tenant, state: state, alertingThreshold: 3, createdAt: createdAt,
+               environment: environment)
 }
 
 private func status(_ id: Int, _ type: StatusType, lastDownAt: Date? = nil) -> MonitorStatusDTO {
@@ -115,6 +116,55 @@ struct MonitorSummaryTests {
             weekStats: [])
         #expect(merged.sorted(by: .status, ascending: true).map(\.name) == ["Down", "Pending", "Up", "Paused"])
         #expect(merged.sorted(by: .status, ascending: false).map(\.name) == ["Paused", "Up", "Pending", "Down"])
+    }
+
+    @Test func statusSortGroupsByEnvironmentInsideAHealth() {
+        let merged = MonitorSummary.merge(
+            monitors: [
+                monitor(1, "a none"), monitor(2, "b dev", environment: .dev), monitor(3, "c stage", environment: .stage),
+                monitor(4, "d prod", environment: .prod), monitor(5, "a prod", environment: .prod),
+                monitor(6, "z down dev", environment: .dev), monitor(7, "y down none"),
+                monitor(8, "x down prod", environment: .prod),
+            ],
+            statuses: [status(1, .up), status(2, .up), status(3, .up), status(4, .up), status(5, .up),
+                       status(6, .down), status(7, .down), status(8, .down)],
+            weekStats: [])
+        let ascending = ["x down prod", "z down dev", "y down none", "a prod", "d prod", "c stage", "b dev", "a none"]
+        #expect(merged.map(\.name) == ascending)
+        #expect(merged.sorted(by: .status, ascending: true).map(\.name) == ascending)
+        #expect(merged.sorted(by: .status, ascending: false).map(\.name) == ascending.reversed())
+        #expect(merged.first?.environment == .prod)
+    }
+
+    @Test func otherSortsIgnoreTheEnvironment() {
+        let tenant = Tenant(id: 1, name: "T", code: nil)
+        let merged = MonitorSummary.merge(
+            monitors: [monitor(1, "a", tenant: tenant, createdAt: Date(timeIntervalSince1970: 100), environment: .dev),
+                       monitor(2, "b", tenant: tenant, createdAt: Date(timeIntervalSince1970: 100), environment: .prod),
+                       monitor(3, "c", tenant: tenant, createdAt: Date(timeIntervalSince1970: 100))],
+            statuses: [status(1, .up, lastDownAt: Date(timeIntervalSince1970: 5)),
+                       status(2, .up, lastDownAt: Date(timeIntervalSince1970: 5)),
+                       status(3, .up, lastDownAt: Date(timeIntervalSince1970: 5))],
+            weekStats: [])
+        for sort in [MonitorSort.name, .lastDown, .tenant, .created] {
+            #expect(merged.sorted(by: sort, ascending: true).map(\.name) == ["a", "b", "c"])
+        }
+    }
+
+    @Test func withStateKeepsTheEnvironment() {
+        let summary = MonitorSummary.merge(
+            monitors: [monitor(1, "A", environment: .stage)], statuses: [], weekStats: [])[0]
+        #expect(summary.with(state: .inactive).environment == .stage)
+        #expect(summary.with(state: .inactive).health == .paused)
+    }
+
+    @Test func stateTitlesAndColors() {
+        #expect(MonitorState.selectable.map(\.title) == ["Active", "Silent", "Paused"])
+        #expect(MonitorState.active.color == Brand.up)
+        #expect(MonitorState.silent.color == Brand.silent)
+        #expect(MonitorState.inactive.color == Brand.paused)
+        #expect(MonitorHealth.down.color == Brand.down)
+        #expect(MonitorHealth.up.color == Brand.up)
     }
 
     @Test func datesStartWithTheNewest() {

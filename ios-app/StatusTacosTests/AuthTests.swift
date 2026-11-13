@@ -155,4 +155,44 @@ struct AppSettingsTests {
         reloaded.resetToDefaults()
         #expect(AppSettings(defaults: defaults).serverURL == AppSettings.defaultServerURL)
     }
+
+    @Test(arguments: [
+        ("33ADA4", "33ADA4"), ("#33ada4", "33ADA4"), ("  #FfA0b1 ", "FFA0B1"), ("000000", "000000"),
+    ])
+    func hexColorsAreNormalized(_ input: String, _ expected: String) {
+        #expect(AppSettings.normalizedHex(input) == expected)
+    }
+
+    @Test(arguments: ["", "#", "33ADA", "33ADA44", "##33ADA4", "GG0000", "33 ADA4", "0x33AD", "#33ADA4#", "１２３４５６"])
+    func invalidHexColorsAreRejected(_ input: String) {
+        #expect(AppSettings.normalizedHex(input) == nil)
+    }
+
+    @MainActor
+    @Test func storesTheAccentColor() throws {
+        let suite = "test.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let settings = AppSettings(defaults: defaults)
+        #expect(settings.accentColorHex == "33ADA4")
+        #expect(AppSettings.defaultAccentColorHex == "33ADA4")
+
+        #expect(settings.setAccentColor(hex: "#ff8800"))
+        #expect(settings.accentColorHex == "FF8800")
+        #expect(!settings.setAccentColor(hex: "nope"))
+        #expect(settings.accentColorHex == "FF8800")
+        #expect(AppSettings(defaults: defaults).accentColorHex == "FF8800")
+
+        // The connection reset keeps the appearance.
+        settings.resetToDefaults()
+        #expect(AppSettings(defaults: defaults).accentColorHex == "FF8800")
+
+        settings.resetAccentColor()
+        #expect(AppSettings(defaults: defaults).accentColorHex == "33ADA4")
+
+        // A broken stored value falls back to the default.
+        defaults.set("xyz", forKey: "settings.accentColorHex")
+        #expect(AppSettings(defaults: defaults).accentColorHex == "33ADA4")
+    }
 }

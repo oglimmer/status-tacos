@@ -11,13 +11,21 @@ struct StatusTacosApp: App {
 
     init() {
         Brand.registerFonts()
+        #if DEBUG
+        if let demo = DemoMode.fromLaunchArguments() {
+            self.init(settings: demo.settings, auth: demo.auth, api: demo.api, push: demo.push, router: demo.router)
+            return
+        }
+        #endif
         let settings = AppSettings()
         let tokenStore = KeychainTokenStore()
         AuthStore.clearTokensAfterInstall(tokenStore)
         let auth = AuthStore(settings: settings, tokenStore: tokenStore)
         let api = APIClient(settings: settings, auth: auth)
-        let push = PushStore(api: api)
-        let router = NotificationRouter()
+        self.init(settings: settings, auth: auth, api: api, push: PushStore(api: api), router: NotificationRouter())
+    }
+
+    private init(settings: AppSettings, auth: AuthStore, api: APIClient, push: PushStore, router: NotificationRouter) {
         AppDelegate.push = push
         AppDelegate.router = router
         _settings = State(initialValue: settings)

@@ -50,6 +50,8 @@ struct SettingsView: View {
                     Text("Deletes your login account and every tenant only you belong to, with its monitors and alert contacts.")
                 }
 
+                AppearanceSection()
+
                 Section {
                     LabeledContent("Server", value: settings.serverURL.absoluteString)
                     LabeledContent("Issuer", value: settings.issuerURL.absoluteString)
@@ -118,5 +120,62 @@ struct SettingsView: View {
         let version = info?["CFBundleShortVersionString"] as? String ?? "?"
         let build = info?["CFBundleVersion"] as? String ?? "?"
         return "\(version) (\(build))"
+    }
+}
+
+/// The accent color: a hex field with a swatch. Valid input is stored as you type.
+private struct AppearanceSection: View {
+    @Environment(AppSettings.self) private var settings
+    @State private var hexText = ""
+    @State private var didLoad = false
+
+    private var isValid: Bool { AppSettings.normalizedHex(hexText) != nil }
+
+    var body: some View {
+        Section {
+            HStack(spacing: 12) {
+                Text("Accent color")
+                Spacer()
+                TextField("RRGGBB", text: $hexText)
+                    .font(.body.monospaced())
+                    .multilineTextAlignment(.trailing)
+                    .textInputAutocapitalization(.characters)
+                    .autocorrectionDisabled()
+                    .keyboardType(.asciiCapable)
+                    .submitLabel(.done)
+                    .foregroundStyle(isValid ? Color.primary : Brand.down)
+                    .frame(maxWidth: 120)
+                    .accessibilityLabel("Accent color, hex")
+                    .accessibilityValue(isValid ? hexText : "\(hexText), invalid")
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(settings.accentColor)
+                    .frame(width: 28, height: 28)
+                    .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.separator))
+                    .accessibilityHidden(true)
+            }
+            if !isValid {
+                Label("Enter 6 hex digits, like 33ADA4.", systemImage: "exclamationmark.triangle.fill")
+                    .font(.footnote)
+                    .foregroundStyle(Brand.down)
+            }
+            Button("Reset") {
+                settings.resetAccentColor()
+                hexText = settings.accentColorHex
+            }
+            .disabled(settings.accentColorHex == AppSettings.defaultAccentColorHex && isValid
+                      && AppSettings.normalizedHex(hexText) == settings.accentColorHex)
+        } header: {
+            Text("Appearance")
+        } footer: {
+            Text("Color of the tenant selector in the monitor list.")
+        }
+        .onAppear {
+            guard !didLoad else { return }
+            didLoad = true
+            hexText = settings.accentColorHex
+        }
+        .onChange(of: hexText) { _, text in
+            settings.setAccentColor(hex: text)
+        }
     }
 }

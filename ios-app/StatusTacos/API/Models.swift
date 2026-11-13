@@ -59,6 +59,74 @@ struct MonitorDTO: Decodable, Sendable {
     let state: MonitorState
     let alertingThreshold: Int?
     var createdAt: Date? = nil
+    /// Nil when not set, unknown, and from older servers.
+    var environment: MonitorEnvironment? = nil
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, url, tenantId, tenant, state, alertingThreshold, createdAt, environment
+    }
+
+    init(id: Int, name: String, url: String, tenantId: Int?, tenant: Tenant?, state: MonitorState,
+         alertingThreshold: Int?, createdAt: Date? = nil, environment: MonitorEnvironment? = nil) {
+        self.id = id
+        self.name = name
+        self.url = url
+        self.tenantId = tenantId
+        self.tenant = tenant
+        self.state = state
+        self.alertingThreshold = alertingThreshold
+        self.createdAt = createdAt
+        self.environment = environment
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(Int.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        url = try container.decode(String.self, forKey: .url)
+        tenantId = try container.decodeIfPresent(Int.self, forKey: .tenantId)
+        tenant = try container.decodeIfPresent(Tenant.self, forKey: .tenant)
+        state = try container.decode(MonitorState.self, forKey: .state)
+        alertingThreshold = try container.decodeIfPresent(Int.self, forKey: .alertingThreshold)
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
+        // Never fails the list: a wrong type or an unknown value is no environment.
+        environment = (try? container.decodeIfPresent(String.self, forKey: .environment))
+            .flatMap(MonitorEnvironment.init(wireValue:))
+    }
+}
+
+/// Environment of a monitor, set by the user.
+enum MonitorEnvironment: String, CaseIterable, Sendable, Comparable {
+    case prod = "PROD"
+    case stage = "STAGE"
+    case dev = "DEV"
+
+    /// Case-insensitive. Nil for unknown values.
+    init?(wireValue: String) {
+        self.init(rawValue: wireValue.trimmingCharacters(in: .whitespacesAndNewlines).uppercased())
+    }
+
+    /// Sort order: production first. Monitors without an environment come after all of these.
+    var rank: Int {
+        switch self {
+        case .prod: 0
+        case .stage: 1
+        case .dev: 2
+        }
+    }
+
+    static func < (lhs: Self, rhs: Self) -> Bool { lhs.rank < rhs.rank }
+
+    /// Text of the badge: "PROD", "STAGE", "DEV".
+    var badgeText: String { rawValue }
+
+    var accessibilityName: String {
+        switch self {
+        case .prod: "Production"
+        case .stage: "Stage"
+        case .dev: "Development"
+        }
+    }
 }
 
 /// GET /v1/monitor-statuses (only monitors that are ACTIVE or SILENT)
@@ -72,6 +140,10 @@ struct MonitorStatusDTO: Decodable, Sendable {
     let consecutiveFailures: Int?
     let lastResponseTimeMs: Int?
     let lastStatusCode: Int?
+    /// Error of the last failed check, for example a timeout.
+    var lastErrorMessage: String? = nil
+    /// Start of the current outage. Nil when up, and from older servers.
+    var outageStartedAt: Date? = nil
 }
 
 struct ResponseTimeDataPoint: Decodable, Sendable, Hashable {
@@ -99,6 +171,11 @@ struct ResponseTimeHistoryDTO: Decodable, Sendable {
     let statusDownPeriods: [DownPeriod]?
     /// Null when there are no checks, and from older servers.
     var firstCheckAt: Date? = nil
+    /// Response times of the successful checks. Null when there are none, and from older servers.
+    var minResponseTimeMs: Int? = nil
+    var maxResponseTimeMs: Int? = nil
+    var avgResponseTimeMs: Int? = nil
+    var p99ResponseTimeMs: Int? = nil
 }
 
 /// Period names of the uptime stats API.

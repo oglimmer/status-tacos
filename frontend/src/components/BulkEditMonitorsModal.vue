@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, onUnmounted, reactive, ref } from 'vue'
 import FormModal from './FormModal.vue'
-import { useMonitorsStore, type MonitorResponse, type MonitorState, type SilentFor } from '../stores/monitors'
+import {
+  useMonitorsStore,
+  type MonitorEnvironment,
+  type MonitorResponse,
+  type MonitorState,
+  type SilentFor
+} from '../stores/monitors'
 import SilencePicker from './SilencePicker.vue'
 import { runWithConcurrency, toBulkRequest, type BulkEditField, type BulkPatch } from '../utils/bulkEdit'
 
@@ -39,7 +45,8 @@ const enabled = reactive<Record<BulkEditField, boolean>>({
   alertingThreshold: false,
   statusCodeRegex: false,
   useSystemDns: false,
-  showOnPublicPage: false
+  showOnPublicPage: false,
+  environment: false
 })
 
 const first = props.monitors[0]
@@ -51,7 +58,8 @@ const values = reactive({
   alertingThreshold: first?.alertingThreshold ?? 30,
   statusCodeRegex: first?.statusCodeRegex || '^[23]\\d{2}$',
   useSystemDns: first?.useSystemDns ?? false,
-  showOnPublicPage: first?.showOnPublicPage ?? false
+  showOnPublicPage: first?.showOnPublicPage ?? false,
+  environment: (first?.environment ?? null) as MonitorEnvironment | null
 })
 
 const FIELD_LABELS: Record<BulkEditField, string> = {
@@ -61,10 +69,19 @@ const FIELD_LABELS: Record<BulkEditField, string> = {
   alertingThreshold: 'Alerting threshold',
   statusCodeRegex: 'Status code regex',
   useSystemDns: 'DNS server of the backend',
-  showOnPublicPage: 'Show on public status page'
+  showOnPublicPage: 'Show on public status page',
+  environment: 'Environment'
 }
 
+const ENVIRONMENT_LABELS: Record<MonitorEnvironment, string> = {
+  PROD: 'Production',
+  STAGE: 'Stage',
+  DEV: 'Development'
+}
+const ENVIRONMENT_CHOICES = [null, 'PROD', 'STAGE', 'DEV'] as const
+
 const formatValue = (field: BulkEditField, value: unknown): string => {
+  if (field === 'environment') return value ? ENVIRONMENT_LABELS[value as MonitorEnvironment] : 'Not set'
   if (value === undefined || value === null || value === '') return '(none)'
   if (field === 'checkInterval' || field === 'connectTimeout' || field === 'alertingThreshold') return `${value}s`
   if (field === 'useSystemDns' || field === 'showOnPublicPage') return value ? 'On' : 'Off'
@@ -352,6 +369,20 @@ const title = computed(() => {
           </label>
           <label :class="{ selected: !values.showOnPublicPage }">
             <input v-model="values.showOnPublicPage" type="radio" :value="false" /> Hide
+          </label>
+        </div>
+      </div>
+
+      <div class="field" :class="{ on: enabled.environment }">
+        <label class="field-toggle">
+          <input v-model="enabled.environment" type="checkbox" />
+          <span class="field-name">{{ FIELD_LABELS.environment }}</span>
+        </label>
+        <div class="current">{{ currentSummary('environment') }}</div>
+        <div v-if="enabled.environment" class="segmented" role="radiogroup">
+          <label v-for="env in ENVIRONMENT_CHOICES" :key="env ?? 'none'" :class="{ selected: values.environment === env }">
+            <input v-model="values.environment" type="radio" :value="env" />
+            {{ env ? ENVIRONMENT_LABELS[env] : 'Not set' }}
           </label>
         </div>
       </div>

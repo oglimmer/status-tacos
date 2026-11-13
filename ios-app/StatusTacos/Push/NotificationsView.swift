@@ -17,7 +17,7 @@ struct NotificationsView: View {
                     Section {
                         Label("The server does not send push notifications yet. Ask the admin to set up APNs.",
                               systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(Brand.silent)
                     }
                 }
 
@@ -75,10 +75,10 @@ struct NotificationsView: View {
             switch push.permission {
             case .allowed:
                 Label("Notifications are allowed", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
+                    .foregroundStyle(Brand.up)
                 if let error = push.registrationError {
                     Label("This device could not register: \(error)", systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Brand.silent)
                         .font(.footnote)
                 }
             case .notDetermined, .unknown:

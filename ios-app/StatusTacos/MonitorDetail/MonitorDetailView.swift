@@ -31,7 +31,10 @@ struct MonitorDetailView: View {
     var body: some View {
         List {
             if let summary {
-                Section { header(summary) }
+                Section {
+                    statusRow
+                    detailsRow(summary)
+                }
                 monitoringSection(summary)
                 if let tenantID = summary.tenant?.id {
                     pushSection(summary, tenantID: tenantID)
@@ -41,7 +44,7 @@ struct MonitorDetailView: View {
             if let error = store.errorMessage {
                 Section {
                     Label(error, systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Brand.silent)
                         .font(.subheadline)
                 }
             }
@@ -64,6 +67,7 @@ struct MonitorDetailView: View {
             } else if !store.hasLoaded {
                 Section {
                     ProgressView()
+                        .tint(.secondary)
                         .frame(maxWidth: .infinity)
                 }
             }
@@ -105,16 +109,23 @@ struct MonitorDetailView: View {
                 get: { coverage.isOn },
                 set: { enabled in Task { await push.setMonitor(summary.id, tenantID: tenantID, enabled: enabled) } }
             )) {
-                HStack {
-                    Label("Notify me", systemImage: "bell.badge")
+                HStack(spacing: Self.iconSpacing) {
+                    Image(systemName: "bell")
+                        .foregroundStyle(.secondary)
+                        .frame(width: iconColumnWidth)
+                        .accessibilityHidden(true)
+                    Text("Notify me")
+                        .fontWeight(.medium)
                     if isSaving {
                         ProgressView()
+                            .tint(.secondary)
                     }
                 }
             }
+            .tint(Brand.up)
             .disabled(isSaving || coverage == .allMonitors || push.permission == .denied)
         } header: {
-            Text("Push alerts")
+            Text("Push on this iPhone")
         } footer: {
             switch (push.permission, coverage) {
             case (.denied, _):
@@ -141,66 +152,86 @@ struct MonitorDetailView: View {
         }
     }
 
-    private func header(_ summary: MonitorSummary) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Image(systemName: health.symbol)
+    /// Status, the environment badge and how long it is up or down. No icon: the word and its color.
+    private var statusRow: some View {
+        let health = health
+        return VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .center) {
                 Text(health.title)
-            }
-            .font(.title2.weight(.bold))
-            .foregroundStyle(health.color)
-
-            if let url = URL(string: summary.url), url.scheme?.hasPrefix("http") == true {
-                Link(destination: url) {
-                    urlLines(summary)
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(health.color)
+                Spacer(minLength: 8)
+                if let environment = summary?.environment {
+                    EnvironmentBadge(environment: environment)
                 }
-                .font(.subheadline)
-            } else {
-                urlLines(summary)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
             }
+            TimelineView(.periodic(from: .now, by: 60)) { context in
+                if let line = DetailPresentation.statusLine(health: health, status: store.status, now: context.date) {
+                    Text(line)
+                        .font(.subheadline)
+                        .foregroundStyle(health == .down ? Brand.down : .secondary)
+                }
+            }
+        }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
+    }
 
+    /// URL, endpoint and tenant in two columns. Opens the URL in the browser.
+    @ViewBuilder
+    private func detailsRow(_ summary: MonitorSummary) -> some View {
+        if let url = URL(string: summary.url), url.scheme?.hasPrefix("http") == true {
+            Link(destination: url) {
+                detailsGrid(summary)
+            }
+            .foregroundStyle(.primary)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(summary.url)
+            .accessibilityValue(summary.tenant.map { "Tenant \($0.name)" } ?? "")
+            .accessibilityAddTraits(.isLink)
+        } else {
+            detailsGrid(summary)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(summary.url)
+                .accessibilityValue(summary.tenant.map { "Tenant \($0.name)" } ?? "")
+        }
+    }
+
+    private func detailsGrid(_ summary: MonitorSummary) -> some View {
+        let parts = summary.urlParts
+        return Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 16, verticalSpacing: 8) {
+            detailLine("URL", parts.host)
+            if let path = parts.path {
+                detailLine("Endpoint", path)
+            }
             if let tenant = summary.tenant {
-                Label(tenant.name, systemImage: "building.2")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                detailLine("Tenant", tenant.name)
             }
         }
         .padding(.vertical, 4)
     }
 
-    /// Host on the first line, the path on the second line. The icon of the host line shows the protocol.
-    private func urlLines(_ summary: MonitorSummary) -> some View {
-        let parts = summary.urlParts
-        let hostSymbol = switch parts.scheme {
-        case "https": "lock.fill"
-        case "http": "lock.open.fill"
-        default: "globe"
-        }
-        return VStack(alignment: .leading, spacing: 4) {
-            urlLine(symbol: hostSymbol, text: parts.host, lineLimit: 1)
-            if let path = parts.path {
-                urlLine(symbol: "arrow.turn.down.right", text: path, lineLimit: 2)
-            }
-        }
-        .multilineTextAlignment(.leading)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(summary.url)
-    }
-
-    private func urlLine(symbol: String, text: String, lineLimit: Int) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Image(systemName: symbol)
-                .font(.caption)
-                .frame(width: 16)
-            Text(text)
-                .lineLimit(lineLimit)
-                .truncationMode(.middle)
+    private func detailLine(_ label: String, _ value: String) -> some View {
+        GridRow {
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .fixedSize()
+            Text(value)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
     // MARK: - Monitoring state
+
+    /// Width of the dot and bell column, so the titles of both sections line up.
+    @ScaledMetric(relativeTo: .body) private var iconColumnWidth: CGFloat = 22
+    @ScaledMetric(relativeTo: .body) private var dotSize: CGFloat = 10
+    private static let iconSpacing: CGFloat = 12
 
     /// Pick one of the 3 states. Same function as the state button of the web app.
     private func monitoringSection(_ summary: MonitorSummary) -> some View {
@@ -210,27 +241,33 @@ struct MonitorDetailView: View {
                 Button {
                     changeState(to: state)
                 } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: state.symbol)
-                            .foregroundStyle(state.color)
-                            .frame(width: 24)
+                    HStack(spacing: Self.iconSpacing) {
+                        Circle()
+                            .fill(state.color)
+                            .frame(width: dotSize, height: dotSize)
+                            .frame(width: iconColumnWidth)
+                            .accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(state.title)
+                                .fontWeight(.medium)
                                 .foregroundStyle(.primary)
                             Text(state.explanation)
-                                .font(.caption)
+                                .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
                         if pendingState == state {
                             ProgressView()
+                                .tint(.secondary)
                         } else if pendingState == nil, summary.state == state {
                             Image(systemName: "checkmark")
                                 .fontWeight(.semibold)
-                                .foregroundStyle(.tint)
+                                .foregroundStyle(.secondary)
                         }
                     }
+                    .contentShape(.rect)
                 }
+                .foregroundStyle(.primary)
                 .disabled(isUpdating || pendingState != nil)
                 .accessibilityAddTraits(summary.state == state ? .isSelected : [])
             }
@@ -252,30 +289,35 @@ struct MonitorDetailView: View {
         }
     }
 
-    // MARK: - Now
+    // MARK: - Current status
 
     private var nowSection: some View {
-        Section("Now") {
+        Section("Current status") {
             if let status = store.status {
+                let isDown = status.currentStatus == .down
                 if let checked = status.lastCheckedAt {
                     LabeledContent("Last check") {
                         Text(checked, format: .relative(presentation: .named))
                     }
                 }
                 LabeledContent("Response time", value: responseTimeText(status))
-                LabeledContent("Status code", value: Format.statusCode(status.lastStatusCode))
+                LabeledContent("Status code") {
+                    Text(Format.statusCode(status.lastStatusCode))
+                        .foregroundStyle(isDown ? Brand.down : .secondary)
+                }
                 LabeledContent("Failed checks in a row") {
                     Text(failedChecksText(status))
-                        .foregroundStyle((status.consecutiveFailures ?? 0) > 0 ? .red : .secondary)
+                        .foregroundStyle(isDown || (status.consecutiveFailures ?? 0) > 0 ? Brand.down : .secondary)
                 }
-                if let lastDown = status.lastDownAt {
+                if isDown {
+                    if let lastUp = status.lastUpAt {
+                        LabeledContent("Last up") {
+                            Text(lastUp, format: .relative(presentation: .named))
+                        }
+                    }
+                } else if let lastDown = status.lastDownAt {
                     LabeledContent("Last down") {
                         Text(lastDown, format: .relative(presentation: .named))
-                    }
-                }
-                if status.currentStatus == .down, let lastUp = status.lastUpAt {
-                    LabeledContent("Last up") {
-                        Text(lastUp, format: .relative(presentation: .named))
                     }
                 }
             } else {
@@ -316,12 +358,12 @@ struct MonitorDetailView: View {
         Section {
             DowntimeBar(
                 periods: snapshot.downPeriods, start: snapshot.start, end: snapshot.end,
-                checkedFrom: snapshot.checkedFrom, height: 14)
+                checkedFrom: snapshot.checkedFrom, height: 8)
                 .padding(.vertical, 6)
             let outages = snapshot.outages
             if outages.isEmpty {
-                Label("No outages", systemImage: "checkmark.seal")
-                    .foregroundStyle(.green)
+                Text("No outages")
+                    .foregroundStyle(.secondary)
             } else {
                 ForEach(outages.prefix(Self.maxOutages), id: \.start) { outage in
                     OutageRow(outage: outage, isOngoing: isOngoing(outage, in: snapshot))
@@ -344,31 +386,32 @@ struct MonitorDetailView: View {
         store.status?.currentStatus == .down && snapshot.end.timeIntervalSince(outage.end) < 5 * 60
     }
 
+    @ScaledMetric(relativeTo: .largeTitle) private var uptimeSize: CGFloat = 32
+
     private func uptimeRow(_ snapshot: PeriodSnapshot) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 2) {
+        let downtime = snapshot.totalDowntime
+        return HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 0) {
                 Text("Uptime")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                 Text(Format.uptime(snapshot.uptimePercentage))
-                    .font(.largeTitle.weight(.bold).monospacedDigit())
-                    .foregroundStyle(UptimeLevel(snapshot.uptimePercentage).color)
+                    .font(.system(size: uptimeSize, weight: .medium).monospacedDigit())
+                    .foregroundStyle(health == .down ? Brand.down : UptimeLevel(snapshot.uptimePercentage).color)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
             Spacer()
-            VStack(alignment: .trailing, spacing: 2) {
-                if let total = snapshot.totalChecks {
-                    Text("\(snapshot.successfulChecks ?? 0) of \(total) checks OK")
-                }
-                let downtime = snapshot.totalDowntime
-                Text(downtime > 0 ? "\(Format.duration(downtime)) down" : "No downtime")
-                    .foregroundStyle(downtime > 0 ? .red : .secondary)
-            }
-            .font(.footnote.monospacedDigit())
+            Text(Format.downtime(downtime))
+                .font(.subheadline.monospacedDigit())
+                .foregroundStyle(downtime > 0 ? Brand.down : .secondary)
         }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
     }
 
     private func responseTimeGrid(_ times: PeriodSnapshot.ResponseTimeSummary) -> some View {
-        HStack {
+        HStack(spacing: 4) {
             metric("Avg", times.average)
             metric("P99", times.p99)
             metric("Min", times.minimum)
@@ -382,7 +425,9 @@ struct MonitorDetailView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Text(Format.responseTime(milliseconds))
-                .font(.subheadline.weight(.semibold).monospacedDigit())
+                .font(.callout.weight(.medium).monospacedDigit())
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
@@ -397,17 +442,18 @@ private struct OutageRow: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(outage.start, format: .dateTime.weekday().day().month().hour().minute())
+                    .foregroundStyle(.primary)
                 if isOngoing {
                     Text("Ongoing")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.red)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Brand.down)
                 }
             }
             Spacer()
-            Text(Format.duration(outage.duration))
+            Text(Format.durationWords(outage.duration))
                 .monospacedDigit()
-                .foregroundStyle(.red)
+                .foregroundStyle(Brand.down)
         }
-        .font(.subheadline)
+        .accessibilityElement(children: .combine)
     }
 }
