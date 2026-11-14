@@ -1,11 +1,13 @@
 name: Build & push images
 
-# Builds the changed component images (backend / frontend) and pushes them to
-# ghcr.io/oglimmer via the repo's oglimmer.sh, on the in-cluster
-# self-hosted ARC runner (arm64, Docker-in-Docker). Only the components whose
-# files changed are built (mirrors ci.yml). The runner has no kubectl, so
-# oglimmer.sh triggers the rollout via the restart hook (restart.oglimmer.com)
-# using the RESTART_TOKEN secret passed in the environment.
+# Builds the changed component images (backend / frontend) for both CPU types
+# and pushes them to ghcr.io/oglimmer via the repo's oglimmer.sh:
+#   - arm64 on the in-cluster self-hosted ARC runner (Docker-in-Docker),
+#   - amd64 on a GitHub-hosted runner (e.g. stage.modular-design.de is amd64).
+# Each build pushes a per-arch tag (latest-arm64 / latest-amd64). The merge job
+# joins them into one multi-arch "latest" tag. Only the components whose files
+# changed are built (mirrors ci.yml). The runner has no kubectl, so the rollout
+# goes through the restart hook (restart.oglimmer.com) with RESTART_TOKEN.
 
 on:
   push:
@@ -26,8 +28,7 @@ jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
-      backend: ${{ steps.filter.outputs.backend }}
-      frontend: ${{ steps.filter.outputs.frontend }}
+      components: ${{ steps.list.outputs.components }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
@@ -42,11 +43,35 @@ jobs:
               - 'frontend/**'
               - 'oglimmer.sh'
               - '.github/workflows/build.yml'
+      # workflow_dispatch builds everything.
+      - id: list
+        env:
+          EVENT: ${{ github.event_name }}
+          BACKEND: ${{ steps.filter.outputs.backend }}
+          FRONTEND: ${{ steps.filter.outputs.frontend }}
+        run: |
+          list=()
+          if [[ "$EVENT" == workflow_dispatch || "$BACKEND" == true ]]; then list+=('"backend"'); fi
+          if [[ "$EVENT" == workflow_dispatch || "$FRONTEND" == true ]]; then list+=('"frontend"'); fi
+          echo "components=[$(IFS=,; echo "${list[*]}")]" >> "$GITHUB_OUTPUT"
 
-  backend:
+  # One native build per component and CPU type. --platform auto -> plain
+  # `docker build` + `docker push` (no emulation, and no buildx
+  # docker-container driver, whose push session times out on the ARC runner).
+  build:
     needs: changes
-    if: ${{ needs.changes.outputs.backend == 'true' }}
-    runs-on: arc-status-tacos   # in-cluster ARC runner scale set
+    if: ${{ needs.changes.outputs.components != '[]' }}
+    strategy:
+      fail-fast: true
+      matrix:
+        component: ${{ fromJSON(needs.changes.outputs.components) }}
+        arch: [arm64, amd64]
+        include:
+          - arch: arm64
+            runner: arc-status-tacos   # in-cluster ARC runner scale set
+          - arch: amd64
+            runner: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
@@ -57,31 +82,44 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # --platform auto -> plain `docker build` + `docker push` via the dind
-      # daemon (native arm64). Avoids the buildx docker-container driver, whose
-      # push session times out against the registry's public ingress.
-      # No kubectl on the runner, so the rollout goes through the restart hook
-      # (oglimmer.sh falls back to it when RESTART_TOKEN is set).
-      - name: Build, push & restart backend
+      - name: Build & push ${{ matrix.component }} (${{ matrix.arch }})
         env:
-          RESTART_TOKEN: ${{ secrets.RESTART_TOKEN }}
-        run: ./oglimmer.sh build -b --platform auto --verbose
+          IMAGE_TAG: latest-${{ matrix.arch }}
+        run: ./oglimmer.sh build --${{ matrix.component }} --platform auto --no-restart --verbose
 
-  frontend:
-    needs: changes
-    if: ${{ needs.changes.outputs.frontend == 'true' }}
+  # Join the per-arch tags into one multi-arch "latest" tag.
+  merge:
+    needs: [changes, build]
+    strategy:
+      matrix:
+        component: ${{ fromJSON(needs.changes.outputs.components) }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log in to ghcr.io
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create multi-arch latest
+        env:
+          IMAGE: ghcr.io/oglimmer/status-tacos-${{ matrix.component }}
+        run: |
+          docker buildx imagetools create -t "$IMAGE:latest" "$IMAGE:latest-arm64" "$IMAGE:latest-amd64"
+          docker buildx imagetools inspect "$IMAGE:latest"
+
+  # Roll out in the cluster via the restart hook, from the in-cluster runner.
+  restart:
+    needs: [changes, merge]
+    strategy:
+      matrix:
+        component: ${{ fromJSON(needs.changes.outputs.components) }}
     runs-on: arc-status-tacos
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-
-      - name: Log in to ghcr.io
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build, push & restart frontend
+      - name: Restart status-tacos-${{ matrix.component }}
         env:
           RESTART_TOKEN: ${{ secrets.RESTART_TOKEN }}
-        run: ./oglimmer.sh build -f --platform auto --verbose
+          URL: https://restart.oglimmer.com/restart/default/status-tacos-${{ matrix.component }}
+        run: |
+          curl -fsS -X POST -H "Authorization: Bearer ${RESTART_TOKEN}" "$URL"

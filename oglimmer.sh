@@ -146,6 +146,7 @@ ENVIRONMENT VARIABLES:
     BACKEND_DEPLOYMENT      Override default backend deployment name
     PLATFORM                Override default platform (amd64|arm64|multi|auto)
     DEFAULT_REGISTRIES_ENV  Override default registries (comma-separated)
+    IMAGE_TAG               Image tag to push (default: none, i.e. latest), e.g. latest-arm64
     VERBOSE                 Enable verbose mode (true/false)
     DRY_RUN                 Enable dry-run mode (true/false)
     PUSH                    Enable/disable pushing to registry (true/false)
@@ -268,8 +269,8 @@ parse_args() {
         FRONTEND_IMAGES=()
         BACKEND_IMAGES=()
         for registry in "${REGISTRIES[@]}"; do
-            FRONTEND_IMAGES+=("$registry/status-tacos-frontend")
-            BACKEND_IMAGES+=("$registry/status-tacos-backend")
+            FRONTEND_IMAGES+=("$registry/status-tacos-frontend${IMAGE_TAG:+:$IMAGE_TAG}")
+            BACKEND_IMAGES+=("$registry/status-tacos-backend${IMAGE_TAG:+:$IMAGE_TAG}")
         done
     else
         # Fallback to defaults if no registries specified
