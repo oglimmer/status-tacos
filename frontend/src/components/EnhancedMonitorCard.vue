@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { type TimeframeType } from './TimeframeSwitcher.vue'
 import { type ViewModeType } from './ViewModeSwitcher.vue'
-import UptimeMetrics from './UptimeMetrics.vue'
+import UptimeMetrics, { type MetricsValues } from './UptimeMetrics.vue'
 import EnhancedResponseTimeChart from './EnhancedResponseTimeChart.vue'
 import EnhancedStatusChart from './EnhancedStatusChart.vue'
 import ResponseTimeChart from './ResponseTimeChart.vue'
@@ -29,6 +29,11 @@ interface ResponseTimeHistory {
   dataPoints?: Array<{ maxResponseTimeMs: number }>
   statusDownPeriods?: Array<{ start: string; end: string }>
   firstCheckAt?: string
+  // Missing from older servers
+  minResponseTimeMs?: number | null
+  maxResponseTimeMs?: number | null
+  avgResponseTimeMs?: number | null
+  p99ResponseTimeMs?: number | null
 }
 
 interface EnhancedMonitorCardProps {
@@ -123,6 +128,21 @@ const currentStats = computed(() => {
       return props.uptimeStats90d
     default:
       return null
+  }
+})
+
+// Numbers for the metrics box: 24h comes from the 24h history, 7d/90d from the stats
+const metricsValues = computed((): MetricsValues | null => {
+  if (props.selectedTimeframe !== '24h') return currentStats.value ?? null
+  const history = props.responseTimeHistory
+  if (!history) return null
+  return {
+    uptimePercentage: history.uptimePercentage24h,
+    minResponseTimeMs: history.minResponseTimeMs,
+    avgResponseTimeMs: history.avgResponseTimeMs,
+    maxResponseTimeMs: history.maxResponseTimeMs,
+    p99ResponseTimeMs: history.p99ResponseTimeMs,
+    totalChecks: history.totalChecks24h ?? 0
   }
 })
 
@@ -301,16 +321,14 @@ const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ s
 
       <!-- Expanded view with detailed metrics -->
       <div v-if="isExpanded || selectedViewMode === 'full'">
-        <!-- Show comprehensive metrics for 7d/90d -->
         <UptimeMetrics
-          v-if="selectedTimeframe !== '24h'"
-          :stats="currentStats"
+          :stats="metricsValues"
           :timeframe="selectedTimeframe"
-          :is-loading="isLoadingStats"
+          :is-loading="selectedTimeframe !== '24h' && isLoadingStats"
         />
 
-        <!-- Show basic 24h stats -->
-        <div v-else-if="status" class="monitor-stats">
+        <!-- Last check, for 24h -->
+        <div v-if="selectedTimeframe === '24h' && status" class="monitor-stats">
           <div class="stat-item">
             <span class="stat-label">Last Checked:</span>
             <span class="stat-value">

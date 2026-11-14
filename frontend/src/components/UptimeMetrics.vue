@@ -1,17 +1,26 @@
 <script setup lang="ts">
 import type { TimeframeType } from './TimeframeSwitcher.vue'
-import type { UptimeStats } from '../stores/monitors'
+
+/** The numbers this box shows. The 7d/90d stats and the 24h history both fit. */
+export interface MetricsValues {
+  uptimePercentage?: number
+  minResponseTimeMs?: number | null
+  avgResponseTimeMs?: number | null
+  maxResponseTimeMs?: number | null
+  p99ResponseTimeMs?: number | null
+  totalChecks: number
+}
 import { formatUptime, getTimeframeLabel, uptimeLevel } from '../utils/uptime'
 
 interface UptimeMetricsProps {
-  stats: UptimeStats | null
+  stats: MetricsValues | null
   timeframe: TimeframeType
   isLoading?: boolean
 }
 
 defineProps<UptimeMetricsProps>()
 
-const formatResponseTime = (ms: number | undefined): string => {
+const formatResponseTime = (ms: number | null | undefined): string => {
   if (ms === undefined || ms === null) return 'N/A'
   return `${ms}ms`
 }
