@@ -31,7 +31,8 @@ struct DemoMode {
         DemoURLProtocol.scenario = scenario
 
         // Same list and detail every time. Launch arguments like `-monitorDetail.timeframe 7d` still win.
-        for key in ["monitorList.tenantFilter", "monitorList.sort", "monitorList.sortAscending", "monitorDetail.timeframe"] {
+        for key in ["monitorList.tenantFilter", "monitorList.sort", "monitorList.sortAscending", "monitorList.timeframe",
+                    "monitorDetail.timeframe"] {
             arguments.removeObject(forKey: key)
         }
 
@@ -149,6 +150,8 @@ final class DemoURLProtocol: URLProtocol, @unchecked Sendable {
             return json(updated.monitorJSON(monitor))
         case "GET monitor-statuses":
             return json(data.monitors.filter { data.state(of: $0) != "INACTIVE" }.map(data.statusJSON))
+        case "GET monitor-statuses/response-time-history-24h":
+            return json(data.monitors.map(data.historyJSON))
         case "GET monitor-statuses/{id}/response-time-history-24h":
             guard let monitor = id.flatMap(data.monitor) else { return (404, nil) }
             return json(data.historyJSON(monitor))

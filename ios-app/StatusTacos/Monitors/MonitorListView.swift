@@ -10,6 +10,8 @@ struct MonitorListView: View {
     @AppStorage("monitorList.tenantFilter") private var tenantFilter = 0
     @AppStorage("monitorList.sort") private var sort = MonitorSort.status
     @AppStorage("monitorList.sortAscending") private var sortAscending = true
+    /// Time frame of the uptime and the downtime bar of each row.
+    @AppStorage("monitorList.timeframe") private var timeframe = Timeframe.week
     @Environment(\.scenePhase) private var scenePhase
     @Environment(APIClient.self) private var api
     @Environment(AppSettings.self) private var settings
@@ -40,7 +42,7 @@ struct MonitorListView: View {
 
             if !store.monitors.isEmpty {
                 Section {
-                    SummaryHeader(monitors: filteredByTenant)
+                    SummaryHeader(monitors: filteredByTenant, timeframe: $timeframe, accent: settings.accentColor)
                 }
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
@@ -100,6 +102,10 @@ struct MonitorListView: View {
             // A new sort starts in its usual direction, so "Last downtime" shows the latest first.
             sortAscending = newSort.startsAscending
         }
+        .onChange(of: timeframe) { _, newTimeframe in
+            store.timeframe = newTimeframe
+            Task { await store.refresh() }
+        }
         .onChange(of: store.tenants.map(\.id)) { _, ids in
             // The saved tenant may be gone (removed, or another user signed in).
             if tenantFilter != 0, !ids.isEmpty, !ids.contains(tenantFilter) {
@@ -109,6 +115,7 @@ struct MonitorListView: View {
         .task(id: scenePhase) {
             // Refreshes while the list is on screen and the app is in the foreground.
             guard scenePhase == .active else { return }
+            store.timeframe = timeframe
             while !Task.isCancelled {
                 await store.refresh()
                 try? await Task.sleep(for: Self.refreshInterval)
@@ -307,37 +314,79 @@ struct MonitorListView: View {
     }
 }
 
-/// Counts per health, with the most important first. Number and word on one line.
+/// Counts per health, with the most important first, then the time frame of the rows.
+/// Number and word on one line when all tiles fit, else the word goes under the number.
 private struct SummaryHeader: View {
     let monitors: [MonitorSummary]
+    @Binding var timeframe: Timeframe
+    let accent: Color
 
     var body: some View {
-        HStack(spacing: 10) {
-            tile(.down)
-            tile(.up)
-            tile(.paused)
+        ViewThatFits(in: .horizontal) {
+            row(stacked: false)
+            row(stacked: true)
         }
     }
 
-    private func tile(_ health: MonitorHealth) -> some View {
+    private func row(stacked: Bool) -> some View {
+        HStack(spacing: 8) {
+            tile(.down, stacked: stacked)
+            tile(.up, stacked: stacked)
+            tile(.paused, stacked: stacked)
+            timeframeMenu
+        }
+        // All tiles get the height of the tallest.
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func tile(_ health: MonitorHealth, stacked: Bool) -> some View {
         let count = monitors.filter { $0.health == health }.count
         let style = MonitorCounterStyle(health: health, count: count)
-        return ViewThatFits(in: .horizontal) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                number(count, style)
-                word(health, style)
-            }
-            VStack(alignment: .leading, spacing: 0) {
-                number(count, style)
-                word(health, style)
-            }
+        let layout = stacked
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 0))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 6))
+        return layout {
+            number(count, style)
+            word(health, style)
         }
         .lineLimit(1)
+        // The text keeps its width, so `ViewThatFits` sees when the row is too narrow.
+        .fixedSize(horizontal: true, vertical: false)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 18))
         .accessibilityElement(children: .combine)
+    }
+
+    /// "7d" with a menu of the three time frames. Its width is that of the longest value, so the
+    /// row does not move when the value changes.
+    private var timeframeMenu: some View {
+        Menu {
+            Picker("Uptime of the last", selection: $timeframe) {
+                ForEach(Timeframe.allCases) { Text($0.title).tag($0) }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                ZStack(alignment: .leading) {
+                    ForEach(Timeframe.allCases) { option in
+                        Text(option.rawValue).opacity(option == timeframe ? 1 : 0)
+                    }
+                }
+                .font(.subheadline.weight(.semibold).monospacedDigit())
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption2.weight(.semibold))
+            }
+            .lineLimit(1)
+            .fixedSize()
+            .foregroundStyle(accent)
+            .padding(.horizontal, 12)
+            .frame(minHeight: 44, maxHeight: .infinity)
+            .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 18))
+            .contentShape(.rect(cornerRadius: 18))
+        }
+        .accessibilityLabel("Time frame")
+        .accessibilityValue(timeframe.title)
     }
 
     private func number(_ count: Int, _ style: MonitorCounterStyle) -> some View {

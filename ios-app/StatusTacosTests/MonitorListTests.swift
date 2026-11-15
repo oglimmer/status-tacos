@@ -22,7 +22,7 @@ private func summary(
         statusDownPeriods: nil)
     return MonitorSummary(
         id: id, name: name, url: "https://example.com", tenant: nil, state: state, alertingThreshold: nil,
-        createdAt: nil, status: status, week: week, environment: environment)
+        createdAt: nil, status: status, uptime: MonitorUptime(stats: week), environment: environment)
 }
 
 private let mixed = [

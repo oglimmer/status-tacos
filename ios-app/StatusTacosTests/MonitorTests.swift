@@ -14,12 +14,12 @@ private func status(_ id: Int, _ type: StatusType, lastDownAt: Date? = nil) -> M
                      lastDownAt: lastDownAt, consecutiveFailures: nil, lastResponseTimeMs: 100, lastStatusCode: 200)
 }
 
-private func stats(_ id: Int, uptime: Double?) -> UptimeStatsDTO {
-    UptimeStatsDTO(monitorId: id, periodType: .sevenDays,
+private func stats(_ id: Int, uptime: Double?) -> MonitorUptime {
+    MonitorUptime(stats: UptimeStatsDTO(monitorId: id, periodType: .sevenDays,
                    periodStart: Date(timeIntervalSince1970: 0), periodEnd: Date(timeIntervalSince1970: 7 * 86_400),
                    intervalMinutes: 60, totalChecks: 10, successfulChecks: 9, uptimePercentage: uptime,
                    minResponseTimeMs: nil, maxResponseTimeMs: nil, avgResponseTimeMs: nil, p99ResponseTimeMs: nil,
-                   responseTimeDataPoints: nil, statusDownPeriods: nil)
+                   responseTimeDataPoints: nil, statusDownPeriods: nil))
 }
 
 struct MonitorSummaryTests {
@@ -27,13 +27,13 @@ struct MonitorSummaryTests {
         let merged = MonitorSummary.merge(
             monitors: [monitor(1, "Alpha"), monitor(2, "Beta")],
             statuses: [status(2, .up), status(1, .down)],
-            weekStats: [stats(1, uptime: 98.5)])
+            uptimes: [stats(1, uptime: 98.5)])
         let alpha = try #require(merged.first { $0.id == 1 })
         #expect(alpha.health == .down)
-        #expect(alpha.week?.uptimePercentage == 98.5)
+        #expect(alpha.uptime?.uptimePercentage == 98.5)
         let beta = try #require(merged.first { $0.id == 2 })
         #expect(beta.health == .up)
-        #expect(beta.week == nil)
+        #expect(beta.uptime == nil)
     }
 
     @Test func healthComesFromStateAndStatus() {
@@ -44,7 +44,7 @@ struct MonitorSummaryTests {
             ],
             // An inactive monitor can still have an old status: it is paused anyway.
             statuses: [status(1, .down), status(2, .up), status(4, .down), status(5, .down)],
-            weekStats: [])
+            uptimes: [])
         let health = Dictionary(uniqueKeysWithValues: merged.map { ($0.name, $0.health) })
         #expect(health == ["Down": .down, "Up": .up, "New": .pending, "Off": .paused, "Quiet": .down])
     }
@@ -58,7 +58,7 @@ struct MonitorSummaryTests {
             ],
             statuses: [status(1, .up), status(3, .down), status(4, .up), status(6, .down),
                        status(7, .up), status(8, .up)],
-            weekStats: [])
+            uptimes: [])
         #expect(merged.map(\.name) == [
             "a down", "Z down", "pending", "A up", "b up", "item 9", "item 10", "a paused",
         ])
@@ -69,7 +69,7 @@ struct MonitorSummaryTests {
             monitors: [monitor(1, "item 10"), monitor(2, "Beta"), monitor(3, "alpha", state: .inactive),
                        monitor(4, "item 9")],
             statuses: [status(1, .down), status(2, .up), status(4, .up)],
-            weekStats: [])
+            uptimes: [])
         #expect(merged.sorted(by: .name, ascending: true).map(\.name) == ["alpha", "Beta", "item 9", "item 10"])
         #expect(merged.sorted(by: .name, ascending: false).map(\.name) == ["item 10", "item 9", "Beta", "alpha"])
     }
@@ -79,7 +79,7 @@ struct MonitorSummaryTests {
             monitors: [monitor(1, "Never"), monitor(2, "Old"), monitor(3, "Recent"), monitor(4, "Also never")],
             statuses: [status(1, .up), status(2, .up, lastDownAt: Date(timeIntervalSince1970: 100)),
                        status(3, .down, lastDownAt: Date(timeIntervalSince1970: 200))],
-            weekStats: [])
+            uptimes: [])
         #expect(merged.sorted(by: .lastDown, ascending: false).map(\.name) == ["Recent", "Old", "Never", "Also never"])
         #expect(merged.sorted(by: .lastDown, ascending: true).map(\.name) == ["Old", "Recent", "Also never", "Never"])
     }
@@ -91,7 +91,7 @@ struct MonitorSummaryTests {
             monitors: [monitor(1, "B", tenant: zeta), monitor(2, "A", tenant: zeta), monitor(3, "C", tenant: alpha),
                        monitor(4, "A", tenant: alpha), monitor(5, "No tenant")],
             statuses: [],
-            weekStats: [])
+            uptimes: [])
         #expect(merged.sorted(by: .tenant, ascending: true).map(\.id) == [4, 3, 2, 1, 5])
         #expect(merged.sorted(by: .tenant, ascending: false).map(\.id) == [1, 2, 3, 4, 5])
     }
@@ -103,7 +103,7 @@ struct MonitorSummaryTests {
                        monitor(3, "Last", createdAt: Date(timeIntervalSince1970: 300)),
                        monitor(4, "Older server")],
             statuses: [],
-            weekStats: [])
+            uptimes: [])
         #expect(merged.sorted(by: .created, ascending: true).map(\.name) == ["First", "Middle", "Last", "Older server"])
         #expect(merged.sorted(by: .created, ascending: false).map(\.name) == ["Last", "Middle", "First", "Older server"])
     }
@@ -113,7 +113,7 @@ struct MonitorSummaryTests {
             monitors: [monitor(1, "Up"), monitor(2, "Paused", state: .inactive), monitor(3, "Down"),
                        monitor(4, "Pending")],
             statuses: [status(1, .up), status(3, .down)],
-            weekStats: [])
+            uptimes: [])
         #expect(merged.sorted(by: .status, ascending: true).map(\.name) == ["Down", "Pending", "Up", "Paused"])
         #expect(merged.sorted(by: .status, ascending: false).map(\.name) == ["Paused", "Up", "Pending", "Down"])
     }
@@ -128,7 +128,7 @@ struct MonitorSummaryTests {
             ],
             statuses: [status(1, .up), status(2, .up), status(3, .up), status(4, .up), status(5, .up),
                        status(6, .down), status(7, .down), status(8, .down)],
-            weekStats: [])
+            uptimes: [])
         let ascending = ["x down prod", "z down dev", "y down none", "a prod", "d prod", "c stage", "b dev", "a none"]
         #expect(merged.map(\.name) == ascending)
         #expect(merged.sorted(by: .status, ascending: true).map(\.name) == ascending)
@@ -145,7 +145,7 @@ struct MonitorSummaryTests {
             statuses: [status(1, .up, lastDownAt: Date(timeIntervalSince1970: 5)),
                        status(2, .up, lastDownAt: Date(timeIntervalSince1970: 5)),
                        status(3, .up, lastDownAt: Date(timeIntervalSince1970: 5))],
-            weekStats: [])
+            uptimes: [])
         for sort in [MonitorSort.name, .lastDown, .tenant, .created] {
             #expect(merged.sorted(by: sort, ascending: true).map(\.name) == ["a", "b", "c"])
         }
@@ -153,7 +153,7 @@ struct MonitorSummaryTests {
 
     @Test func withStateKeepsTheEnvironment() {
         let summary = MonitorSummary.merge(
-            monitors: [monitor(1, "A", environment: .stage)], statuses: [], weekStats: [])[0]
+            monitors: [monitor(1, "A", environment: .stage)], statuses: [], uptimes: [])[0]
         #expect(summary.with(state: .inactive).environment == .stage)
         #expect(summary.with(state: .inactive).health == .paused)
     }
@@ -175,17 +175,17 @@ struct MonitorSummaryTests {
         let merged = MonitorSummary.merge(
             monitors: [monitor(1, "One")],
             statuses: [status(1, .down), status(1, .up)],
-            weekStats: [stats(1, uptime: 1), stats(1, uptime: 2)])
+            uptimes: [stats(1, uptime: 1), stats(1, uptime: 2)])
         #expect(merged.count == 1)
         #expect(merged[0].health == .down)
-        #expect(merged[0].week?.uptimePercentage == 1)
+        #expect(merged[0].uptime?.uptimePercentage == 1)
     }
 
     @Test func hostAndWeekWindow() {
         let summary = MonitorSummary.merge(
-            monitors: [monitor(1, "Api")], statuses: [], weekStats: [stats(1, uptime: 100)])[0]
+            monitors: [monitor(1, "Api")], statuses: [], uptimes: [stats(1, uptime: 100)])[0]
         #expect(summary.host == "api.example.com")
-        #expect(summary.weekWindow?.end.timeIntervalSince(summary.weekWindow!.start) == 604_800.0)
+        #expect(summary.uptimeWindow?.end.timeIntervalSince(summary.uptimeWindow!.start) == 604_800.0)
     }
 
     @Test(arguments: [
@@ -198,7 +198,7 @@ struct MonitorSummaryTests {
     ] as [(String, String?, String, String?)])
     func splitsURLIntoSchemeHostAndPath(url: String, scheme: String?, host: String, path: String?) {
         let summary = MonitorSummary(id: 1, name: "X", url: url, tenant: nil, state: .active,
-                                     alertingThreshold: nil, createdAt: nil, status: nil, week: nil)
+                                     alertingThreshold: nil, createdAt: nil, status: nil, uptime: nil)
         #expect(summary.urlParts.scheme == scheme)
         #expect(summary.urlParts.host == host)
         #expect(summary.urlParts.path == path)

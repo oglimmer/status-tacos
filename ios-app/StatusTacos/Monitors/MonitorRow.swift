@@ -30,9 +30,9 @@ extension MonitorSummary {
         }
     }
 
-    /// Color of the 7-day uptime: red while down, else by the level.
+    /// Color of the uptime: red while down, else by the level.
     var rowUptimeColor: Color {
-        health == .down ? Brand.down : UptimeLevel(week?.uptimePercentage).color
+        health == .down ? Brand.down : UptimeLevel(uptime?.uptimePercentage).color
     }
 
     /// What VoiceOver reads for a row: name, environment, state, status, uptime.
@@ -52,7 +52,7 @@ extension MonitorSummary {
             parts.append("Paused")
         }
         if health != .paused {
-            parts.append("\(Format.uptime(week?.uptimePercentage)) uptime in 7 days")
+            parts.append("\(Format.uptime(uptime?.uptimePercentage)) uptime in \(timeframe.title)")
         }
         return parts.joined(separator: ", ")
     }
@@ -78,9 +78,9 @@ struct MonitorRow: View {
                     .layoutPriority(1)
             }
 
-            if monitor.health != .paused, let window = monitor.weekWindow {
+            if monitor.health != .paused, let window = monitor.uptimeWindow {
                 DowntimeBar(
-                    periods: monitor.week?.statusDownPeriods ?? [],
+                    periods: monitor.uptime?.downPeriods ?? [],
                     start: window.start, end: window.end, checkedFrom: window.checkedFrom, height: 7)
                     .clipShape(.capsule)
             }
@@ -132,10 +132,10 @@ struct MonitorRow: View {
                 .foregroundStyle(.secondary)
         } else {
             VStack(alignment: .trailing, spacing: 0) {
-                Text(Format.uptime(monitor.week?.uptimePercentage))
+                Text(Format.uptime(monitor.uptime?.uptimePercentage))
                     .font(.body.weight(.semibold).monospacedDigit())
                     .foregroundStyle(monitor.rowUptimeColor)
-                Text("7 days")
+                Text(monitor.timeframe.title)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -169,7 +169,7 @@ private enum RowFixtures {
             statusDownPeriods: downPeriods, firstCheckAt: weekStart)
         return MonitorSummary(
             id: id, name: name, url: "https://example.com/health", tenant: nil, state: state,
-            alertingThreshold: 3, createdAt: nil, status: status, week: week, environment: environment)
+            alertingThreshold: 3, createdAt: nil, status: status, uptime: MonitorUptime(stats: week), environment: environment)
     }
 
     static func outage(daysAgo: Double, minutes: Double) -> DownPeriod {

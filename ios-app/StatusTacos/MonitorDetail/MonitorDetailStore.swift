@@ -7,6 +7,15 @@ enum Timeframe: String, CaseIterable, Identifiable, Sendable {
     case quarter = "90d"
 
     var id: Self { self }
+
+    /// "24 hours", "7 days", "90 days".
+    var title: String {
+        switch self {
+        case .day: "24 hours"
+        case .week: "7 days"
+        case .quarter: "90 days"
+        }
+    }
 }
 
 /// Uptime, response times and downtime of one monitor in one time window.

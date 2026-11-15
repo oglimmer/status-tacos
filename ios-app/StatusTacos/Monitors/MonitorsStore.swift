@@ -10,6 +10,8 @@ final class MonitorsStore {
     private(set) var errorMessage: String?
     /// Monitors with a state change in progress.
     private(set) var updatingStateIDs: Set<Int> = []
+    /// Time frame of the uptime in the list. Call `refresh()` after a change.
+    var timeframe: Timeframe = .week
     /// Tenants of the user, from /users/me. Nil until loaded.
     private var userTenants: [Tenant]?
 
@@ -52,12 +54,13 @@ final class MonitorsStore {
             async let user = isFirstLoad ? nil : try? api.currentUser()
             async let monitors = api.monitors()
             async let statuses = api.monitorStatuses()
-            // The list still works without the 7-day stats.
-            async let weekStats = try? api.uptimeStatsOfAllMonitors(period: .sevenDays)
+            let timeframe = timeframe
+            async let uptimes = loadUptimes(timeframe)
             self.monitors = MonitorSummary.merge(
                 monitors: try await monitors,
                 statuses: try await statuses,
-                weekStats: await weekStats ?? [])
+                uptimes: await uptimes,
+                timeframe: timeframe)
             if let tenants = await user?.tenants {
                 userTenants = tenants
             }
@@ -69,6 +72,20 @@ final class MonitorsStore {
             // Same as above, from URLSession.
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    /// The list still works without the uptime: an error gives an empty list.
+    private func loadUptimes(_ timeframe: Timeframe) async -> [MonitorUptime] {
+        switch timeframe {
+        case .day:
+            let histories = (try? await api.responseTimeHistory24hOfAllMonitors()) ?? []
+            let fetchedAt = Date.now
+            return histories.map { MonitorUptime(history: $0, fetchedAt: fetchedAt) }
+        case .week:
+            return ((try? await api.uptimeStatsOfAllMonitors(period: .sevenDays)) ?? []).map(MonitorUptime.init(stats:))
+        case .quarter:
+            return ((try? await api.uptimeStatsOfAllMonitors(period: .ninetyDays)) ?? []).map(MonitorUptime.init(stats:))
         }
     }
 

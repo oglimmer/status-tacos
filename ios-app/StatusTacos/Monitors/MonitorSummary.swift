@@ -81,7 +81,41 @@ extension MonitorState {
     }
 }
 
-/// One monitor with its current status and its last 7 days, built from 3 API calls.
+/// Uptime and downtime of one monitor in the time frame of the list.
+struct MonitorUptime: Sendable {
+    let monitorId: Int
+    let uptimePercentage: Double?
+    let downPeriods: [DownPeriod]
+    /// Nil when the server sends no window.
+    let start: Date?
+    let end: Date?
+    let firstCheckAt: Date?
+    let totalChecks: Int?
+
+    /// 7 and 90 days.
+    init(stats: UptimeStatsDTO) {
+        monitorId = stats.monitorId
+        uptimePercentage = stats.uptimePercentage
+        downPeriods = stats.statusDownPeriods ?? []
+        start = stats.periodStart
+        end = stats.periodEnd
+        firstCheckAt = stats.firstCheckAt
+        totalChecks = stats.totalChecks
+    }
+
+    /// The 24h history has no window: it ends at the time of the request.
+    init(history: ResponseTimeHistoryDTO, fetchedAt: Date) {
+        monitorId = history.monitorId
+        uptimePercentage = history.uptimePercentage24h
+        downPeriods = history.statusDownPeriods ?? []
+        start = fetchedAt.addingTimeInterval(-24 * 60 * 60)
+        end = fetchedAt
+        firstCheckAt = history.firstCheckAt
+        totalChecks = history.totalChecks24h
+    }
+}
+
+/// One monitor with its current status and its uptime in one time frame, built from 3 API calls.
 struct MonitorSummary: Identifiable, Sendable {
     let id: Int
     let name: String
@@ -91,9 +125,11 @@ struct MonitorSummary: Identifiable, Sendable {
     let alertingThreshold: Int?
     let createdAt: Date?
     let status: MonitorStatusDTO?
-    let week: UptimeStatsDTO?
+    let uptime: MonitorUptime?
     /// Nil when not set, and from older servers.
     var environment: MonitorEnvironment? = nil
+    /// The time frame of `uptime`.
+    var timeframe: Timeframe = .week
 
     var health: MonitorHealth {
         if state == .inactive { return .paused }
@@ -107,8 +143,8 @@ struct MonitorSummary: Identifiable, Sendable {
     func with(state: MonitorState) -> MonitorSummary {
         MonitorSummary(
             id: id, name: name, url: url, tenant: tenant, state: state,
-            alertingThreshold: alertingThreshold, createdAt: createdAt, status: status, week: week,
-            environment: environment)
+            alertingThreshold: alertingThreshold, createdAt: createdAt, status: status, uptime: uptime,
+            environment: environment, timeframe: timeframe)
     }
 
     var host: String { URL(string: url)?.host() ?? url }
@@ -126,20 +162,21 @@ struct MonitorSummary: Identifiable, Sendable {
         return (scheme, String(afterScheme[..<pathStart]), path == "/" ? nil : path)
     }
 
-    /// Window of the 7-day stats. The backend aligns the start to a full UTC hour.
-    var weekWindow: (start: Date, end: Date, checkedFrom: Date?)? {
-        guard let start = week?.periodStart, let end = week?.periodEnd, end > start else { return nil }
+    /// Window of the uptime. For 7 and 90 days the backend aligns the start to a full UTC hour.
+    var uptimeWindow: (start: Date, end: Date, checkedFrom: Date?)? {
+        guard let start = uptime?.start, let end = uptime?.end, end > start else { return nil }
         let checkedFrom = DowntimeTimeline.checkedFrom(
-            firstCheckAt: week?.firstCheckAt, totalChecks: week?.totalChecks, start: start)
+            firstCheckAt: uptime?.firstCheckAt, totalChecks: uptime?.totalChecks, start: start)
         return (start, end, checkedFrom)
     }
 
     /// Joins the API results by monitor ID and sorts like the status sort.
     static func merge(
-        monitors: [MonitorDTO], statuses: [MonitorStatusDTO], weekStats: [UptimeStatsDTO]
+        monitors: [MonitorDTO], statuses: [MonitorStatusDTO], uptimes: [MonitorUptime],
+        timeframe: Timeframe = .week
     ) -> [MonitorSummary] {
         let statusByID = Dictionary(statuses.map { ($0.monitorId, $0) }) { first, _ in first }
-        let statsByID = Dictionary(weekStats.map { ($0.monitorId, $0) }) { first, _ in first }
+        let statsByID = Dictionary(uptimes.map { ($0.monitorId, $0) }) { first, _ in first }
         return monitors
             .map { monitor in
                 MonitorSummary(
@@ -151,8 +188,9 @@ struct MonitorSummary: Identifiable, Sendable {
                     alertingThreshold: monitor.alertingThreshold,
                     createdAt: monitor.createdAt,
                     status: statusByID[monitor.id],
-                    week: statsByID[monitor.id],
-                    environment: monitor.environment)
+                    uptime: statsByID[monitor.id],
+                    environment: monitor.environment,
+                    timeframe: timeframe)
             }
             .sortedForDisplay()
     }

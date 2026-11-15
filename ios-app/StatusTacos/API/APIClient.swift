@@ -63,6 +63,11 @@ final class APIClient {
         try await get("uptime-stats/\(monitorID)")
     }
 
+    /// The 24h history of all monitors, in one request.
+    func responseTimeHistory24hOfAllMonitors() async throws -> [ResponseTimeHistoryDTO] {
+        try await get("monitor-statuses/response-time-history-24h")
+    }
+
     func responseTimeHistory24h(monitorID: Int) async throws -> ResponseTimeHistoryDTO {
         try await get("monitor-statuses/\(monitorID)/response-time-history-24h")
     }
