@@ -10,6 +10,10 @@ export type MonitorIconName =
   | 'search'
   | 'alert'
   | 'close'
+  | 'sliders'
+  | 'arrow-up'
+  | 'arrow-down'
+  | 'plus'
 
 defineProps<{ name: MonitorIconName }>()
 </script>
@@ -57,6 +61,29 @@ defineProps<{ name: MonitorIconName }>()
       <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
       <path d="M12 9v4" />
       <path d="M12 17h.01" />
+    </template>
+    <template v-else-if="name === 'sliders'">
+      <path d="M4 6h10" />
+      <path d="M18 6h2" />
+      <circle cx="16" cy="6" r="2" />
+      <path d="M4 12h3" />
+      <path d="M11 12h9" />
+      <circle cx="9" cy="12" r="2" />
+      <path d="M4 18h10" />
+      <path d="M18 18h2" />
+      <circle cx="16" cy="18" r="2" />
+    </template>
+    <template v-else-if="name === 'arrow-up'">
+      <path d="M12 19V5" />
+      <path d="m5 12 7-7 7 7" />
+    </template>
+    <template v-else-if="name === 'arrow-down'">
+      <path d="M12 5v14" />
+      <path d="m19 12-7 7-7-7" />
+    </template>
+    <template v-else-if="name === 'plus'">
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
     </template>
     <template v-else-if="name === 'close'">
       <path d="M18 6 6 18" />

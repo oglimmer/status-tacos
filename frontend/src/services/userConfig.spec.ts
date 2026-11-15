@@ -216,4 +216,21 @@ describe('UserConfigService', () => {
       expect(service2.getAlertContactTenantFilter()).toBe(321)
     })
   })
+
+  describe('monitor environment filter', () => {
+    it('saves the environment filter and loads it again', () => {
+      service = new UserConfigService()
+      expect(service.getMonitorEnvironmentFilter()).toBeNull()
+
+      service.setMonitorEnvironmentFilter('STAGE')
+
+      expect(new UserConfigService().getMonitorEnvironmentFilter()).toBe('STAGE')
+    })
+
+    it('falls back to no filter for an unknown value', () => {
+      localStorage.setItem('status-tacos-user-config', JSON.stringify({ monitorEnvironmentFilter: 'QA' }))
+
+      expect(new UserConfigService().getMonitorEnvironmentFilter()).toBeNull()
+    })
+  })
 })

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 // The head of a page: the title, an optional line below it, the actions on the right.
 // The default slot is for a toolbar (filters, search) under the title.
+// The title slot replaces the title and the line below it; it must hold the <h1>.
 defineProps<{
-  title: string
+  title?: string
   subtitle?: string
 }>()
 </script>
@@ -10,7 +11,8 @@ defineProps<{
 <template>
   <header class="page-header">
     <div class="page-header-top">
-      <div class="page-header-text">
+      <slot v-if="$slots.title" name="title" />
+      <div v-else class="page-header-text">
         <h1 class="page-title">{{ title }}</h1>
         <p v-if="subtitle" class="page-subtitle">{{ subtitle }}</p>
       </div>

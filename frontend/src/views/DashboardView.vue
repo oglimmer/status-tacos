@@ -9,19 +9,22 @@ import AppShell from '../components/AppShell.vue'
 import PageHeader from '../components/PageHeader.vue'
 import MonitorLimitInfo from '../components/MonitorLimitInfo.vue'
 import PeerSetupWarning from '../components/PeerSetupWarning.vue'
-import DashboardSummary from '../components/DashboardSummary.vue'
+import MonitorStatusHeadline from '../components/MonitorStatusHeadline.vue'
+import MonitorStatusFilter, { type MonitorStatusFilterType } from '../components/MonitorStatusFilter.vue'
+import MonitorIcon from '../components/MonitorIcon.vue'
 import EnhancedMonitorCard from '../components/EnhancedMonitorCard.vue'
 import BulkEditMonitorsModal from '../components/BulkEditMonitorsModal.vue'
 import TimeframeSwitcher, { type TimeframeType } from '../components/TimeframeSwitcher.vue'
 import ViewModeSwitcher, { type ViewModeType } from '../components/ViewModeSwitcher.vue'
 import NameFilter from '../components/NameFilter.vue'
 import TenantFilter from '../components/TenantFilter.vue'
+import EnvironmentFilter from '../components/EnvironmentFilter.vue'
 import MonitorSortSelect from '../components/MonitorSortSelect.vue'
 import LoadingState from '../components/LoadingState.vue'
 import ErrorState from '../components/ErrorState.vue'
 import EmptyState from '../components/EmptyState.vue'
 import type { CurrentUser } from '../services/api'
-import { userConfigService } from '../services/userConfig'
+import { userConfigService, type MonitorEnvironmentFilter } from '../services/userConfig'
 import { timeframeToPeriod } from '../utils/uptime'
 import { sortMonitors, type MonitorSort } from '../utils/monitorSort'
 
@@ -34,11 +37,14 @@ const editingMonitor = ref<MonitorResponse | null>(null)
 const expandedMonitors = ref(new Set<number>())
 const currentUser = ref<CurrentUser | null>(null)
 const selectedTenantId = ref<number | null>(userConfigService.getMonitorTenantFilter())
-const selectedStatusFilter = ref<'all' | 'up' | 'down' | 'active'>('all')
+const selectedEnvironment = ref<MonitorEnvironmentFilter | null>(userConfigService.getMonitorEnvironmentFilter())
+const selectedStatusFilter = ref<MonitorStatusFilterType>('all')
 const selectedNameFilter = ref<string>('')
 const selectedSort = ref<MonitorSort>(userConfigService.getMonitorSort())
-const selectedTimeframe = ref<TimeframeType>('24h')
-const selectedViewMode = ref<ViewModeType>('default')
+const selectedTimeframe = ref<TimeframeType>(userConfigService.getMonitorTimeframe())
+const selectedViewMode = ref<ViewModeType>(userConfigService.getMonitorViewMode())
+// Small screens: tenant, sort, timeframe and view are in a panel that opens with a button
+const optionsOpen = ref(false)
 const loadingUptimeStats = ref(new Set<number>())
 // Multi edit
 const selecting = ref(false)
@@ -53,32 +59,45 @@ const MONITOR_REFRESH_MS = 15_000
 const UPTIME_STATS_REFRESH_MS = 60_000
 let lastUptimeStatsFetch = 0
 
-const filteredMonitors = computed(() => {
-  let monitors = selectedTenantId.value
+const upMonitorIds = computed(() => new Set(monitorsStore.upMonitors.map(s => s.monitorId)))
+const downMonitorIds = computed(() => new Set(monitorsStore.downMonitors.map(s => s.monitorId)))
+
+const isPaused = (m: MonitorResponse) => m.state !== 'ACTIVE'
+
+// The monitors of the selected tenant and environment. The headline counts these.
+const tenantMonitors = computed(() => {
+  const monitors = selectedTenantId.value
     ? monitorsStore.getMonitorsByTenant(selectedTenantId.value)
     : monitorsStore.monitors
+  const environment = selectedEnvironment.value
+  if (!environment) return monitors
+  return monitors.filter(m => (m.environment ?? 'NONE') === environment)
+})
 
-  // Apply status filter
-  if (selectedStatusFilter.value !== 'all') {
-    if (selectedStatusFilter.value === 'up') {
-      const upMonitorIds = new Set(monitorsStore.upMonitors.map(s => s.monitorId))
-      monitors = monitors.filter(m => upMonitorIds.has(m.id))
-    } else if (selectedStatusFilter.value === 'down') {
-      const downMonitorIds = new Set(monitorsStore.downMonitors.map(s => s.monitorId))
-      monitors = monitors.filter(m => downMonitorIds.has(m.id))
-    } else if (selectedStatusFilter.value === 'active') {
-      monitors = monitors.filter(m => m.state === 'ACTIVE')
-    }
+// The environment filter shows only when a monitor has an environment, or when the filter is on
+const hasEnvironments = computed(
+  () => selectedEnvironment.value !== null || monitorsStore.monitors.some(m => !!m.environment)
+)
+
+// The tenant and the name search. The status filter counts these.
+const searchedMonitors = computed(() => {
+  const search = selectedNameFilter.value.toLowerCase().trim()
+  if (!search) return tenantMonitors.value
+  return tenantMonitors.value.filter(m => m.name.toLowerCase().includes(search))
+})
+
+const filteredMonitors = computed(() => {
+  const monitors = searchedMonitors.value
+  switch (selectedStatusFilter.value) {
+    case 'up':
+      return monitors.filter(m => upMonitorIds.value.has(m.id))
+    case 'down':
+      return monitors.filter(m => downMonitorIds.value.has(m.id))
+    case 'paused':
+      return monitors.filter(isPaused)
+    default:
+      return monitors
   }
-
-  // Apply name filter
-  if (selectedNameFilter.value.trim()) {
-    monitors = monitors.filter(m =>
-      m.name.toLowerCase().includes(selectedNameFilter.value.toLowerCase().trim())
-    )
-  }
-
-  return monitors
 })
 
 const sortedMonitors = computed(() =>
@@ -87,7 +106,6 @@ const sortedMonitors = computed(() =>
 
 // Down first: the monitors that are down now are a group of their own at the top.
 // Each group keeps the sort of the user.
-const downMonitorIds = computed(() => new Set(monitorsStore.downMonitors.map(s => s.monitorId)))
 const downGroup = computed(() => sortedMonitors.value.filter(m => downMonitorIds.value.has(m.id)))
 const otherGroup = computed(() => sortedMonitors.value.filter(m => !downMonitorIds.value.has(m.id)))
 const otherGroupTitle = computed(() =>
@@ -257,18 +275,32 @@ const monitorLimitReached = computed(
   () => maxMonitors.value !== null && countedMonitorCount.value >= maxMonitors.value
 )
 
-// Summary data computed property
-const summaryData = computed(() => {
-  const filtered = filteredMonitors.value
-  const filteredIds = new Set(filtered.map(m => m.id))
-
+const headline = computed(() => {
+  const monitors = tenantMonitors.value
   return {
-    total: filtered.length,
-    up: monitorsStore.upMonitors.filter(m => filteredIds.has(m.monitorId)).length,
-    down: monitorsStore.downMonitors.filter(m => filteredIds.has(m.monitorId)).length,
-    active: filtered.filter(m => m.state === 'ACTIVE').length
+    total: monitors.length,
+    up: monitors.filter(m => upMonitorIds.value.has(m.id)).length,
+    paused: monitors.filter(isPaused).length,
+    downNames: sortMonitors(
+      monitors.filter(m => downMonitorIds.value.has(m.id)),
+      monitorsStore.getMonitorStatusById,
+      selectedSort.value
+    ).map(m => m.name)
   }
 })
+
+const statusCounts = computed(() => {
+  const monitors = searchedMonitors.value
+  return {
+    all: monitors.length,
+    down: monitors.filter(m => downMonitorIds.value.has(m.id)).length,
+    up: monitors.filter(m => upMonitorIds.value.has(m.id)).length,
+    paused: monitors.filter(isPaused).length
+  }
+})
+
+// The options button shows a dot when the tenant or environment filter hides monitors
+const optionsFiltering = computed(() => selectedTenantId.value !== null || selectedEnvironment.value !== null)
 
 onMounted(async () => {
   try {
@@ -318,12 +350,21 @@ watch(selectedTenantId, (newValue) => {
   userConfigService.setMonitorTenantFilter(newValue)
 })
 
+watch(selectedEnvironment, (newValue) => {
+  userConfigService.setMonitorEnvironmentFilter(newValue)
+})
+
 watch(selectedSort, (newValue) => {
   userConfigService.setMonitorSort(newValue)
 })
 
+watch(selectedViewMode, (newValue) => {
+  userConfigService.setMonitorViewMode(newValue)
+})
+
 // Watch for changes to selectedTimeframe and fetch data
 watch(selectedTimeframe, async (newTimeframe) => {
+  userConfigService.setMonitorTimeframe(newTimeframe)
   await fetchUptimeStatsForTimeframe(newTimeframe)
 })
 
@@ -336,7 +377,15 @@ onUnmounted(() => {
 <template>
   <AppShell>
     <div class="monitors-page" :class="{ 'is-selecting': selecting }">
-      <PageHeader title="Monitors">
+      <PageHeader title="Monitors" class="monitors-header">
+        <template v-if="!monitorsStore.isLoading && !monitorsStore.error && monitorsStore.monitors.length > 0" #title>
+          <MonitorStatusHeadline
+            :total="headline.total"
+            :up="headline.up"
+            :paused="headline.paused"
+            :down-names="headline.downNames"
+          />
+        </template>
         <template #actions>
           <button
             v-if="monitorsStore.monitors.length > 0"
@@ -355,7 +404,8 @@ onUnmounted(() => {
             :title="monitorLimitReached ? 'You have the maximum number of monitors' : undefined"
             @click="openAddMonitorForm"
           >
-            Add Monitor
+            <MonitorIcon name="plus" />
+            Add<span class="add-label-long"> monitor</span>
           </button>
         </template>
 
@@ -372,27 +422,51 @@ onUnmounted(() => {
         </div>
       </PageHeader>
 
-      <template v-if="!monitorsStore.isLoading && !monitorsStore.error && monitorsStore.monitors.length > 0">
-        <DashboardSummary
-          class="monitors-stats"
-          :summary="summaryData"
-          :selected-status-filter="selectedStatusFilter"
-          @update:selected-status-filter="selectedStatusFilter = $event"
-        />
-
-        <div class="toolbar monitors-toolbar">
+      <div
+        v-if="!monitorsStore.isLoading && !monitorsStore.error && monitorsStore.monitors.length > 0"
+        class="monitors-controls"
+      >
+        <div class="monitors-toolbar">
           <NameFilter v-model="selectedNameFilter" class="toolbar-search" />
-          <TenantFilter
-            v-if="currentUser?.tenants"
-            v-model="selectedTenantId"
-            :tenants="currentUser.tenants"
-          />
-          <MonitorSortSelect v-model="selectedSort" />
-          <span class="toolbar-spacer" aria-hidden="true"></span>
-          <TimeframeSwitcher v-model="selectedTimeframe" />
-          <ViewModeSwitcher v-model="selectedViewMode" />
+          <button
+            type="button"
+            class="btn btn-outline options-toggle"
+            aria-controls="monitor-options"
+            :aria-expanded="optionsOpen"
+            @click="optionsOpen = !optionsOpen"
+          >
+            <MonitorIcon name="sliders" />
+            View
+            <span v-if="optionsFiltering" class="options-dot" title="A tenant or environment filter is on"></span>
+          </button>
+
+          <div id="monitor-options" class="monitor-options" :class="{ 'is-open': optionsOpen }">
+            <div v-if="currentUser?.tenants && currentUser.tenants.length > 1" class="option option-filter">
+              <span class="option-label" aria-hidden="true">Tenant</span>
+              <TenantFilter v-model="selectedTenantId" :tenants="currentUser.tenants" />
+            </div>
+            <div v-if="hasEnvironments" class="option option-filter">
+              <span class="option-label" aria-hidden="true">Env</span>
+              <EnvironmentFilter v-model="selectedEnvironment" />
+            </div>
+            <div class="option option-filter">
+              <span class="option-label" aria-hidden="true">Sort</span>
+              <MonitorSortSelect v-model="selectedSort" />
+            </div>
+            <span class="controls-break" aria-hidden="true"></span>
+            <div class="option option-display">
+              <span class="option-label" aria-hidden="true">Range</span>
+              <TimeframeSwitcher v-model="selectedTimeframe" />
+            </div>
+            <div class="option option-display">
+              <span class="option-label" aria-hidden="true">Rows</span>
+              <ViewModeSwitcher v-model="selectedViewMode" />
+            </div>
+          </div>
         </div>
-      </template>
+
+        <MonitorStatusFilter v-model="selectedStatusFilter" :counts="statusCounts" />
+      </div>
 
       <LoadingState
         v-if="monitorsStore.isLoading"
@@ -508,17 +582,123 @@ onUnmounted(() => {
   margin-top: calc(-1 * var(--space-2));
 }
 
-.monitors-stats {
-  margin-bottom: var(--space-3);
+/*
+ * The top of the page: the headline, then one row of controls, then the status filter.
+ * The space between all these parts is the same: --space-3.
+ */
+.monitors-header {
+  margin-bottom: var(--space-4);
 }
 
-.monitors-toolbar {
-  margin-bottom: var(--space-5);
+.monitors-header :deep(.page-header-top) {
+  align-items: flex-start;
+}
+
+/*
+ * Wide screens, two rows. Row 1: the filters (search, tenant, sort). Row 2: the status filter
+ * on the left, the display settings (timeframe, rows) on the right. The toolbar and the
+ * options panel are only boxes for small screens; here their parts sit in this one flex box,
+ * and "order" puts them in the rows.
+ */
+.monitors-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.monitors-toolbar,
+.monitor-options {
+  display: contents;
 }
 
 .toolbar-search {
-  flex: 1 1 14rem;
-  max-width: 20rem;
+  order: 1;
+  flex: 1 1 16rem;
+}
+
+.option-filter {
+  order: 2;
+}
+
+/* Ends row 1. The negative margin takes away the gap of the empty line. */
+.controls-break {
+  order: 3;
+  flex-basis: 100%;
+  height: 0;
+  margin-top: calc(-1 * var(--space-3));
+}
+
+.monitors-controls > .status-filter {
+  order: 4;
+  margin-right: auto;
+}
+
+.option-display {
+  order: 5;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.option-label {
+  display: none;
+}
+
+/* All controls have the same height: inputs, selects, buttons and switches. */
+.monitors-controls {
+  --control-height: 2.5rem;
+}
+
+.monitors-controls :deep(.input) {
+  height: var(--control-height);
+  min-height: 0;
+  padding-block: 0;
+}
+
+.monitors-controls :deep(.direction-btn),
+.monitors-controls .options-toggle {
+  height: var(--control-height);
+}
+
+.monitors-controls :deep(.direction-btn) {
+  width: var(--control-height);
+}
+
+.monitors-controls :deep(.button-group > .btn) {
+  min-height: calc(var(--control-height) - 2px);
+}
+
+.monitors-controls :deep(.button-group) {
+  border-color: var(--input-border);
+}
+
+.monitors-controls :deep(.button-group > .btn + .btn) {
+  border-left-color: var(--input-border);
+}
+
+.options-toggle {
+  display: none;
+  position: relative;
+  border-color: var(--input-border);
+}
+
+.options-toggle[aria-expanded='true'] {
+  background: var(--accent-soft);
+}
+
+.options-dot {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--link);
 }
 
 .monitors-none {
@@ -534,8 +714,19 @@ onUnmounted(() => {
   margin-bottom: var(--space-5);
 }
 
+/* The headline says what is down; the group titles only mark where a group starts. */
+.monitor-group .page-section-title {
+  margin-bottom: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
 .monitor-group-down .page-section-title {
   color: var(--down);
+}
+
+.monitor-group:not(:has(.page-section-title)) {
+  margin-top: 0;
 }
 
 /* The rows of the list. Each monitor draws its own row; the list draws the lines between. */
@@ -611,19 +802,99 @@ onUnmounted(() => {
   }
 }
 
+/*
+ * Small screens: the search and a "View" button in one row. Tenant, sort, timeframe and view
+ * are in a panel that the button opens. Each control fills its row, so all edges line up.
+ */
 @media (max-width: 640px) {
-  .toolbar-search {
-    flex-basis: 100%;
-    max-width: none;
-  }
-
-  .monitors-toolbar .toolbar-spacer {
+  .add-label-long {
     display: none;
   }
 
-  /* Both switches fit in one line. */
-  .monitors-toolbar :deep(.button-group > .btn) {
-    padding-inline: var(--space-3);
+  .monitors-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .monitors-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .monitors-controls > .status-filter {
+    margin-right: 0;
+  }
+
+  .controls-break {
+    display: none;
+  }
+
+  /* The wide-screen row order does not apply here. */
+  .toolbar-search,
+  .option-filter,
+  .option-display,
+  .monitors-controls > .status-filter {
+    order: 0;
+  }
+
+  /* The search and the button share the first line; the panel wraps to a line of its own. */
+  .toolbar-search {
+    flex: 1 1 0;
+    max-width: none;
+  }
+
+  .options-toggle {
+    display: inline-flex;
+    flex: none;
+  }
+
+  .monitor-options {
+    display: none;
+    flex-basis: 100%;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--space-3) var(--space-3);
+    align-items: center;
+    padding: var(--space-3);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+  }
+
+  .monitor-options.is-open {
+    display: grid;
+  }
+
+
+  .option {
+    display: contents;
+  }
+
+  .option-label {
+    display: block;
+    font-size: var(--text-sm);
+    font-weight: 700;
+    color: var(--text-2);
+  }
+
+  .option > :deep(*:not(.option-label)),
+  .option :deep(.filters select),
+  .option :deep(.env-filter select) {
+    width: 100%;
+  }
+
+  .option :deep(.button-group) {
+    display: flex;
+  }
+
+  .option :deep(.button-group > .btn),
+  .monitors-controls :deep(.status-filter > .btn) {
+    flex: 1 1 0;
+    padding-inline: var(--space-2);
+  }
+
+  .monitors-controls :deep(.status-filter) {
+    display: flex;
   }
 }
 </style>

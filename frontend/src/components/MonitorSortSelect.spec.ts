@@ -22,7 +22,7 @@ describe('MonitorSortSelect', () => {
       props: { modelValue: { key: 'created', direction: 'desc' } }
     })
 
-    expect(wrapper.find('button').text()).toBe('↓ Desc')
+    expect(wrapper.find('button').attributes('aria-label')).toBe('Sort descending')
     await wrapper.find('button').trigger('click')
 
     expect(wrapper.emitted('update:modelValue')).toEqual([[{ key: 'created', direction: 'asc' }]])

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import MonitorIcon from './MonitorIcon.vue'
 import {
   MONITOR_SORT_OPTIONS,
   defaultDirection,
@@ -29,7 +30,7 @@ const toggleDirection = () => {
 
 <template>
   <div class="sort-select">
-    <label for="monitor-sort" class="sort-label">Sort</label>
+    <label for="monitor-sort" class="sr-only">Sort by</label>
     <select
       id="monitor-sort"
       class="input"
@@ -51,7 +52,7 @@ const toggleDirection = () => {
       :aria-label="modelValue.direction === 'asc' ? 'Sort ascending' : 'Sort descending'"
       @click="toggleDirection"
     >
-      {{ modelValue.direction === 'asc' ? '↑ Asc' : '↓ Desc' }}
+      <MonitorIcon :name="modelValue.direction === 'asc' ? 'arrow-up' : 'arrow-down'" />
     </button>
   </div>
 </template>
@@ -64,20 +65,17 @@ const toggleDirection = () => {
   min-width: 0;
 }
 
-.sort-label {
-  font-size: var(--text-sm);
-  font-weight: 700;
-  color: var(--text-2);
-}
-
 .sort-select select {
+  flex: 1 1 auto;
   width: auto;
   min-width: 0;
 }
 
-/* The same height as the select next to it. */
+/* A square button with the same height as the select next to it. */
 .direction-btn {
-  padding-inline: var(--space-3);
-  font-size: var(--text-sm);
+  flex: none;
+  width: 2.25rem;
+  padding: 0;
+  border-color: var(--input-border);
 }
 </style>
