@@ -38,6 +38,7 @@ K8S_NAMESPACE="${K8S_NAMESPACE:-default}"
 RELEASE_MODE=false
 SHOW_VERSIONS=false
 COPY_STAGE_DB=false
+NOTIFIER_RELEASE=false
 
 # Color output (only if terminal supports it)
 if [[ -t 1 ]] && command -v tput >/dev/null 2>&1; then
@@ -104,6 +105,8 @@ COMMANDS:
     release             Create a new release with version bumping and build
     show                Show current backend and frontend versions
     copy-stage-db       Copy database from stage server to local MariaDB
+    notifier            Build, sign (Developer ID) and notarize the macOS notifier app,
+                        then zip it for direct sharing (outside the App Store)
 
 BUILD OPTIONS:
     -f, --frontend          Build and deploy frontend only
@@ -136,6 +139,7 @@ EXAMPLES:
     ${SCRIPT_NAME} release                                  # Create a new release with version bump and build
     ${SCRIPT_NAME} show                                     # Show current versions
     ${SCRIPT_NAME} copy-stage-db                            # Copy database from stage server to local MariaDB
+    ${SCRIPT_NAME} notifier                                 # Notarized zip of the macOS app in notifier-app/build/
     ${SCRIPT_NAME} build --registries my-registry.com                               # Use custom registry
     ${SCRIPT_NAME} build --registries "reg1.com,reg2.com"                          # Push to multiple registries
     ${SCRIPT_NAME} build --registries localhost:5000 --no-push                     # Use local registry without pushing
@@ -155,6 +159,7 @@ ENVIRONMENT VARIABLES:
                             deployments when kubectl is unavailable (e.g. CI).
     RESTART_HOOK_URL        Restart hook base URL (default: https://restart.oglimmer.com/restart)
     K8S_NAMESPACE           Namespace for restart-hook rollouts (default: default)
+    NOTARIZE_TIMEOUT        Seconds to wait for Apple notarization (default: 1200)
 
 EOF
 }
@@ -177,6 +182,10 @@ parse_args() {
                 ;;
             copy-stage-db)
                 COPY_STAGE_DB=true
+                shift
+                ;;
+            notifier)
+                NOTIFIER_RELEASE=true
                 shift
                 ;;
             help|-h|--help)
@@ -736,6 +745,112 @@ execute_release() {
     log_success "Release v$new_version complete. Backend is now $snapshot."
 }
 
+# Build, sign and notarize the macOS notifier app for direct sharing.
+# Uses the Developer ID certificate and the Apple account signed in to Xcode,
+# so no notarytool credentials are needed. Bump the version in Xcode first.
+release_notifier() {
+    local project_dir="$SCRIPT_DIR/notifier-app"
+    local build_dir="$project_dir/build"
+    local team_id="SBFZ9G94BG"
+    local archive="$build_dir/StatusTacosAlert.xcarchive"
+    local timeout="${NOTARIZE_TIMEOUT:-1200}"
+
+    for tool in xcodebuild xcrun ditto spctl; do
+        if ! command -v "$tool" >/dev/null 2>&1; then
+            log_error "Missing required tool: $tool (run this on a Mac with Xcode)"
+            exit 1
+        fi
+    done
+
+    local version
+    version=$(xcodebuild -project "$project_dir/StatusTacosAlert.xcodeproj" -scheme StatusTacosAlert \
+        -configuration Release -showBuildSettings 2>/dev/null | awk '$1 == "MARKETING_VERSION" { print $3; exit }')
+    if [[ -z "$version" ]]; then
+        log_error "Cannot read MARKETING_VERSION of the notifier app"
+        exit 1
+    fi
+    log_info "Notifier app version $version"
+
+    if [[ "$DRY_RUN" == true ]]; then
+        echo -e "${YELLOW}[DRY-RUN]${RESET} archive, export (developer-id, upload), wait for notarization, zip"
+        return 0
+    fi
+
+    rm -rf "$archive" "$build_dir/export" "$build_dir/notarized"
+    mkdir -p "$build_dir"
+
+    log_info "Archiving (Release)..."
+    if ! xcodebuild -project "$project_dir/StatusTacosAlert.xcodeproj" -scheme StatusTacosAlert \
+        -configuration Release -destination 'generic/platform=macOS' \
+        -archivePath "$archive" -allowProvisioningUpdates -quiet archive; then
+        log_error "Archive failed"
+        exit 1
+    fi
+
+    cat > "$build_dir/ExportOptions.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>method</key>
+    <string>developer-id</string>
+    <key>destination</key>
+    <string>upload</string>
+    <key>teamID</key>
+    <string>$team_id</string>
+    <key>signingStyle</key>
+    <string>automatic</string>
+</dict>
+</plist>
+PLIST
+
+    log_info "Signing with Developer ID and uploading to Apple for notarization..."
+    if ! xcodebuild -exportArchive -archivePath "$archive" -exportOptionsPlist "$build_dir/ExportOptions.plist" \
+        -exportPath "$build_dir/export" -allowProvisioningUpdates -quiet; then
+        log_error "Export / upload failed"
+        exit 1
+    fi
+
+    log_info "Waiting for Apple notarization (up to ${timeout}s)..."
+    local waited=0
+    local log_file="$build_dir/notarize.log"
+    until xcodebuild -exportNotarizedApp -archivePath "$archive" -exportPath "$build_dir/notarized" >"$log_file" 2>&1; do
+        if grep -qi "invalid\|rejected" "$log_file"; then
+            log_error "Apple rejected the app. Details:"
+            tail -20 "$log_file" >&2
+            exit 1
+        fi
+        if (( waited >= timeout )); then
+            log_error "Notarization not done after ${timeout}s. Last output:"
+            tail -20 "$log_file" >&2
+            exit 1
+        fi
+        sleep 30
+        waited=$((waited + 30))
+    done
+
+    local app
+    app=$(find "$build_dir/notarized" -maxdepth 1 -name '*.app' -print -quit)
+    if [[ -z "$app" ]]; then
+        log_error "No app found in $build_dir/notarized"
+        exit 1
+    fi
+
+    log_info "Checking signature and notarization ticket..."
+    if ! xcrun stapler validate "$app" >/dev/null || ! spctl -a -t exec "$app" 2>/dev/null; then
+        log_error "Gatekeeper does not accept $app"
+        spctl -a -vv -t exec "$app" >&2 || true
+        exit 1
+    fi
+
+    local zip="$build_dir/StatusTacosAlert-$version.zip"
+    rm -f "$zip"
+    ditto -c -k --keepParent "$app" "$zip"
+
+    echo
+    echo -e "${BOLD}${GREEN}✓ Notarized notifier app ready: $zip${RESET}"
+}
+
 # Main execution function
 main() {
     # Show help if no arguments provided
@@ -759,6 +874,11 @@ main() {
     if [[ "$COPY_STAGE_DB" == true ]]; then
         check_prerequisites
         copy_stage_database
+        exit 0
+    fi
+
+    if [[ "$NOTIFIER_RELEASE" == true ]]; then
+        release_notifier
         exit 0
     fi
 
