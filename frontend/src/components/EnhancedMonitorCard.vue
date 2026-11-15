@@ -101,6 +101,7 @@ const isDown = computed(() => props.status?.currentStatus === 'down')
 
 // Up is a quiet dot, down is a red fill, no status yet is grey
 const statusBadge = computed(() => {
+  // The class also colors the dot of the minimal view.
   if (!props.status) return { class: 'badge-neutral', text: 'No data' }
   return props.status.currentStatus === 'down'
     ? { class: 'badge-down', text: 'Down' }
@@ -236,7 +237,16 @@ function get24hStatusDownPeriods(history: ResponseTimeHistory | null): Array<{ s
           @click.stop
           @change="$emit('toggle-select', monitor.id)"
         />
-        <span class="badge" :class="statusBadge.class">{{ statusBadge.text }}</span>
+        <!-- Minimal: a dot, so the name has the room. The text is in the tooltip. -->
+        <span
+          v-if="isMinimal"
+          class="mi-dot"
+          :class="statusBadge.class"
+          role="img"
+          :aria-label="statusBadge.text"
+          :title="statusBadge.text"
+        ></span>
+        <span v-else class="badge" :class="statusBadge.class">{{ statusBadge.text }}</span>
       </div>
 
       <div class="mi-main">
@@ -414,20 +424,49 @@ function get24hStatusDownPeriods(history: ResponseTimeHistory | null): Array<{ s
 }
 
 .is-minimal .mi-row {
-  grid-template-columns: var(--mi-status-width) minmax(0, 1fr) 4.5rem;
-  grid-template-areas: 'status main uptime';
+  grid-template-columns: auto minmax(0, 1fr) auto 4.5rem;
+  grid-template-areas: 'status name tags uptime';
   column-gap: var(--space-3);
   min-height: 2.5rem;
   padding: var(--space-1) var(--space-3);
 }
 
-/* Room for the "No data" badge. */
-.is-minimal {
-  --mi-status-width: 4.25rem;
+/*
+ * Minimal: the name and the tags are columns of the row, not one line. So the tags of all
+ * rows line up next to the uptime, and they are never cut; the name gets the rest.
+ */
+.is-minimal .mi-main,
+.is-minimal .mi-title {
+  display: contents;
 }
 
-.is-minimal.is-selectable {
-  --mi-status-width: 5.75rem;
+.is-minimal .mi-name {
+  grid-area: name;
+}
+
+.is-minimal .mi-tags {
+  grid-area: tags;
+  justify-self: end;
+  flex-wrap: nowrap;
+}
+
+/* The status as a dot. Up is a quiet green; down is red with a ring; no data is hollow. */
+.mi-dot {
+  width: 0.625rem;
+  height: 0.625rem;
+  flex: none;
+  border-radius: 50%;
+  background: var(--up);
+}
+
+.mi-dot.badge-down {
+  background: var(--down);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--down) 30%, transparent);
+}
+
+.mi-dot.badge-neutral {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--text-faint);
 }
 
 /* A monitor that is down has a red edge. */
@@ -466,10 +505,6 @@ function get24hStatusDownPeriods(history: ResponseTimeHistory | null): Array<{ s
   min-width: 0;
 }
 
-.is-minimal .mi-title {
-  flex-wrap: nowrap;
-}
-
 .mi-name {
   min-width: 0;
   max-width: 100%;
@@ -502,19 +537,6 @@ button.mi-name:hover {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1);
-}
-
-/* Minimal: the name keeps room to be read, the tags are cut when the line is short. */
-.is-minimal .mi-name {
-  flex: 0 1 auto;
-  min-width: min(7rem, 60%);
-}
-
-.is-minimal .mi-tags {
-  flex: 0 1 auto;
-  flex-wrap: nowrap;
-  min-width: 0;
-  overflow: hidden;
 }
 
 .mi-flag {
@@ -727,9 +749,14 @@ button.mi-name:hover {
   }
 
   .is-minimal .mi-row {
-    grid-template-columns: var(--mi-status-width) minmax(0, 1fr) 4.5rem;
-    grid-template-areas: 'status main uptime';
+    grid-template-columns: auto minmax(0, 1fr) auto 4.5rem;
+    grid-template-areas: 'status name tags uptime';
+    column-gap: var(--space-3);
     row-gap: 0;
+  }
+
+  .is-minimal .mi-tags .badge {
+    white-space: nowrap;
   }
 
   .mi-details {
