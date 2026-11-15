@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import TenantFilter from './TenantFilter.vue'
 
+// The counts of the alert contacts in a stats row, then the tenant filter in the toolbar.
+
 interface Tenant {
   id: number
   name: string
@@ -28,142 +30,71 @@ defineEmits<{
 </script>
 
 <template>
-  <div class="dashboard-summary-container">
-    <div class="dashboard-summary">
-      <div class="summary-card">
-        <div class="summary-number">{{ summary.total }}</div>
-        <div class="summary-label">Total</div>
+  <div class="page-tools">
+    <div class="stats" aria-label="Alert contact counts">
+      <div class="stat">
+        <span class="stat-value">{{ summary.total }}</span>
+        <span class="stat-label">Total</span>
       </div>
-      <div class="summary-card">
-        <div class="summary-number active">{{ summary.active }}</div>
-        <div class="summary-label">Active</div>
+      <div class="stat stat-up">
+        <span class="stat-value">{{ summary.active }}</span>
+        <span class="stat-label">Active</span>
       </div>
-      <div class="summary-card">
-        <div class="summary-number inactive">{{ summary.inactive }}</div>
-        <div class="summary-label">Inactive</div>
+      <div class="stat">
+        <span class="stat-value">{{ summary.inactive }}</span>
+        <span class="stat-label">Inactive</span>
       </div>
-      <div class="summary-card">
-        <div class="summary-number">{{ summary.email }}</div>
-        <div class="summary-label">Email</div>
+      <div class="stat">
+        <span class="stat-value">{{ summary.email }}</span>
+        <span class="stat-label">Email</span>
       </div>
-      <div class="summary-card">
-        <div class="summary-number">{{ summary.webhook }}</div>
-        <div class="summary-label">Webhook</div>
+      <div class="stat">
+        <span class="stat-value">{{ summary.webhook }}</span>
+        <span class="stat-label">Webhook</span>
       </div>
-      <div class="summary-card">
-        <div class="summary-number">{{ summary.teams }}</div>
-        <div class="summary-label">Teams</div>
+      <div class="stat">
+        <span class="stat-value">{{ summary.teams }}</span>
+        <span class="stat-label">Teams</span>
       </div>
-      <div class="summary-card">
-        <div class="summary-number">{{ summary.iosPush }}</div>
-        <div class="summary-label">iOS Push</div>
+      <div class="stat">
+        <span class="stat-value">{{ summary.iosPush }}</span>
+        <span class="stat-label">iOS Push</span>
       </div>
     </div>
 
-    <TenantFilter
-      v-if="tenants"
-      :tenants="tenants"
-      :model-value="selectedTenantId"
-      @update:model-value="$emit('update:selectedTenantId', $event)"
-      class="tenant-filter"
-    />
+    <div v-if="tenants && tenants.length > 1" class="toolbar">
+      <TenantFilter
+        :tenants="tenants"
+        :model-value="selectedTenantId"
+        @update:model-value="$emit('update:selectedTenantId', $event)"
+      />
+    </div>
   </div>
 </template>
 
 <style scoped>
-.dashboard-summary-container {
+.page-tools {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 1.5rem;
-  gap: 2rem;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
 }
 
-.dashboard-summary {
-  display: flex;
-  gap: 1rem;
-}
-
-.summary-card {
-  background: var(--surface);
-  padding: 0.75rem 1rem;
-  border-radius: 6px;
-  border: 1px solid var(--border-subtle);
-  text-align: center;
-  min-width: 80px;
-}
-
-.summary-number {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--text);
-  margin-bottom: 0.25rem;
-}
-
-.summary-label {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  font-weight: 500;
-}
-
-.summary-number.active {
-  color: var(--success-text);
-}
-
-.summary-number.inactive {
-  color: var(--text-muted);
-}
-
-.tenant-filter {
-  flex-shrink: 0;
-}
-
-.tenant-filter :deep(.filters) {
-  margin-bottom: 0;
-}
-
-.tenant-filter :deep(.filters label) {
-  white-space: nowrap;
-}
-
-.tenant-filter :deep(.filters select) {
-  min-width: 150px;
-}
-
-/* Mobile styles */
-@media (max-width: 768px) {
-  .dashboard-summary-container {
-    flex-direction: column;
-    gap: 1rem;
-  }
-
-  .dashboard-summary {
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-
-  .summary-card {
-    flex: 1;
-    min-width: 70px;
-    padding: 0.5rem 0.75rem;
-  }
-
-  .summary-number {
-    font-size: 1.1rem;
-  }
-
-  .summary-label {
-    font-size: 0.7rem;
-  }
-
-  .tenant-filter {
-    width: 100%;
-  }
-
-  .tenant-filter :deep(.filters select) {
-    flex: 1;
+/* On a phone the tiles share the width. */
+@media (max-width: 520px) {
+  .stats .stat {
+    flex: 1 1 5.5rem;
     min-width: 0;
   }
+}
+
+/* TenantFilter must not be wider than a phone: let it wrap and shrink. */
+.toolbar > * {
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+.toolbar :deep(select) {
+  max-width: 100%;
 }
 </style>

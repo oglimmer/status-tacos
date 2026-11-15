@@ -3,7 +3,7 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { useAlertContactsStore, type AlertContactResponse } from '../stores/alertContacts'
 import { useAuthStore } from '../stores/auth'
 import AlertContactForm from './AlertContactForm.vue'
-import AlertContactsHeader from './AlertContactsHeader.vue'
+import PageHeader from './PageHeader.vue'
 import AlertContactsSummary from './AlertContactsSummary.vue'
 import AlertContactCard from './AlertContactCard.vue'
 import LoadingState from './LoadingState.vue'
@@ -112,7 +112,19 @@ watch(selectedTenantId, (newValue) => {
 
 <template>
   <div class="alert-contacts-management">
-    <AlertContactsHeader @add-contact="handleAddContact" />
+    <PageHeader
+      title="Alert Contacts"
+      subtitle="Who gets a message when a monitor goes down or comes back."
+    >
+      <template #actions>
+        <button type="button" class="btn btn-primary" @click="handleAddContact">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          Add Alert Contact
+        </button>
+      </template>
+    </PageHeader>
 
     <AlertContactsSummary
       v-if="!alertContactsStore.isLoading && !alertContactsStore.error && alertContactsStore.alertContacts.length > 0"
@@ -140,7 +152,11 @@ watch(selectedTenantId, (newValue) => {
       @action="handleAddContact"
     />
 
-    <div v-else class="contacts-list">
+    <p v-else-if="filteredContacts.length === 0" class="list-empty">
+      No alert contacts in this tenant.
+    </p>
+
+    <ul v-else class="list contacts-list" aria-label="Alert contacts">
       <AlertContactCard
         v-for="contact in filteredContacts"
         :key="contact.id"
@@ -150,7 +166,7 @@ watch(selectedTenantId, (newValue) => {
         @delete="handleDelete"
         @test-notification="handleTestNotification"
       />
-    </div>
+    </ul>
 
     <AlertContactForm
       v-if="showForm"
@@ -163,10 +179,12 @@ watch(selectedTenantId, (newValue) => {
 </template>
 
 <style scoped>
-.contacts-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 2rem;
+.list-empty {
+  margin: 0;
+  padding: var(--space-5) var(--space-4);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--text-muted);
+  text-align: center;
 }
 </style>

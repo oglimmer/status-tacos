@@ -239,19 +239,19 @@ const CSS_VARIABLES = [
 
 <template>
   <FormModal :title="`Status page: ${tenant.name}`" wide @close="emit('close')">
-    <div v-if="loadError" class="error-message">{{ loadError }}</div>
+    <p v-if="loadError" class="callout callout-danger" role="alert">{{ loadError }}</p>
 
     <div v-else class="editor">
       <div class="links">
         <span>
           Public page:
-          <router-link :to="publicPath" target="_blank">{{ publicPath }}</router-link>
+          <router-link :to="publicPath" target="_blank" class="mono">{{ publicPath }}</router-link>
         </span>
         <button type="button" class="btn btn-outline btn-sm" @click="copyEmbedCode">
           {{ copied ? 'Copied' : 'Copy embed code' }}
         </button>
-        <span v-if="!isCustom" class="badge">Default look</span>
-        <span v-else class="badge custom">Custom look</span>
+        <span v-if="!isCustom" class="badge badge-neutral look">Default look</span>
+        <span v-else class="badge badge-info look">Custom look</span>
       </div>
 
       <div class="panes">
@@ -318,13 +318,13 @@ const CSS_VARIABLES = [
             <table v-else class="asset-list">
               <tbody>
                 <tr v-for="asset in assets" :key="asset.name">
-                  <td><code>{{ asset.reference }}</code></td>
-                  <td class="size">{{ formatSize(asset.size) }}</td>
+                  <td class="ref"><code>{{ asset.reference }}</code></td>
+                  <td class="size num">{{ formatSize(asset.size) }}</td>
                   <td class="actions">
-                    <button type="button" class="link-btn" @click="copyReference(asset)">
+                    <button type="button" class="btn btn-link btn-sm" @click="copyReference(asset)">
                       {{ copiedAsset === asset.name ? 'Copied' : 'Copy' }}
                     </button>
-                    <button type="button" class="link-btn danger" @click="deleteAsset(asset.name)">Delete</button>
+                    <button type="button" class="btn btn-link btn-sm danger" @click="deleteAsset(asset.name)">Delete</button>
                   </td>
                 </tr>
               </tbody>
@@ -362,18 +362,18 @@ const CSS_VARIABLES = [
         <section class="preview-pane" aria-label="Preview">
           <div class="preview-bar">
             <span>Live preview with your real data</span>
-            <div class="device-switch">
-              <button type="button" :class="{ active: device === 'desktop' }" @click="device = 'desktop'">Desktop</button>
-              <button type="button" :class="{ active: device === 'mobile' }" @click="device = 'mobile'">Mobile</button>
+            <div class="button-group" role="group" aria-label="Preview size">
+              <button type="button" class="btn btn-sm" :aria-pressed="device === 'desktop'" @click="device = 'desktop'">Desktop</button>
+              <button type="button" class="btn btn-sm" :aria-pressed="device === 'mobile'" @click="device = 'mobile'">Mobile</button>
             </div>
           </div>
-          <div v-if="previewError" class="error-message">{{ previewError }}</div>
-          <div v-if="removed.length" class="warning-message">
+          <p v-if="previewError" class="callout callout-danger notice" role="alert">{{ previewError }}</p>
+          <p v-if="removed.length" class="callout callout-warning notice">
             Removed for safety: {{ removed.join(', ') }}
-          </div>
-          <div v-if="unknownAssets.length" class="warning-message">
+          </p>
+          <p v-if="unknownAssets.length" class="callout callout-warning notice">
             No such file: {{ unknownAssets.map(name => `asset:${name}`).join(', ') }}. Upload it in the Files tab.
-          </div>
+          </p>
           <div class="preview-stage" :class="device">
             <!-- No allow-* flags: no scripts, opaque origin -->
             <iframe class="preview" :srcdoc="previewHtml" sandbox="" title="Preview of the status page"></iframe>
@@ -385,7 +385,7 @@ const CSS_VARIABLES = [
         <button
           v-if="isCustom"
           type="button"
-          class="btn btn-danger-outline"
+          class="btn btn-outline reset-btn"
           :disabled="isSaving"
           @click="resetToDefault"
         >
@@ -401,7 +401,7 @@ const CSS_VARIABLES = [
           title="Ctrl+S / ⌘S"
           @click="save"
         >
-          {{ isSaving ? 'Saving…' : 'Save' }}
+          {{ isSaving ? 'Saving…' : 'Save changes' }}
         </button>
       </div>
     </div>
@@ -415,35 +415,25 @@ const CSS_VARIABLES = [
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-}
-
-.links,
-.form-actions {
-  flex: none;
+  gap: var(--space-3);
 }
 
 .links {
+  flex: none;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.75rem 1rem;
-  font-size: 0.9rem;
+  gap: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
   color: var(--text-2);
 }
 
-.badge {
+.links a {
+  color: var(--link);
+}
+
+.look {
   margin-left: auto;
-  padding: 0.2rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.8rem;
-  background: var(--surface-3);
-  color: var(--text-2);
-}
-
-.badge.custom {
-  background: var(--info-soft);
-  color: var(--info-soft-text);
 }
 
 .panes {
@@ -451,7 +441,7 @@ const CSS_VARIABLES = [
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
-  gap: 1rem;
+  gap: var(--space-4);
 }
 
 /* Narrow windows: the panes stack and scroll, each with a usable height. */
@@ -473,26 +463,30 @@ const CSS_VARIABLES = [
 
 .tabs {
   display: flex;
-  gap: 0.25rem;
+  gap: var(--space-1);
   border-bottom: 1px solid var(--border);
+  overflow-x: auto;
 }
 
 .tabs button {
-  padding: 0.5rem 0.9rem;
-  border: 1px solid transparent;
-  border-bottom: none;
-  border-radius: 4px 4px 0 0;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
   background: none;
   cursor: pointer;
-  color: var(--text-2);
-  font-size: 0.9rem;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.tabs button:hover {
+  color: var(--text);
 }
 
 .tabs button.active {
-  border-color: var(--border);
-  background: var(--surface);
-  margin-bottom: -1px;
-  font-weight: 600;
+  border-bottom-color: var(--accent);
   color: var(--text);
 }
 
@@ -501,34 +495,36 @@ const CSS_VARIABLES = [
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  padding-top: 0.75rem;
+  padding-top: var(--space-3);
 }
 
 .hint {
-  margin: 0 0 0.5rem;
-  font-size: 0.85rem;
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 
+/* A button inside a sentence of a hint */
 .link-btn {
   border: none;
   background: none;
   padding: 0;
   color: var(--link);
   cursor: pointer;
-  font-size: inherit;
+  font: inherit;
   text-decoration: underline;
+  text-underline-offset: 0.2em;
 }
 
 .code {
   flex: 1;
   min-height: 8rem;
   width: 100%;
-  padding: 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  font-size: 0.85rem;
+  padding: var(--space-3);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
   line-height: 1.5;
   tab-size: 2;
   resize: none;
@@ -536,16 +532,16 @@ const CSS_VARIABLES = [
   color: var(--text);
 }
 
-.code:focus {
+.code:focus-visible {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+  border-color: var(--focus);
+  box-shadow: 0 0 0 1px var(--focus);
 }
 
 .files {
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   overflow-y: auto;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
 .upload {
@@ -562,11 +558,11 @@ const CSS_VARIABLES = [
 }
 
 .upload.disabled {
-  opacity: 0.6;
+  opacity: 0.55;
 }
 
 .upload:focus-within {
-  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+  box-shadow: var(--focus-ring);
 }
 
 .asset-list {
@@ -575,14 +571,18 @@ const CSS_VARIABLES = [
 }
 
 .asset-list td {
-  padding: 0.35rem 0.5rem 0.35rem 0;
+  padding: var(--space-1) var(--space-2) var(--space-1) 0;
   border-bottom: 1px solid var(--border-subtle);
+}
+
+.asset-list .ref {
   word-break: break-all;
 }
 
 .asset-list .size {
   color: var(--text-muted);
   white-space: nowrap;
+  text-align: right;
 }
 
 .asset-list .actions {
@@ -590,23 +590,23 @@ const CSS_VARIABLES = [
   text-align: right;
 }
 
-.asset-list .actions .link-btn + .link-btn {
-  margin-left: 0.75rem;
-}
-
-.link-btn.danger {
-  color: var(--danger-text);
+.btn-link.danger {
+  color: var(--down);
 }
 
 .reference {
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   overflow-y: auto;
 }
 
 .reference h3 {
-  margin: 0.5rem 0;
-  font-size: 0.95rem;
+  margin: var(--space-3) 0 var(--space-2);
+  font-size: var(--text-md);
   color: var(--text);
+}
+
+.reference h3:first-child {
+  margin-top: 0;
 }
 
 .reference table {
@@ -615,7 +615,7 @@ const CSS_VARIABLES = [
 }
 
 .reference td {
-  padding: 0.3rem 0.5rem 0.3rem 0;
+  padding: var(--space-1) var(--space-2) var(--space-1) 0;
   vertical-align: top;
   border-bottom: 1px solid var(--border-subtle);
 }
@@ -626,11 +626,11 @@ const CSS_VARIABLES = [
 
 .reference .var {
   display: inline-block;
-  margin: 0 0.4rem 0.4rem 0;
+  margin: 0 var(--space-2) var(--space-2) 0;
 }
 
 .reference ul {
-  padding-left: 1.2rem;
+  padding-left: var(--space-5);
   margin: 0;
 }
 
@@ -638,31 +638,10 @@ const CSS_VARIABLES = [
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 1rem;
-  padding: 0.5rem 0;
-  font-size: 0.85rem;
+  gap: var(--space-4);
+  padding-bottom: var(--space-2);
+  font-size: var(--text-sm);
   color: var(--text-muted);
-}
-
-.device-switch {
-  display: flex;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.device-switch button {
-  padding: 0.25rem 0.6rem;
-  border: none;
-  background: var(--surface);
-  cursor: pointer;
-  font-size: 0.8rem;
-  color: var(--text-2);
-}
-
-.device-switch button.active {
-  background: var(--accent);
-  color: white;
 }
 
 .preview-stage {
@@ -670,17 +649,17 @@ const CSS_VARIABLES = [
   display: flex;
   justify-content: center;
   min-height: 8rem;
-  padding: 0.75rem;
+  padding: var(--space-3);
   background: repeating-conic-gradient(var(--surface-3) 0% 25%, var(--surface) 0% 50%) 50% / 16px 16px;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-md);
 }
 
 .preview {
   width: 100%;
   height: 100%;
   border: 1px solid var(--input-border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   transition: width 0.2s;
 }
@@ -690,31 +669,20 @@ const CSS_VARIABLES = [
   max-width: 100%;
 }
 
-.error-message,
-.warning-message {
-  padding: 0.6rem 0.75rem;
-  border-radius: 4px;
-  margin-bottom: 0.5rem;
-  font-size: 0.85rem;
+.notice {
+  margin-bottom: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
 }
 
-.error-message {
-  background: var(--danger-soft);
-  color: var(--danger-soft-text);
-  border: 1px solid var(--danger-soft-border);
-}
-
-.warning-message {
-  background: var(--warning-soft);
-  color: var(--warning-soft-text);
-  border: 1px solid var(--warning-soft-border);
-}
-
-.form-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
+/* The wide modal does not scroll as a whole, so the footer is a plain row at the end. */
+.editor .form-actions {
+  flex: none;
+  position: static;
+  margin: 0;
+  padding: var(--space-3) 0 0;
+  border-top: 1px solid var(--border-subtle);
+  background: none;
 }
 
 .spacer {
@@ -722,52 +690,11 @@ const CSS_VARIABLES = [
 }
 
 .unsaved {
-  font-size: 0.85rem;
-  color: var(--warning-text);
+  font-size: var(--text-sm);
+  color: var(--warning-soft-text);
 }
 
-.btn {
-  padding: 0.6rem 1.2rem;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.95rem;
-  font-weight: 500;
-}
-
-.btn-sm {
-  padding: 0.25rem 0.6rem;
-  font-size: 0.8rem;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  background: var(--accent);
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
-
-.btn-secondary {
-  background: var(--secondary);
-  color: white;
-}
-
-.btn-outline {
-  background: transparent;
-  color: var(--link);
-  border: 1px solid var(--accent);
-}
-
-.btn-danger-outline {
-  background: transparent;
-  color: var(--danger-text);
-  border: 1px solid var(--danger);
+.reset-btn {
+  color: var(--down);
 }
 </style>

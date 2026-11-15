@@ -28,10 +28,11 @@ const toggleDirection = () => {
 </script>
 
 <template>
-  <div class="filters">
-    <label for="monitor-sort">Sort by:</label>
+  <div class="sort-select">
+    <label for="monitor-sort" class="sort-label">Sort</label>
     <select
       id="monitor-sort"
+      class="input"
       :value="modelValue.key"
       @change="selectKey(($event.target as HTMLSelectElement).value as MonitorSortKey)"
     >
@@ -41,7 +42,7 @@ const toggleDirection = () => {
     </select>
     <button
       type="button"
-      class="direction-btn"
+      class="btn btn-outline direction-btn"
       :title="
         modelValue.direction === 'asc'
           ? 'Ascending. Click for descending.'
@@ -56,50 +57,27 @@ const toggleDirection = () => {
 </template>
 
 <style scoped>
-.filters {
-  margin-bottom: 0;
+.sort-select {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  justify-content: flex-end;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
-.filters label {
-  font-weight: 500;
+.sort-label {
+  font-size: var(--text-sm);
+  font-weight: 700;
   color: var(--text-2);
-  font-size: 0.9rem;
-  margin-right: 0.5rem;
 }
 
-.filters select {
-  padding: 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 0.9rem;
-  background: var(--surface);
-  width: 170px;
+.sort-select select {
+  width: auto;
+  min-width: 0;
 }
 
+/* The same height as the select next to it. */
 .direction-btn {
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 0.9rem;
-  background: var(--surface);
-  color: var(--text-2);
-  cursor: pointer;
-  white-space: nowrap;
-  min-width: 72px;
-}
-
-.direction-btn:hover {
-  background: var(--surface-2);
-}
-
-.filters select:focus,
-.direction-btn:focus-visible {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  padding-inline: var(--space-3);
+  font-size: var(--text-sm);
 }
 </style>

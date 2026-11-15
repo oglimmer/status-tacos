@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { AlertContactResponse } from '../stores/alertContacts'
 
+// One alert contact as a row in the list: name and badges, the facts, the actions.
+
 defineProps<{
   contact: AlertContactResponse
 }>()
@@ -31,324 +33,136 @@ const ownerLabel = (owner: NonNullable<AlertContactResponse['owner']>) =>
 const formatDate = (dateString: string) => {
   return new Date(dateString).toLocaleDateString()
 }
+
+const monitorNames = (contact: AlertContactResponse) =>
+  (contact.monitors ?? []).map(m => m.name).join(', ')
 </script>
 
 <template>
-  <div
-    class="contact-card"
-    :class="{ inactive: !contact.isActive }"
+  <li
+    class="list-row entity-row contact-row"
+    :class="{ 'is-inactive': !contact.isActive }"
   >
-    <div class="contact-header">
-      <h3>{{ contact.name || 'Unnamed Contact' }}</h3>
-      <div class="contact-status">
-        <span class="contact-type" :data-type="contact.type">{{ typeLabel(contact.type) }}</span>
-      </div>
-    </div>
-
-    <div class="contact-details">
-      <!-- IOS_PUSH: value is an internal key, show the owning user instead -->
-      <div v-if="contact.type === 'IOS_PUSH'" class="detail-item">
-        <strong>Owner:</strong>
-        <span class="contact-owner">{{ contact.owner ? ownerLabel(contact.owner) : 'Unknown' }}</span>
-      </div>
-      <div v-else class="detail-item">
-        <strong>{{ contact.type === 'EMAIL' ? 'Email:' : 'URL:' }}</strong>
-        <span
-          :title="contact.type !== 'EMAIL' && contact.value.length > 25 ? contact.value : undefined"
-          class="contact-value"
-          :class="{ 'truncated': contact.type !== 'EMAIL' && contact.value.length > 25 }"
-        >
-          {{ contact.value }}
+    <div class="entity-head">
+      <h3 class="entity-name">{{ contact.name || 'Unnamed Contact' }}</h3>
+      <div class="entity-badges">
+        <span class="badge badge-neutral contact-type" :data-type="contact.type">
+          {{ typeLabel(contact.type) }}
         </span>
-      </div>
-      <div v-if="contact.type === 'HTTP'" class="detail-item">
-        <strong>Method:</strong>
-        <span>{{ contact.httpMethod || 'GET' }}{{ contact.httpMethod === 'POST' && contact.httpContentType ? ` (${contact.httpContentType})` : '' }}</span>
-      </div>
-      <div v-if="contact.type === 'HTTP' && contact.httpHeaders && Object.keys(contact.httpHeaders).length > 0" class="detail-item">
-        <strong>Headers:</strong>
-        <span class="headers-list">
-          <span v-for="(value, key) in contact.httpHeaders" :key="key" class="header-item" :title="`${key}: ${value}`">
-            {{ key.length > 20 ? key.substring(0, 20) + '...' : key }}: {{ value.length > 30 ? value.substring(0, 30) + '...' : value }}
-          </span>
-        </span>
-      </div>
-      <div v-if="contact.type === 'HTTP' && contact.httpBody" class="detail-item">
-        <strong>Body:</strong>
-        <span class="body-preview">{{ contact.httpBody.substring(0, 50) }}{{ contact.httpBody.length > 50 ? '...' : '' }}</span>
-      </div>
-      <div class="detail-item">
-        <strong>Alerts for:</strong>
-        <span v-if="contact.allMonitors">All monitors</span>
-        <span v-else-if="!contact.monitors?.length" class="inactive">No monitor selected</span>
-        <span v-else class="monitor-scope" :title="contact.monitors.map(m => m.name).join(', ')">
-          {{ contact.monitors.map(m => m.name).join(', ') }}
-        </span>
-      </div>
-      <div class="detail-item">
-        <strong>Tenant:</strong>
-        <span>{{ contact.tenant.name }}</span>
-      </div>
-      <div class="detail-item">
-        <strong>Status:</strong>
-        <span :class="contact.isActive ? 'active' : 'inactive'">
+        <span class="badge" :class="contact.isActive ? 'badge-up' : 'badge-neutral'">
           {{ contact.isActive ? 'Active' : 'Inactive' }}
         </span>
       </div>
-      <div class="detail-item">
-        <strong>Created:</strong>
-        <span>{{ formatDate(contact.createdAt) }}</span>
-      </div>
-      <div v-if="contact.updatedAt !== contact.createdAt" class="detail-item">
-        <strong>Updated:</strong>
-        <span>{{ formatDate(contact.updatedAt) }}</span>
-      </div>
     </div>
+
+    <dl class="facts">
+      <!-- IOS_PUSH: value is an internal key, show the owning user instead -->
+      <div v-if="contact.type === 'IOS_PUSH'">
+        <dt>Owner</dt>
+        <dd class="contact-owner truncate">{{ contact.owner ? ownerLabel(contact.owner) : 'Unknown' }}</dd>
+      </div>
+      <div v-else>
+        <dt>{{ contact.type === 'EMAIL' ? 'Email' : 'URL' }}</dt>
+        <dd class="contact-value mono truncate" :title="contact.value">{{ contact.value }}</dd>
+      </div>
+      <div v-if="contact.type === 'HTTP'">
+        <dt>Method</dt>
+        <dd>
+          <span class="mono">{{ contact.httpMethod || 'GET' }}</span>
+          <span v-if="contact.httpMethod === 'POST' && contact.httpContentType" class="muted">
+            ({{ contact.httpContentType }})
+          </span>
+        </dd>
+      </div>
+      <div v-if="contact.type === 'HTTP' && contact.httpHeaders && Object.keys(contact.httpHeaders).length > 0">
+        <dt>Headers</dt>
+        <dd>
+          <span
+            v-for="(value, key) in contact.httpHeaders"
+            :key="key"
+            class="header-item mono truncate"
+            :title="`${key}: ${value}`"
+          >{{ key }}: {{ value }}</span>
+        </dd>
+      </div>
+      <div v-if="contact.type === 'HTTP' && contact.httpBody">
+        <dt>Body</dt>
+        <dd class="mono truncate" :title="contact.httpBody">{{ contact.httpBody }}</dd>
+      </div>
+      <div>
+        <dt>Alerts for</dt>
+        <dd v-if="contact.allMonitors">All monitors</dd>
+        <dd v-else-if="!contact.monitors?.length" class="no-scope">No monitor selected</dd>
+        <dd v-else class="monitor-scope truncate" :title="monitorNames(contact)">{{ monitorNames(contact) }}</dd>
+      </div>
+      <div>
+        <dt>Tenant</dt>
+        <dd class="truncate">{{ contact.tenant.name }}</dd>
+      </div>
+      <div>
+        <dt>Created</dt>
+        <dd class="num">{{ formatDate(contact.createdAt) }}</dd>
+      </div>
+      <div v-if="contact.updatedAt !== contact.createdAt">
+        <dt>Updated</dt>
+        <dd class="num">{{ formatDate(contact.updatedAt) }}</dd>
+      </div>
+    </dl>
 
     <p v-if="contact.type === 'IOS_PUSH'" class="managed-note">
       Managed in the iOS app by its owner.
     </p>
-    <div v-else class="contact-actions">
+    <div v-else class="entity-actions">
       <button
+        type="button"
+        class="btn btn-outline btn-sm"
         @click="$emit('edit', contact)"
-        class="btn btn-sm btn-primary"
       >
         Edit
       </button>
       <button
-        @click="$emit('test-notification', contact.id)"
-        class="btn btn-sm btn-info"
+        type="button"
+        class="btn btn-quiet btn-sm"
         :disabled="!contact.isActive"
         :title="!contact.isActive ? 'Contact must be active to send test notification' : 'Send test notification'"
+        @click="$emit('test-notification', contact.id)"
       >
         Test
       </button>
       <button
+        type="button"
+        class="btn btn-quiet btn-sm"
         @click="$emit('toggle-status', contact.id)"
-        class="btn btn-sm"
-        :class="contact.isActive ? 'btn-secondary' : 'btn-success'"
       >
         {{ contact.isActive ? 'Disable' : 'Enable' }}
       </button>
       <button
+        type="button"
+        class="btn btn-quiet-danger btn-sm"
         @click="$emit('delete', contact.id)"
-        class="btn btn-sm btn-danger"
       >
         Delete
       </button>
     </div>
-  </div>
+  </li>
 </template>
 
 <style scoped>
-.contact-card {
-  background: var(--surface);
-  border-radius: 8px;
-  border: 1px solid var(--border-subtle);
-  padding: 1.5rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.contact-card.inactive {
-  opacity: 0.7;
-  background-color: var(--surface-2);
-}
-
-.contact-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 1rem;
-}
-
-.contact-header h3 {
-  margin: 0;
-  color: var(--text);
-  font-size: 1.1rem;
-}
-
-.contact-status .contact-type {
-  padding: 0.25rem 0.5rem;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  background: var(--surface-3);
-  color: var(--text-2);
-}
-
-.contact-status .contact-type[data-type="HTTP"] {
-  background: var(--info-soft);
-  color: var(--info-soft-text);
-}
-
-.contact-status .contact-type[data-type="TEAMS"] {
-  background: #e8e7f8;
-  color: #4b4a9e;
-}
-
-.contact-status .contact-type[data-type="IOS_PUSH"] {
-  background: var(--warning-soft);
+/* A contact without monitors gets no alerts: say it in the warning colour. */
+.no-scope {
   color: var(--warning-soft-text);
-}
-
-.contact-status .contact-type[data-type="EMAIL"] {
-  background: var(--success-soft);
-  color: var(--success-soft-text);
-}
-
-.headers-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  font-weight: 700;
 }
 
 .header-item {
-  font-size: 0.8rem;
-  background: var(--surface-2);
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  border: 1px solid var(--border-subtle);
-}
-
-.body-preview {
-  font-family: monospace;
-  font-size: 0.8rem;
-  background: var(--surface-2);
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  border: 1px solid var(--border-subtle);
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.contact-details {
-  margin-bottom: 1rem;
-}
-
-.monitor-scope {
-  text-align: right;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 55ch;
-}
-
-.detail-item {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
-  font-size: 0.9rem;
-}
-
-.detail-item strong {
-  color: var(--text-2);
-  min-width: 80px;
-}
-
-.detail-item .active {
-  color: var(--success-text);
-  font-weight: 500;
-}
-
-.detail-item .inactive {
-  color: var(--danger-text);
-  font-weight: 500;
-}
-
-.contact-value.truncated {
-  cursor: help;
-  text-decoration: underline;
-  text-decoration-style: dotted;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 55ch;
-}
-
-@media (max-width: 768px) {
-  .contact-value.truncated {
-    max-width: 25ch;
-  }
+  font-size: var(--text-xs);
+  line-height: 1.6;
 }
 
 .managed-note {
-  margin: 1rem 0 0;
-  font-size: 0.85rem;
+  margin: 0;
+  max-width: 14rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
-  font-style: italic;
-}
-
-.contact-actions {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
-
-.btn {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.2s;
-  font-weight: 500;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-sm {
-  padding: 0.25rem 0.75rem;
-  font-size: 0.8rem;
-}
-
-.btn-primary {
-  background: var(--accent);
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
-
-.btn-secondary {
-  background: var(--secondary);
-  color: white;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: var(--secondary-hover);
-}
-
-.btn-success {
-  background: var(--success);
-  color: white;
-}
-
-.btn-success:hover:not(:disabled) {
-  background: var(--success-hover);
-}
-
-.btn-danger {
-  background: var(--danger);
-  color: white;
-}
-
-.btn-danger:hover:not(:disabled) {
-  background: var(--danger-hover);
-}
-
-.btn-info {
-  background: #17a2b8;
-  color: white;
-}
-
-.btn-info:hover:not(:disabled) {
-  background: #117a8b;
 }
 </style>

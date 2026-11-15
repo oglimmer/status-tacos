@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import MonitorIcon from './MonitorIcon.vue'
+
 defineProps<{
   modelValue: string
 }>()
@@ -9,12 +11,15 @@ defineEmits<{
 </script>
 
 <template>
-  <div class="filters">
-    <label for="monitor-name-filter">Filter by name:</label>
+  <div class="name-filter">
+    <label for="monitor-name-filter" class="sr-only">Search monitors by name</label>
+    <MonitorIcon name="search" class="name-filter-icon" />
     <input
       id="monitor-name-filter"
-      type="text"
-      placeholder="Monitor name..."
+      type="search"
+      class="input"
+      placeholder="Search by name"
+      autocomplete="off"
       :value="modelValue"
       @input="$emit('update:modelValue', ($event.target as HTMLInputElement).value)"
     />
@@ -22,33 +27,21 @@ defineEmits<{
 </template>
 
 <style scoped>
-.filters {
-  margin-bottom: 0;
+.name-filter {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 1rem;
-  justify-content: flex-end;
+  min-width: 0;
 }
 
-.filters label {
-  font-weight: 500;
-  color: var(--text-2);
-  font-size: 0.9rem;
+.name-filter-icon {
+  position: absolute;
+  left: var(--space-3);
+  color: var(--text-muted);
+  pointer-events: none;
 }
 
-.filters input {
-  padding: 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 0.9rem;
-  background: var(--surface);
-  width: 250px;
+.name-filter .input {
+  padding-left: calc(var(--space-3) + 1em + var(--space-2));
 }
-
-.filters input:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
 </style>

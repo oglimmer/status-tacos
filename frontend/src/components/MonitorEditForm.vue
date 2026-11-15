@@ -24,14 +24,10 @@ const handleSuccess = () => {
 <template>
   <MonitorFormBase
     :monitor="monitor"
-    title="Edit Monitor"
-    submit-text="Update Monitor"
-    submitting-text="Updating..."
+    title="Edit monitor"
+    submit-text="Save changes"
+    submitting-text="Saving..."
     @close="handleClose"
     @success="handleSuccess"
   />
 </template>
-
-<style scoped>
-/* No styles needed - all handled by MonitorFormBase */
-</style>

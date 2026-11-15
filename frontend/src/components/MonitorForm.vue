@@ -22,15 +22,11 @@ const handleSuccess = () => {
 
 <template>
   <MonitorFormBase
-    title="Add New Monitor"
-    submit-text="Create Monitor"
-    submitting-text="Creating..."
+    title="Add monitor"
+    submit-text="Add monitor"
+    submitting-text="Adding..."
     :preselected-tenant-id="preselectedTenantId"
     @close="handleClose"
     @success="handleSuccess"
   />
 </template>
-
-<style scoped>
-/* No styles needed - all handled by MonitorFormBase */
-</style>

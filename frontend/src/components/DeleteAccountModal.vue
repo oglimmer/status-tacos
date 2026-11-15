@@ -44,10 +44,10 @@ const handleDelete = async () => {
 </script>
 
 <template>
-  <FormModal title="Delete Account" @close="close">
-    <div class="delete-account">
-      <p class="warning">
-        <span class="warning-icon">⚠️</span>
+  <FormModal title="Delete account" @close="close">
+    <form class="form-stack" @submit.prevent="handleDelete">
+      <p v-if="error" class="callout callout-danger" role="alert">{{ error }}</p>
+      <p class="callout callout-danger lead">
         This permanently deletes your account. You cannot undo it.
       </p>
       <ul class="consequences">
@@ -59,126 +59,43 @@ const handleDelete = async () => {
         <li>Tenants you share with other users stay with them. You are removed from them.</li>
         <li>Your iOS push alerts stop.</li>
       </ul>
-      <label class="confirm-label" for="delete-account-confirm">
-        Type <strong>{{ CONFIRM_WORD }}</strong> to confirm:
-      </label>
-      <input
-        id="delete-account-confirm"
-        v-model="confirmText"
-        class="confirm-input"
-        type="text"
-        autocomplete="off"
-        :disabled="isDeleting"
-        @keyup.enter="handleDelete"
-      />
-      <div v-if="error" class="error-message">{{ error }}</div>
-      <div class="actions">
+      <div class="field">
+        <label for="delete-account-confirm">
+          Type <span class="mono">{{ CONFIRM_WORD }}</span> to confirm
+        </label>
+        <input
+          id="delete-account-confirm"
+          v-model="confirmText"
+          class="mono"
+          type="text"
+          autocomplete="off"
+          :disabled="isDeleting"
+        />
+      </div>
+      <div class="form-actions">
         <button type="button" class="btn btn-secondary" :disabled="isDeleting" @click="close">
           Cancel
         </button>
-        <button type="button" class="btn btn-danger" :disabled="!canDelete" @click="handleDelete">
-          {{ isDeleting ? 'Deleting...' : 'Delete My Account' }}
+        <button type="submit" class="btn btn-danger" :disabled="!canDelete">
+          {{ isDeleting ? 'Deleting...' : 'Delete my account' }}
         </button>
       </div>
-    </div>
+    </form>
   </FormModal>
 </template>
 
 <style scoped>
-.delete-account {
-  color: var(--text-2);
-  line-height: 1.6;
-}
-
-.warning {
-  display: flex;
-  gap: 0.5rem;
-  align-items: flex-start;
-  background: rgba(220, 53, 69, 0.08);
-  border: 1px solid var(--danger-soft-border);
-  color: var(--danger-text);
-  border-radius: 8px;
-  padding: 0.75rem 1rem;
-  margin: 0 0 1rem;
-  font-weight: 600;
+.lead {
+  font-weight: 700;
 }
 
 .consequences {
-  margin: 0 0 1.5rem;
-  padding-left: 1.25rem;
-}
-
-.consequences li {
-  margin-bottom: 0.4rem;
-}
-
-.confirm-label {
-  display: block;
-  margin-bottom: 0.5rem;
-  color: var(--text);
-}
-
-.confirm-input {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid var(--input-border);
-  border-radius: 8px;
-  font-size: 1rem;
-}
-
-.confirm-input:focus {
-  outline: none;
-  border-color: var(--danger);
-  box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.15);
-}
-
-.error-message {
-  margin-top: 1rem;
-  color: var(--danger-text);
-  font-weight: 500;
-}
-
-.actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  margin-top: 1.5rem;
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 8px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  background: var(--surface-2);
+  margin: 0;
+  padding-left: var(--space-5);
   color: var(--text-2);
-  border: 1px solid var(--input-border);
 }
 
-.btn-secondary:hover:not(:disabled) {
-  background: var(--surface-3);
-}
-
-.btn-danger {
-  background: var(--danger);
-  color: white;
-}
-
-.btn-danger:hover:not(:disabled) {
-  background: var(--danger-hover);
+.consequences li + li {
+  margin-top: var(--space-1);
 }
 </style>

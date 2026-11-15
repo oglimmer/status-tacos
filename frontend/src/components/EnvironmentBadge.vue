@@ -15,24 +15,20 @@ const TITLES: Record<MonitorEnvironment, string> = {
 <template>
   <span
     v-if="environment && TITLES[environment]"
-    class="env-badge"
+    class="badge env-badge"
     :class="`env-${environment.toLowerCase()}`"
     :title="`Environment: ${TITLES[environment]}`"
   >{{ environment }}</span>
 </template>
 
 <style scoped>
+/* The badge base comes from app.css. Each environment has its own color, tinted as the fill. */
 .env-badge {
   --env-color: var(--env-dev);
-  margin-left: 0.4rem;
-  padding: 0.1rem 0.45rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--env-color) 16%, transparent);
+  background: color-mix(in srgb, var(--env-color) 14%, transparent);
+  border-color: color-mix(in srgb, var(--env-color) 30%, transparent);
   color: var(--env-color);
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  vertical-align: middle;
+  letter-spacing: 0.02em;
 }
 
 .env-prod {

@@ -66,12 +66,13 @@ onMounted(() => {
 <template>
   <div class="version-info">
     <button
-      @click="toggleVisibility"
+      type="button"
       class="version-toggle"
       :class="{ 'active': isVisible }"
       title="Version Information"
+      :aria-expanded="isVisible"
+      @click="toggleVisibility"
     >
-      <span class="version-icon">ℹ</span>
       <span class="version-text">v{{ versionInfo?.version || '?' }}</span>
     </button>
 
@@ -106,54 +107,43 @@ onMounted(() => {
 }
 
 .version-toggle {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem 0.5rem;
+  min-height: 1.5rem;
+  padding: 0 var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
   background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  cursor: pointer;
-  font-size: 0.75rem;
   color: var(--text-muted);
-  transition: all 0.2s ease;
+  font-size: var(--text-xs);
+  cursor: pointer;
 }
 
-.version-toggle:hover {
-  background: var(--surface-2);
-  border-color: var(--input-border);
-  color: var(--text-2);
-}
-
+.version-toggle:hover,
 .version-toggle.active {
-  background: var(--surface-3);
-  border-color: var(--input-border);
-  color: var(--text-2);
-}
-
-.version-icon {
-  font-size: 0.8rem;
-  font-weight: bold;
+  border-color: var(--border);
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .version-text {
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  font-weight: 500;
+  font-family: var(--font-mono);
 }
 
 .version-details {
   position: absolute;
   top: 100%;
   right: 0;
-  margin-top: 0.5rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 0.75rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   z-index: 1000;
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+  color: var(--text);
+  font-size: var(--text-sm);
   white-space: nowrap;
-  font-size: 0.8rem;
 }
 
 @media (max-width: 768px) {
@@ -164,7 +154,8 @@ onMounted(() => {
 }
 
 .version-item {
-  margin-bottom: 0.25rem;
+  margin-bottom: var(--space-1);
+  font-family: var(--font-mono);
 }
 
 .version-item:last-child {
@@ -172,12 +163,14 @@ onMounted(() => {
 }
 
 .version-item strong {
-  color: var(--text-2);
-  margin-right: 0.5rem;
+  margin-right: var(--space-2);
+  color: var(--text-muted);
+  font-family: var(--font-text);
+  font-weight: 400;
 }
 
 .version-section {
-  margin-bottom: 0.75rem;
+  margin-bottom: var(--space-3);
 }
 
 .version-section:last-child {
@@ -185,13 +178,10 @@ onMounted(() => {
 }
 
 .version-section-title {
-  font-weight: 600;
-  color: var(--text);
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--space-1);
+  padding-bottom: var(--space-1);
   border-bottom: 1px solid var(--border-subtle);
-  padding-bottom: 0.25rem;
+  font-weight: 700;
+  color: var(--text);
 }
 </style>

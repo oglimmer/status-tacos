@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import AppShell from '../components/AppShell.vue'
+import PageHeader from '../components/PageHeader.vue'
 import { computed, onMounted, ref } from 'vue'
 import { useAuthStore } from '../stores/auth'
 
@@ -66,211 +68,107 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="debug-container">
-    <h1>Authentication Debug Info</h1>
-
-    <div class="debug-section">
-      <h2>Current Auth State</h2>
-      <div class="info-grid">
-        <div class="info-item">
-          <strong>Authenticated:</strong>
-          <span :class="authStore.isAuthenticated ? 'success' : 'error'">
-            {{ authStore.isAuthenticated }}
-          </span>
-        </div>
-        <div class="info-item">
-          <strong>Loading:</strong>
-          <span>{{ authStore.isLoading }}</span>
-        </div>
-        <div class="info-item" v-if="authStore.error">
-          <strong>Error:</strong>
-          <span class="error">{{ authStore.error }}</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="debug-section" v-if="formattedUser">
-      <h2>User Info</h2>
-      <pre class="code-block">{{ JSON.stringify(formattedUser, null, 2) }}</pre>
-    </div>
-
-    <div class="debug-section">
-      <h2>Stored Tokens</h2>
-      <div class="token-info">
-        <h3>OIDC User Data (from localStorage)</h3>
-        <div v-if="oidcUserData">
-          <p><strong>Has Refresh Token:</strong> {{ !!refreshToken }}</p>
-          <p v-if="refreshToken">
-            <strong>Refresh Token (first 50 chars):</strong> {{ refreshToken.substring(0, 50) }}...
-          </p>
-        </div>
-        <p v-else>No OIDC user data found in localStorage</p>
-      </div>
-    </div>
-
-    <div class="debug-section">
-      <h2>Actions</h2>
-      <div class="actions">
-        <button @click="loadDebugInfo" class="btn btn-secondary">Reload Debug Info</button>
+  <AppShell>
+    <PageHeader title="Authentication debug" subtitle="Internal page: the sign-in state of this browser.">
+      <template #actions>
+        <button @click="loadDebugInfo" class="btn btn-secondary">Reload</button>
         <button
           @click="testRefreshToken"
           class="btn btn-secondary"
           :disabled="!authStore.isAuthenticated"
         >
-          Test Token Refresh
+          Test token refresh
         </button>
-        <button @click="clearAllAuth" class="btn btn-danger">Clear All Auth Data</button>
-        <router-link to="/" class="btn btn-primary"> Back to Home </router-link>
-      </div>
-    </div>
+        <button @click="clearAllAuth" class="btn btn-danger">Clear all auth data</button>
+      </template>
+    </PageHeader>
 
-    <div class="debug-section">
-      <h2>Instructions</h2>
-      <ol>
-        <li>Go to the home page and sign in</li>
-        <li>After successful login, come back to this page</li>
-        <li>Check if OIDC user data with refresh token is stored in localStorage</li>
-        <li>Wait for the access token to expire (check expires_in_seconds)</li>
-        <li>Refresh the page to see if authentication persists automatically</li>
-        <li>Authentication data is now always stored in localStorage for persistence</li>
-      </ol>
-    </div>
-  </div>
+    <section class="page-section">
+      <h2 class="page-section-title">Current auth state</h2>
+      <div class="card">
+        <dl class="kv">
+          <dt>Authenticated</dt>
+          <dd>
+            <span class="badge" :class="authStore.isAuthenticated ? 'badge-up' : 'badge-down'">
+              {{ authStore.isAuthenticated }}
+            </span>
+          </dd>
+          <dt>Loading</dt>
+          <dd class="mono">{{ authStore.isLoading }}</dd>
+          <template v-if="authStore.error">
+            <dt>Error</dt>
+            <dd class="error">{{ authStore.error }}</dd>
+          </template>
+        </dl>
+      </div>
+    </section>
+
+    <section v-if="formattedUser" class="page-section">
+      <h2 class="page-section-title">User info</h2>
+      <pre class="code-block">{{ JSON.stringify(formattedUser, null, 2) }}</pre>
+    </section>
+
+    <section class="page-section">
+      <h2 class="page-section-title">Stored tokens</h2>
+      <div class="card">
+        <p class="muted">OIDC user data from localStorage</p>
+        <dl v-if="oidcUserData" class="kv">
+          <dt>Has refresh token</dt>
+          <dd class="mono">{{ !!refreshToken }}</dd>
+          <template v-if="refreshToken">
+            <dt>Refresh token (first 50 chars)</dt>
+            <dd class="mono">{{ refreshToken.substring(0, 50) }}...</dd>
+          </template>
+        </dl>
+        <p v-else>No OIDC user data found in localStorage</p>
+      </div>
+    </section>
+
+    <section class="page-section">
+      <h2 class="page-section-title">Instructions</h2>
+      <div class="card">
+        <ol>
+          <li>Go to the home page and sign in</li>
+          <li>After successful login, come back to this page</li>
+          <li>Check if OIDC user data with refresh token is stored in localStorage</li>
+          <li>Wait for the access token to expire (check expires_in_seconds)</li>
+          <li>Refresh the page to see if authentication persists automatically</li>
+          <li>Authentication data is now always stored in localStorage for persistence</li>
+        </ol>
+      </div>
+    </section>
+  </AppShell>
 </template>
 
 <style scoped>
-.debug-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 2rem;
-}
-
-h1 {
-  color: var(--text);
-  margin-bottom: 2rem;
-}
-
-.debug-section {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 1.5rem;
-  margin-bottom: 2rem;
-}
-
-.debug-section h2 {
-  color: var(--text-2);
-  margin-bottom: 1rem;
-  font-size: 1.5rem;
-}
-
-.debug-section h3 {
-  color: var(--text-muted);
-  margin-bottom: 0.5rem;
-  font-size: 1.2rem;
-}
-
-.info-grid {
-  display: grid;
-  gap: 1rem;
-}
-
-.info-item {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.info-item strong {
-  min-width: 120px;
-}
-
-.success {
-  color: var(--success-text);
-  font-weight: bold;
+.card > p.muted {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
 }
 
 .error {
-  color: var(--danger-text);
-  font-weight: bold;
+  color: var(--down);
+  font-weight: 700;
 }
 
 .code-block {
-  background: #2c3e50;
-  color: #ecf0f1;
-  padding: 1rem;
-  border-radius: 4px;
+  margin: 0;
+  padding: var(--space-4);
   overflow-x: auto;
-  font-family: 'Courier New', monospace;
-  font-size: 0.9rem;
-}
-
-.token-info {
-  margin-bottom: 1.5rem;
-}
-
-.token-info p {
-  margin: 0.5rem 0;
-  word-break: break-all;
-}
-
-.actions {
-  display: flex;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.btn {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 4px;
-  font-size: 1rem;
-  font-weight: 500;
-  cursor: pointer;
-  text-decoration: none;
-  display: inline-block;
-  transition: all 0.2s;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  background: var(--accent);
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
-
-.btn-secondary {
-  background: var(--secondary);
-  color: white;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: var(--secondary-hover);
-}
-
-.btn-danger {
-  background: var(--danger);
-  color: white;
-}
-
-.btn-danger:hover:not(:disabled) {
-  background: var(--danger-hover);
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
 }
 
 ol {
   margin: 0;
-  padding-left: 1.5rem;
+  padding-left: var(--space-5);
 }
 
-ol li {
-  margin: 0.5rem 0;
-  line-height: 1.6;
+ol li + li {
+  margin-top: var(--space-1);
 }
 </style>

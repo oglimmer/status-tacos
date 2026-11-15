@@ -1,61 +1,82 @@
 /*
- * The colors of the app, for light and dark mode.
+ * The design tokens of the app: colors, type, space, radius, shadows. For light and dark mode.
  * light-dark() picks the value from the color-scheme. The color-scheme follows the
  * system, or the choice of the user: data-theme="light" or "dark" on <html>.
+ *
+ * The colors come from the brand (see brand.css): the teal of the logo, salsa red,
+ * cilantro green and the yellow of the masa. Dark mode is a night taqueria.
  */
 :root {
   color-scheme: light dark;
 
-  /* light-dark() takes colors only, so the gradient is made from three colors. */
-  --page-1: light-dark(#f8f9fa, #0f1216);
-  --page-2: light-dark(#e9ecef, #13171c);
-  --page-3: light-dark(#dee2e6, #171c22);
-  --page-bg: linear-gradient(135deg, var(--page-1) 0%, var(--page-2) 50%, var(--page-3) 100%);
-  --surface: light-dark(#ffffff, #1b1f24);
-  --surface-2: light-dark(#f8f9fa, #22272e);
-  --surface-3: light-dark(#e9ecef, #2b313a);
-  --glass: light-dark(rgba(255, 255, 255, 0.8), rgba(27, 31, 36, 0.8));
-  --glass-strong: light-dark(rgba(255, 255, 255, 0.95), rgba(23, 27, 32, 0.95));
-  --glass-border: light-dark(rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.06));
+  /* Status. Exactly one green (up) and one red (down) in the whole app. */
+  --up: light-dark(#2e8b47, #5cc97a);
+  --down: light-dark(#d2412b, #ff7a63);
+  --warn: light-dark(#a8520a, #f2b53c);
+  /* Text on a filled --down or --up color. */
+  --on-down: light-dark(#ffffff, #0c1a18);
+  --on-up: light-dark(#ffffff, #0c1a18);
 
-  --text: light-dark(#2c3e50, #e6eaef);
-  --text-2: light-dark(#495057, #c3cad2);
-  --text-muted: light-dark(#6c757d, #9aa5b1);
-  --text-faint: light-dark(#adb5bd, #6f7a85);
+  /* The brand teal. Not safe for small text on light ground; use --link for text. */
+  --brand: #33ada4;
+  --masa: #f2b53c;
 
-  --border: light-dark(#dee2e6, #3a414b);
-  --border-subtle: light-dark(#e9ecef, #2e343c);
-  --input-border: light-dark(#ced4da, #4a525d);
+  /* The page is flat. The old gradient and glass names stay, so old code keeps working. */
+  --page-1: light-dark(#f3f7f5, #0c1a18);
+  --page-2: var(--page-1);
+  --page-3: var(--page-1);
+  --page-bg: var(--page-1);
+  --surface: light-dark(#ffffff, #132724);
+  --surface-2: light-dark(#eef4f1, #0f211e);
+  --surface-3: light-dark(#e1ebe7, #1c3631);
+  --glass: var(--surface);
+  --glass-strong: var(--surface);
+  --glass-border: var(--border-subtle);
 
-  --link: light-dark(#007bff, #5aa9ff);
-  --link-hover: light-dark(#0056b3, #8cc3ff);
-  --accent: light-dark(#007bff, #2f86eb);
-  --accent-hover: light-dark(#0056b3, #1f6fcc);
-  --secondary: light-dark(#6c757d, #4b5560);
-  --secondary-hover: light-dark(#545b62, #5d6873);
+  --text: light-dark(#102e2a, #e4f1ed);
+  --text-2: light-dark(#2f4c47, #c2d8d2);
+  --text-muted: light-dark(#56706b, #94b0a9);
+  /* Only for things that need no reading: placeholders, dividers in text. */
+  --text-faint: light-dark(#8aa19c, #5f7c75);
 
-  --danger: light-dark(#dc3545, #c9303f);
-  --danger-hover: light-dark(#c82333, #a82734);
-  --danger-text: light-dark(#dc3545, #ff6b78);
-  --danger-soft: light-dark(#f8d7da, #3a1d21);
-  --danger-soft-text: light-dark(#721c24, #ffb3ba);
-  --danger-soft-border: light-dark(#f5c6cb, #6b2a31);
+  --border: light-dark(#cfddd8, #2a4540);
+  --border-subtle: light-dark(#e2ebe7, #1f3632);
+  --input-border: light-dark(#b2c6bf, #3a5a53);
 
-  --success: light-dark(#28a745, #23913c);
-  --success-hover: light-dark(#1e7e34, #1c7a32);
-  --success-text: light-dark(#28a745, #4cd07a);
-  --success-soft: light-dark(#d4edda, #1a3324);
-  --success-soft-text: light-dark(#155724, #a6e9bb);
-  --success-soft-border: light-dark(#a5d6a7, #2a5a3a);
+  /* Links and the accent. The fill holds white text in both modes. */
+  --link: light-dark(#17716a, #5fd0c6);
+  --link-hover: light-dark(#0f5a54, #8fe0d8);
+  --accent: #1a7a72;
+  --accent-hover: #145f59;
+  --on-accent: #ffffff;
+  --accent-soft: light-dark(#e2f3f0, #12332f);
+  --secondary: light-dark(#56706b, #3a5a53);
+  --secondary-hover: light-dark(#435a56, #4a6c64);
 
-  --warning-text: light-dark(#b45309, #f5a524);
-  --warning-soft: light-dark(#fff3cd, #3a3018);
-  --warning-soft-text: light-dark(#856404, #ffd77a);
-  --warning-soft-border: light-dark(#ffeeba, #6b5520);
+  /* Danger and success fills hold white text in both modes. Text uses the status colors. */
+  --danger: #c23a25;
+  --danger-hover: #a32f1d;
+  --danger-text: var(--down);
+  --danger-soft: light-dark(#fbe9e5, #3a1c17);
+  --danger-soft-text: light-dark(#8f2414, #ffb4a6);
+  --danger-soft-border: light-dark(#f1c2b9, #6b2f25);
 
-  --info-soft: light-dark(#e8f4ff, #1a2b40);
-  --info-soft-text: light-dark(#004085, #9fcbff);
-  --info-soft-border: light-dark(#b8daff, #2a4a70);
+  --success: #2a7f41;
+  --success-hover: #216633;
+  --success-text: var(--up);
+  --success-soft: light-dark(#e6f4ea, #15301f);
+  --success-soft-text: light-dark(#1d5c2f, #a9e8bb);
+  --success-soft-border: light-dark(#b9dfc4, #2a5a3a);
+
+  --warning: var(--masa);
+  --warning-text: var(--warn);
+  --warning-soft: light-dark(#fdf3dc, #33280f);
+  --warning-soft-text: light-dark(#7a3d06, #ffd98a);
+  --warning-soft-border: light-dark(#f2d48f, #6b5520);
+
+  --info-soft: var(--accent-soft);
+  --info-soft-text: light-dark(#0f5a54, #9fe3db);
+  --info-soft-border: light-dark(#b5dfd9, #24524c);
 
   --olive-text: light-dark(#6f7e08, #c2d14a);
 
@@ -63,6 +84,49 @@
   --env-prod: light-dark(#1f6fd1, #6aa8f0);
   --env-stage: light-dark(#8e44c9, #c08ae8);
   --env-dev: light-dark(#6e6e73, #a1a1a6);
+
+  /* Fonts. Text for everything, mono for numbers, URLs and codes, the sign only for the brand. */
+  --font-text: 'Atkinson Hyperlegible Next', system-ui, sans-serif;
+  --font-mono: 'Atkinson Hyperlegible Mono', ui-monospace, monospace;
+  --font-sign: 'Bungee', 'Arial Black', sans-serif;
+
+  /* Type scale. Body text is 16px (--text-md); most other text is --text-sm (14px).
+     The smallest step is 13px, so no readable text is smaller than that. */
+  --text-xs: 0.8125rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.1875rem;
+  --text-xl: 1.4375rem;
+  --text-2xl: 1.8125rem;
+  --leading-tight: 1.2;
+  --leading: 1.5;
+
+  /* Space, in steps of 4px. */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+
+  /* Radius: small parts are less round than the boxes around them. */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-pill: 999px;
+
+  /* Shadows: one for raised things (menus), one for things over the page (modals, toasts). */
+  --shadow-1: 0 1px 2px light-dark(rgb(16 46 42 / 0.08), rgb(0 0 0 / 0.4));
+  --shadow-2: 0 12px 32px light-dark(rgb(16 46 42 / 0.18), rgb(0 0 0 / 0.55));
+  --overlay: light-dark(rgb(16 46 42 / 0.45), rgb(0 0 0 / 0.6));
+
+  /* Keyboard focus. */
+  --focus: light-dark(#17716a, #5fd0c6);
+  --focus-ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--focus);
+
+  --content-width: 1240px;
+  --bar-height: 3.5rem;
 }
 
 :root[data-theme='light'] {
@@ -74,7 +138,7 @@
 }
 
 body {
-  background: var(--surface-2);
+  background: var(--page-bg);
   color: var(--text);
 }
 

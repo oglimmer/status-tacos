@@ -22,206 +22,136 @@ defineProps<UptimeMetricsProps>()
 
 const formatResponseTime = (ms: number | null | undefined): string => {
   if (ms === undefined || ms === null) return 'N/A'
-  return `${ms}ms`
+  return `${ms} ms`
 }
 
-const getUptimeClass = (percentage: number | undefined): string => {
-  const level = uptimeLevel(percentage)
-  return level === 'no-data' ? 'metric-value no-data' : `metric-value uptime-${level}`
-}
+const getUptimeClass = (percentage: number | undefined): string => `level-${uptimeLevel(percentage)}`
 </script>
 
 <template>
-  <div class="uptime-metrics">
-    <div class="metrics-header">
-      <h4 class="metrics-title">Performance Metrics ({{ getTimeframeLabel(timeframe) }})</h4>
-    </div>
+  <section class="uptime-metrics" :aria-label="`Metrics of the ${getTimeframeLabel(timeframe)}`">
+    <h4 class="metrics-title">Metrics, {{ getTimeframeLabel(timeframe) }}</h4>
 
-    <div v-if="isLoading" class="metrics-loading">
-      <div class="loading-spinner"></div>
-      <span class="loading-text">Loading metrics...</span>
-    </div>
+    <p v-if="isLoading" class="metrics-note" role="status">
+      <span class="metrics-spinner" aria-hidden="true"></span>
+      Loading metrics…
+    </p>
 
-    <div v-else-if="!stats" class="metrics-no-data">
-      <span class="no-data-text">No data available for this timeframe</span>
-    </div>
+    <p v-else-if="!stats" class="metrics-note">No data for this timeframe yet.</p>
 
-    <div v-else class="metrics-grid">
-      <div class="metric-item">
-        <span class="metric-label">Uptime</span>
-        <span :class="getUptimeClass(stats.uptimePercentage)">
-          {{ formatUptime(stats.uptimePercentage) }}
-        </span>
+    <dl v-else class="metrics-grid">
+      <div class="metric">
+        <dt>Uptime</dt>
+        <dd class="num" :class="getUptimeClass(stats.uptimePercentage)">{{ formatUptime(stats.uptimePercentage) }}</dd>
       </div>
-
-      <div class="metric-item">
-        <span class="metric-label">Min Response</span>
-        <span class="metric-value">
-          {{ formatResponseTime(stats.minResponseTimeMs) }}
-        </span>
+      <div class="metric">
+        <dt>Min</dt>
+        <dd class="num">{{ formatResponseTime(stats.minResponseTimeMs) }}</dd>
       </div>
-
-      <div class="metric-item">
-        <span class="metric-label">Avg Response</span>
-        <span class="metric-value">
-          {{ formatResponseTime(stats.avgResponseTimeMs) }}
-        </span>
+      <div class="metric">
+        <dt>Avg</dt>
+        <dd class="num">{{ formatResponseTime(stats.avgResponseTimeMs) }}</dd>
       </div>
-
-      <div class="metric-item">
-        <span class="metric-label">Max Response</span>
-        <span class="metric-value">
-          {{ formatResponseTime(stats.maxResponseTimeMs) }}
-        </span>
+      <div class="metric">
+        <dt>Max</dt>
+        <dd class="num">{{ formatResponseTime(stats.maxResponseTimeMs) }}</dd>
       </div>
-
-      <div class="metric-item">
-        <span class="metric-label">99th Percentile</span>
-        <span class="metric-value">
-          {{ formatResponseTime(stats.p99ResponseTimeMs) }}
-        </span>
+      <div class="metric">
+        <dt>p99</dt>
+        <dd class="num">{{ formatResponseTime(stats.p99ResponseTimeMs) }}</dd>
       </div>
-
-      <div class="metric-item">
-        <span class="metric-label">Total Checks</span>
-        <span class="metric-value">
-          {{ stats.totalChecks.toLocaleString() }}
-        </span>
+      <div class="metric">
+        <dt>Checks</dt>
+        <dd class="num">{{ stats.totalChecks.toLocaleString() }}</dd>
       </div>
-    </div>
-  </div>
+    </dl>
+  </section>
 </template>
 
 <style scoped>
 .uptime-metrics {
-  background: var(--surface-2);
-  border-radius: 6px;
-  padding: 1rem;
-  margin-bottom: 1rem;
-}
-
-.metrics-header {
-  margin-bottom: 1rem;
+  min-width: 0;
 }
 
 .metrics-title {
-  margin: 0;
-  font-size: 0.9rem;
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: 700;
   color: var(--text-2);
-  font-weight: 600;
 }
 
-.metrics-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
-  gap: 0.5rem;
-}
-
-.loading-spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid var(--border);
-  border-top: 2px solid var(--accent);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.loading-text {
-  color: var(--text-muted);
-  font-size: 0.875rem;
-}
-
-.metrics-no-data {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
-}
-
-.no-data-text {
-  color: var(--text-muted);
-  font-size: 0.875rem;
-  font-style: italic;
-}
-
+/* Six numbers in one band, separated by thin lines. Three per row on a phone. */
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 1rem;
-}
-
-.metric-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  padding: 0.75rem;
-  background: var(--surface);
-  border-radius: 4px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin: 0;
   border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  overflow: hidden;
 }
 
-.metric-label {
-  font-size: 0.75rem;
+.metric {
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  box-shadow: 1px 0 0 var(--border-subtle), 0 1px 0 var(--border-subtle);
+}
+
+.metric dt {
+  font-size: var(--text-xs);
   color: var(--text-muted);
-  font-weight: 500;
-  margin-bottom: 0.25rem;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
-.metric-value {
-  font-size: 0.9rem;
-  font-weight: 600;
+.metric dd {
+  margin: 0;
+  font-size: var(--text-md);
   color: var(--text);
+  white-space: nowrap;
 }
 
-.metric-value.uptime-excellent {
-  color: var(--success-text);
+.metric dd.level-warning {
+  color: var(--warn);
 }
 
-.metric-value.uptime-good {
-  color: var(--olive-text);
+.metric dd.level-poor {
+  color: var(--down);
+  font-weight: 700;
 }
 
-.metric-value.uptime-warning {
-  color: #fd7e14;
-}
-
-.metric-value.uptime-poor {
-  color: var(--danger-text);
-}
-
-.metric-value.no-data {
+.metric dd.level-no-data {
   color: var(--text-muted);
-  font-style: italic;
-  font-weight: 400;
 }
 
-/* Mobile styles */
-@media (max-width: 768px) {
+.metrics-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.metrics-spinner {
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 2px solid var(--border);
+  border-top-color: var(--brand);
+  border-radius: 50%;
+  animation: metrics-spin 0.9s linear infinite;
+}
+
+@keyframes metrics-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 640px) {
   .metrics-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.75rem;
-  }
-
-  .metric-item {
-    padding: 0.5rem;
-  }
-
-  .metric-label {
-    font-size: 0.7rem;
-  }
-
-  .metric-value {
-    font-size: 0.8rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 </style>

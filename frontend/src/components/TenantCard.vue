@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useTenantsStore } from '../stores/tenants'
 import type { Tenant } from '../services/api'
 import UserManagement from './UserManagement.vue'
 import StatusPageEditor from './StatusPageEditor.vue'
 
-defineProps<{
+// One tenant as a row in the list. Below the facts are two sections: the status page and the users.
+// The section labels sit in the same column as the fact labels, so all labels line up.
+
+const props = defineProps<{
   tenant: Tenant
 }>()
 
@@ -17,6 +20,11 @@ defineEmits<{
 const tenantsStore = useTenantsStore()
 const showUserManagement = ref(false)
 const showStatusPageEditor = ref(false)
+
+// The public status page of this tenant (the same path as in StatusPageEditor).
+const statusPagePath = computed(() => `/${encodeURIComponent(props.tenant.code)}/status`)
+
+const usersPanelId = computed(() => `tenant-users-${props.tenant.id}`)
 
 const formatDate = (dateString: string) => {
   return new Date(dateString).toLocaleDateString()
@@ -35,207 +43,187 @@ const handleToggleUserManagement = async (tenant: Tenant) => {
 </script>
 
 <template>
-  <div
-    class="tenant-card"
-    :class="{ inactive: !tenant.isActive }"
+  <li
+    class="list-row entity-row tenant-row"
+    :class="{ 'is-inactive': !tenant.isActive }"
   >
-    <div class="tenant-header">
-      <h3>{{ tenant.name }}</h3>
-      <div class="tenant-status">
-        <span class="tenant-code">{{ tenant.code }}</span>
-        <span class="status-badge" :class="{ active: tenant.isActive }">
+    <div class="entity-head">
+      <h3 class="entity-name">{{ tenant.name }}</h3>
+      <div class="entity-badges">
+        <span class="badge badge-neutral tenant-code mono">{{ tenant.code }}</span>
+        <span class="badge" :class="tenant.isActive ? 'badge-up' : 'badge-neutral'">
           {{ tenant.isActive ? 'Active' : 'Inactive' }}
         </span>
       </div>
     </div>
 
-    <div class="tenant-details">
-      <div v-if="tenant.description" class="detail-item">
-        <strong>Description:</strong>
-        <span>{{ tenant.description }}</span>
+    <dl class="facts">
+      <div v-if="tenant.description">
+        <dt>Description</dt>
+        <dd class="description">{{ tenant.description }}</dd>
       </div>
-      <div class="detail-item">
-        <strong>Created:</strong>
-        <span>{{ formatDate(tenant.createdAt) }}</span>
+      <div>
+        <dt>Created</dt>
+        <dd class="num">{{ formatDate(tenant.createdAt) }}</dd>
       </div>
-      <div class="detail-item">
-        <strong>Updated:</strong>
-        <span>{{ formatDate(tenant.updatedAt) }}</span>
+      <div>
+        <dt>Updated</dt>
+        <dd class="num">{{ formatDate(tenant.updatedAt) }}</dd>
       </div>
-    </div>
+    </dl>
 
-    <div class="tenant-actions">
-      <button @click="$emit('edit', tenant)" class="btn btn-sm btn-outline">
+    <div class="entity-actions">
+      <button type="button" class="btn btn-outline btn-sm" @click="$emit('edit', tenant)">
         Edit
       </button>
-      <button
-        @click="handleToggleUserManagement(tenant)"
-        class="btn btn-sm btn-outline"
-        :style="{ backgroundColor: showUserManagement ? '#007bff' : 'transparent', color: showUserManagement ? 'white' : '#007bff' }"
-      >
-        {{ showUserManagement ? 'Hide Users' : 'Manage Users' }}
-      </button>
-      <button @click="showStatusPageEditor = true" class="btn btn-sm btn-outline">
-        Status Page
-      </button>
-      <button
-        @click="$emit('toggle-status', tenant.id)"
-        class="btn btn-sm"
-        :class="tenant.isActive ? 'btn-warning' : 'btn-success'"
-      >
+      <button type="button" class="btn btn-quiet btn-sm" @click="$emit('toggle-status', tenant.id)">
         {{ tenant.isActive ? 'Deactivate' : 'Activate' }}
       </button>
     </div>
 
-    <UserManagement
-      v-if="showUserManagement"
-      :tenant="tenant"
-      :users="tenantsStore.getTenantUsers(tenant.id)"
-      :is-loading="tenantsStore.isLoadingUsers"
-      @assign-user="(email) => tenantsStore.assignUserToTenant(tenant.id, email)"
-      @remove-user="(email) => tenantsStore.removeUserFromTenant(tenant.id, email)"
-    />
+    <div class="tenant-sections">
+      <section class="tenant-section" :aria-label="`Status page of ${tenant.name}`">
+        <h4 class="tenant-section-label">Status page</h4>
+        <div class="tenant-section-body">
+          <a
+            :href="statusPagePath"
+            class="status-link mono truncate"
+            target="_blank"
+            rel="noopener"
+            :title="`Open the public status page ${statusPagePath}`"
+          >{{ statusPagePath }}</a>
+          <button type="button" class="btn btn-quiet btn-sm" @click="showStatusPageEditor = true">
+            Edit status page
+          </button>
+        </div>
+      </section>
+
+      <section class="tenant-section" :aria-label="`Users of ${tenant.name}`">
+        <h4 class="tenant-section-label">Users</h4>
+        <div class="tenant-section-body">
+          <span class="muted">Who can see and change this tenant.</span>
+          <button
+            type="button"
+            class="btn btn-quiet btn-sm"
+            :aria-expanded="showUserManagement"
+            :aria-controls="usersPanelId"
+            @click="handleToggleUserManagement(tenant)"
+          >
+            {{ showUserManagement ? 'Hide users' : 'Manage users' }}
+            <svg
+              class="chevron"
+              :class="{ open: showUserManagement }"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
+        </div>
+        <UserManagement
+          v-if="showUserManagement"
+          :id="usersPanelId"
+          class="tenant-users"
+          :tenant="tenant"
+          :users="tenantsStore.getTenantUsers(tenant.id)"
+          :is-loading="tenantsStore.isLoadingUsers"
+          @assign-user="(email) => tenantsStore.assignUserToTenant(tenant.id, email)"
+          @remove-user="(email) => tenantsStore.removeUserFromTenant(tenant.id, email)"
+        />
+      </section>
+    </div>
 
     <StatusPageEditor
       v-if="showStatusPageEditor"
       :tenant="tenant"
       @close="showStatusPageEditor = false"
     />
-  </div>
+  </li>
 </template>
 
 <style scoped>
-.tenant-card {
-  background: var(--surface);
-  border-radius: 8px;
-  padding: 1.5rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  border: 1px solid var(--border-subtle);
+.description {
+  overflow-wrap: anywhere;
 }
 
-.tenant-card.inactive {
-  opacity: 0.7;
-  background: var(--surface-2);
+/* Under the facts, from the facts column to the end of the row. */
+.tenant-sections {
+  grid-column: 2 / -1;
+  display: grid;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
 }
 
-.tenant-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 1rem;
-  gap: 1rem;
+.tenant-section {
+  display: grid;
+  grid-template-columns: var(--fact-label) minmax(0, 1fr);
+  column-gap: var(--space-3);
+  align-items: center;
+  font-size: var(--text-sm);
 }
 
-.tenant-header h3 {
+.tenant-section-label {
   margin: 0;
-  color: var(--text);
-  font-size: 1.2rem;
-  word-break: break-word;
-}
-
-.tenant-status {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.5rem;
-}
-
-.tenant-code {
-  background: var(--surface-2);
-  color: var(--text-muted);
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.8rem;
-  font-family: monospace;
-}
-
-.status-badge {
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.8rem;
-  font-weight: 500;
-  background: var(--danger);
-  color: white;
-}
-
-.status-badge.active {
-  background: var(--success);
-}
-
-.tenant-details {
-  margin-bottom: 1rem;
-}
-
-.detail-item {
-  display: flex;
-  margin-bottom: 0.5rem;
-  gap: 0.5rem;
-}
-
-.detail-item strong {
+  font-size: var(--text-sm);
+  font-weight: 700;
   color: var(--text-2);
-  min-width: 80px;
 }
 
-.detail-item span {
-  color: var(--text-muted);
-  word-break: break-word;
-}
-
-.tenant-actions {
+.tenant-section-body {
   display: flex;
-  gap: 0.5rem;
   flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  min-width: 0;
 }
 
-.btn {
-  padding: 0.375rem 0.75rem;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.875rem;
-  transition: all 0.2s;
-  font-weight: 500;
-  text-decoration: none;
-  display: inline-block;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-sm {
-  padding: 0.25rem 0.5rem;
-  font-size: 0.8rem;
-}
-
-.btn-outline {
-  background: transparent;
+.status-link {
+  min-width: 0;
   color: var(--link);
-  border: 1px solid var(--accent);
+  text-decoration: none;
 }
 
-.btn-outline:hover:not(:disabled) {
-  background: var(--accent);
-  color: white;
+.status-link:hover {
+  color: var(--link-hover);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
 }
 
-.btn-success {
-  background: var(--success);
-  color: white;
+.chevron {
+  transition: transform 0.15s;
 }
 
-.btn-success:hover:not(:disabled) {
-  background: var(--success-hover);
+.chevron.open {
+  transform: rotate(180deg);
 }
 
-.btn-warning {
-  background: #ffc107;
-  color: var(--text);
+/* The open user list starts under the section text, in the value column. */
+.tenant-users {
+  grid-column: 2;
+  margin-top: var(--space-2);
 }
 
-.btn-warning:hover:not(:disabled) {
-  background: #e0a800;
+@media (max-width: 760px) {
+  .tenant-sections {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 520px) {
+  .tenant-section {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--space-1);
+  }
+
+  .tenant-users {
+    grid-column: 1;
+  }
 }
 </style>

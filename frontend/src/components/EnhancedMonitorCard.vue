@@ -11,7 +11,9 @@ import { formatSilenceEnd, formatSilenceEndLong } from '../utils/silence'
 import { formatPause, formatPauseInBrowserZone, isPaused, pauseOf } from '../utils/dailyPause'
 import MonitorStateButton from './MonitorStateButton.vue'
 import EnvironmentBadge from './EnvironmentBadge.vue'
-import { formatUptime, getTimeframeLabel } from '../utils/uptime'
+import MonitorDetailsList from './MonitorDetailsList.vue'
+import MonitorIcon from './MonitorIcon.vue'
+import { formatUptime, getTimeframeLabel, uptimeLevel } from '../utils/uptime'
 
 interface MonitorStatus {
   currentStatus: 'up' | 'down'
@@ -62,13 +64,7 @@ interface EnhancedMonitorCardEmits {
 }
 
 const props = defineProps<EnhancedMonitorCardProps>()
-defineEmits<EnhancedMonitorCardEmits>()
-
-const PEER_RESULT_TEXT: Record<PeerResult, string> = {
-  CONFIRMED: 'Also DOWN for the other server',
-  PEER_UP: 'Only this server sees DOWN: no alert sent',
-  NO_ANSWER: 'The other server did not answer: alert sent'
-}
+const emit = defineEmits<EnhancedMonitorCardEmits>()
 
 // Silent monitors show when their alerts start again
 const silentEnd = computed(() =>
@@ -99,24 +95,38 @@ const silentChipTitle = computed(() =>
   silentEnd.value ? `No alerts. Alerts start again ${formatSilenceEndLong(silentEnd.value)}.` : undefined
 )
 
-const getStatusBadgeClass = (status: 'up' | 'down') => {
-  return status === 'up' ? 'status-badge status-up' : 'status-badge status-down'
-}
+const isMinimal = computed(() => props.selectedViewMode === 'minimal')
+const showDetails = computed(() => !isMinimal.value && (props.isExpanded || props.selectedViewMode === 'full'))
+const isDown = computed(() => props.status?.currentStatus === 'down')
 
-const formatDate = (dateString: string) => {
-  // Backend returns UTC timestamps without 'Z' suffix, so we need to append it
-  // to ensure proper UTC interpretation before converting to local timezone
-  const utcTimestamp = dateString.endsWith('Z') ? dateString : dateString + 'Z'
-  const date = new Date(utcTimestamp)
-  return date.toLocaleString(undefined, {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    timeZoneName: 'short'
-  })
+// Up is a quiet dot, down is a red fill, no status yet is grey
+const statusBadge = computed(() => {
+  if (!props.status) return { class: 'badge-neutral', text: 'No data' }
+  return props.status.currentStatus === 'down'
+    ? { class: 'badge-down', text: 'Down' }
+    : { class: 'badge-up', text: 'Up' }
+})
+
+// What went wrong at the last check: the status code, else the error message
+const problemText = computed(() => {
+  const status = props.status
+  if (!status || status.currentStatus !== 'down') return null
+  if (status.lastStatusCode != null) {
+    return status.lastErrorMessage
+      ? `HTTP ${status.lastStatusCode}: ${status.lastErrorMessage}`
+      : `HTTP ${status.lastStatusCode}`
+  }
+  return status.lastErrorMessage || 'Check failed'
+})
+
+const silentUntilText = computed(() => (silentEnd.value ? `until ${formatSilenceEndLong(silentEnd.value)}` : null))
+
+const pausedChipText = computed(() =>
+  pausedNow.value && dailyPause.value ? `Paused until ${dailyPause.value.until} ${dailyPause.value.timezone}` : null
+)
+
+const onRowClick = () => {
+  if (props.selectable) emit('toggle-select', props.monitor.id)
 }
 
 // Get current stats based on selected timeframe
@@ -146,22 +156,44 @@ const metricsValues = computed((): MetricsValues | null => {
   }
 })
 
-// Uptime of the selected timeframe, for the minimal view
+// Uptime of the selected timeframe, for the row
 const currentUptime = computed(() =>
   props.selectedTimeframe === '24h'
     ? props.responseTimeHistory?.uptimePercentage24h
     : currentStats.value?.uptimePercentage
 )
 
-const minimalBadgeText = computed(() =>
-  currentUptime.value === undefined || currentUptime.value === null
-    ? props.status?.currentStatus || 'unknown'
-    : formatUptime(currentUptime.value)
+const uptimeLabel = computed(() => `uptime ${props.selectedTimeframe}`)
+const uptimeClass = computed(() => `level-${uptimeLevel(currentUptime.value)}`)
+// The stats of 7d and 90d load on demand
+const uptimeLoading = computed(
+  () => props.selectedTimeframe !== '24h' && props.isLoadingStats && currentUptime.value === undefined
 )
 
-const minimalBadgeTitle = computed(() =>
-  `${(props.status?.currentStatus || 'unknown').toUpperCase()} · ${getTimeframeLabel(props.selectedTimeframe)} uptime: ${formatUptime(currentUptime.value)}`
-)
+// The data of the status strip: 24h from the history, 7d/90d from the stats
+const statusStrip = computed(() => {
+  if (props.selectedTimeframe === '24h') {
+    const history = props.responseTimeHistory
+    return {
+      statusDownPeriods: get24hStatusDownPeriods(history),
+      uptimePercentage: history?.uptimePercentage24h,
+      firstCheckAt: history?.firstCheckAt,
+      totalChecks: history?.totalChecks24h,
+      timeframe: '24h' as TimeframeType
+    }
+  }
+  const stats = currentStats.value
+  if (!stats) return null
+  return {
+    statusDownPeriods: stats.statusDownPeriods,
+    uptimePercentage: stats.uptimePercentage,
+    firstCheckAt: stats.firstCheckAt,
+    totalChecks: stats.totalChecks,
+    timeframe: props.selectedTimeframe,
+    windowStart: stats.periodStart,
+    windowEnd: stats.periodEnd
+  }
+})
 
 const get24hResponseTimeData = (history: ResponseTimeHistory | null): number[] => {
   if (!history || !history.dataPoints || history.dataPoints.length === 0) {
@@ -170,710 +202,542 @@ const get24hResponseTimeData = (history: ResponseTimeHistory | null): number[] =
   return history.dataPoints.map((point: { maxResponseTimeMs: number }) => point.maxResponseTimeMs)
 }
 
-const get24hStatusDownPeriods = (history: ResponseTimeHistory | null): Array<{ start: string; end: string }> => {
+function get24hStatusDownPeriods(history: ResponseTimeHistory | null): Array<{ start: string; end: string }> {
   if (!history || !history.statusDownPeriods || history.statusDownPeriods.length === 0) {
     return []
   }
   return history.statusDownPeriods
 }
-
-
 </script>
+
 
 <template>
   <div
-    class="enhanced-monitor-card"
-    :class="{ 'minimal-view': selectedViewMode === 'minimal', 'full-view': selectedViewMode === 'full', selectable, selected }"
-    @click="selectable && $emit('toggle-select', monitor.id)"
+    class="monitor-item"
+    :class="{
+      'is-down': isDown,
+      'is-minimal': isMinimal,
+      'is-full': selectedViewMode === 'full',
+      'is-open': showDetails,
+      'is-inactive': monitor.state === 'INACTIVE',
+      'is-selectable': selectable,
+      'is-selected': selected
+    }"
+    @click="onRowClick"
   >
-    <!-- Minimal view: only name and status -->
-    <template v-if="selectedViewMode === 'minimal'">
-      <div class="monitor-header minimal">
-        <h3>
-          <input
-            v-if="selectable"
-            type="checkbox"
-            class="select-box"
-            :checked="selected"
-            :aria-label="`Select ${monitor.name}`"
-            @click.stop
-            @change="$emit('toggle-select', monitor.id)"
-          />
-          {{ monitor.name }}
-          <EnvironmentBadge :environment="monitor.environment" />
-          <span
-            v-if="isPeer"
-            class="peer-badge"
-            title="Watches the other Status Tacos server. The other server checks DOWN monitors before alerts."
-          >peer</span>
-        </h3>
-        <div class="monitor-status">
-          <span v-if="silentChipText" class="silent-chip" :title="silentChipTitle">
-            <i class="fas fa-bell-slash" aria-hidden="true"></i>{{ silentChipText }}
-          </span>
-          <span v-if="pausedNow && dailyPause" class="silent-chip" :title="pausedChipTitle">
-            <i class="fas fa-pause" aria-hidden="true"></i>Paused until {{ dailyPause.until }} {{ dailyPause.timezone }}
-          </span>
-          <span
-            :class="getStatusBadgeClass(status?.currentStatus || 'down')"
-            :title="minimalBadgeTitle"
-          >
-            {{ minimalBadgeText }}
-          </span>
-        </div>
-      </div>
-    </template>
-
-    <!-- Default and Full views -->
-    <template v-else>
-      <div class="monitor-header">
-        <h3>
-          <input
-            v-if="selectable"
-            type="checkbox"
-            class="select-box"
-            :checked="selected"
-            :aria-label="`Select ${monitor.name}`"
-            @click.stop
-            @change="$emit('toggle-select', monitor.id)"
-          />
-          {{ monitor.name }}
-          <EnvironmentBadge :environment="monitor.environment" />
-          <span
-            v-if="isPeer"
-            class="peer-badge"
-            title="Watches the other Status Tacos server. The other server checks DOWN monitors before alerts."
-          >peer</span>
-        </h3>
-        <div class="monitor-status">
-          <span v-if="silentChipText" class="silent-chip" :title="silentChipTitle">
-            <i class="fas fa-bell-slash" aria-hidden="true"></i>{{ silentChipText }}
-          </span>
-          <span v-if="pausedNow && dailyPause" class="silent-chip" :title="pausedChipTitle">
-            <i class="fas fa-pause" aria-hidden="true"></i>Paused until {{ dailyPause.until }} {{ dailyPause.timezone }}
-          </span>
-          <span
-            :class="getStatusBadgeClass(status?.currentStatus || 'down')"
-          >
-            {{ status?.currentStatus || 'unknown' }}
-          </span>
-        </div>
-      </div>
-
-      <div class="monitor-details">
-        <div class="detail-item">
-          <strong>URL:</strong>
-          <a :href="monitor.url" target="_blank" rel="noopener noreferrer">
-            {{ monitor.url }}
-          </a>
-        </div>
-        <div class="detail-item" v-if="isExpanded || selectedViewMode === 'full'">
-          <strong>Tenant:</strong>
-          <span>{{ monitor.tenant?.name || 'Unknown' }}</span>
-        </div>
-        <div class="detail-item" v-if="isExpanded || selectedViewMode === 'full'">
-          <strong>State:</strong>
-          <span class="state-display">{{ monitor.state }}</span>
-          <span v-if="silentEnd" class="state-until" :title="silentChipTitle">
-            until {{ formatSilenceEndLong(silentEnd) }}
-          </span>
-        </div>
-        <div class="detail-item" v-if="dailyPauseText && (isExpanded || selectedViewMode === 'full')">
-          <strong>Daily pause:</strong>
-          <span :title="pausedChipTitle">{{ dailyPauseText }}</span>
-        </div>
-        <div class="detail-item" v-if="(isExpanded || selectedViewMode === 'full') && monitor.httpHeaders && Object.keys(monitor.httpHeaders).length > 0">
-          <strong>Headers:</strong>
-          <span class="headers-list">
-            <span v-for="(value, key) in monitor.httpHeaders" :key="key" class="header-item" :title="`${key}: ${value}`">
-              {{ key.length > 20 ? key.substring(0, 20) + '...' : key }}: {{ value.length > 30 ? value.substring(0, 30) + '...' : value }}
-            </span>
-          </span>
-        </div>
-        <div class="detail-item" v-if="(isExpanded || selectedViewMode === 'full') && monitor.statusCodeRegex">
-          <strong>Status Code:</strong>
-          <span class="criteria-code">{{ monitor.statusCodeRegex }}</span>
-        </div>
-        <div class="detail-item" v-if="(isExpanded || selectedViewMode === 'full') && monitor.responseBodyRegex">
-          <strong>Body:</strong>
-          <span class="criteria-code">{{ monitor.responseBodyRegex }}</span>
-        </div>
-        <div class="detail-item" v-if="(isExpanded || selectedViewMode === 'full') && monitor.prometheusKey">
-          <strong>Prometheus:</strong>
-          <span class="criteria-code">{{ monitor.prometheusKey }}</span>
-          <span v-if="monitor.prometheusMinValue !== undefined || monitor.prometheusMaxValue !== undefined" class="prometheus-range">
-            (<span v-if="monitor.prometheusMinValue !== undefined">{{ monitor.prometheusMinValue }}</span><span v-if="monitor.prometheusMinValue !== undefined && monitor.prometheusMaxValue !== undefined">-</span><span v-if="monitor.prometheusMaxValue !== undefined">{{ monitor.prometheusMaxValue }}</span>)
-          </span>
-        </div>
-        <div class="detail-item" v-if="isExpanded || selectedViewMode === 'full'">
-          <strong>Check Interval:</strong>
-          <span class="criteria-value">{{ monitor.checkInterval ?? 15 }}s</span>
-        </div>
-        <div class="detail-item" v-if="(isExpanded || selectedViewMode === 'full') && monitor.useSystemDns">
-          <strong>DNS:</strong>
-          <span class="criteria-value">DNS server of the backend</span>
-        </div>
-        <div class="detail-item" v-if="isExpanded || selectedViewMode === 'full'">
-          <strong>Alert Delay:</strong>
-          <span class="criteria-value">{{ monitor.alertingThreshold }}s</span>
-        </div>
-      </div>
-
-      <!-- Expanded view with detailed metrics -->
-      <div v-if="isExpanded || selectedViewMode === 'full'">
-        <UptimeMetrics
-          :stats="metricsValues"
-          :timeframe="selectedTimeframe"
-          :is-loading="selectedTimeframe !== '24h' && isLoadingStats"
+    <div class="mi-row">
+      <div class="mi-status">
+        <input
+          v-if="selectable"
+          type="checkbox"
+          class="mi-select"
+          :checked="selected"
+          :aria-label="`Select ${monitor.name}`"
+          @click.stop
+          @change="$emit('toggle-select', monitor.id)"
         />
-
-        <!-- Last check, for 24h -->
-        <div v-if="selectedTimeframe === '24h' && status" class="monitor-stats">
-          <div class="stat-item">
-            <span class="stat-label">Last Checked:</span>
-            <span class="stat-value">
-              {{ formatDate(status.lastCheckedAt) }}
-            </span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">Response Time:</span>
-            <span class="stat-value">
-              {{ status.lastResponseTimeMs }}ms
-            </span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">Status Code:</span>
-            <span v-if="status.lastStatusCode != null" class="stat-value">
-              {{ status.lastStatusCode }}
-            </span>
-            <span v-else-if="status.lastErrorMessage" class="stat-value stat-error">
-              {{ status.lastErrorMessage }}
-            </span>
-          </div>
-          <div v-if="status.currentStatus === 'down' && status.peerResult" class="stat-item">
-            <span class="stat-label">Other Server:</span>
-            <span
-              class="stat-value"
-              :class="{ 'peer-only-here': status.peerResult === 'PEER_UP' }"
-            >
-              {{ PEER_RESULT_TEXT[status.peerResult] }}
-            </span>
-          </div>
-          <div v-if="status.consecutiveFailures > 0" class="stat-item">
-            <span class="stat-label">Consecutive Failures:</span>
-            <span class="stat-value failure-count">
-              {{ status.consecutiveFailures }}
-            </span>
-          </div>
-        </div>
+        <span class="badge" :class="statusBadge.class">{{ statusBadge.text }}</span>
       </div>
 
-      <!-- Charts always shown regardless of expanded state -->
-      <template v-if="selectedTimeframe === '24h'">
+      <div class="mi-main">
+        <div class="mi-title">
+          <button
+            v-if="selectedViewMode === 'default'"
+            type="button"
+            class="mi-name"
+            :aria-expanded="isExpanded"
+            :title="isExpanded ? 'Hide details' : 'Show details'"
+            @click.stop="$emit('toggle-expanded', monitor.id)"
+          >{{ monitor.name }}</button>
+          <span v-else class="mi-name" :title="monitor.name">{{ monitor.name }}</span>
+
+          <span class="mi-tags">
+            <EnvironmentBadge :environment="monitor.environment" />
+            <span
+              v-if="isPeer"
+              class="badge badge-info"
+              title="Watches the other Status Tacos server. The other server checks DOWN monitors before alerts."
+            >peer</span>
+            <span v-if="monitor.state === 'INACTIVE' && !isMinimal" class="badge badge-neutral" title="No checks and no alerts">Inactive</span>
+
+            <!-- Minimal: only an icon, the text is in the tooltip -->
+            <template v-if="isMinimal">
+              <span v-if="silentChipText" class="mi-flag" :title="silentChipTitle">
+                <MonitorIcon name="bell-off" /><span class="sr-only">{{ silentChipText }}</span>
+              </span>
+              <span v-if="pausedChipText" class="mi-flag" :title="pausedChipTitle">
+                <MonitorIcon name="pause" /><span class="sr-only">{{ pausedChipText }}</span>
+              </span>
+            </template>
+            <template v-else>
+              <span v-if="silentChipText" class="badge badge-warning" :title="silentChipTitle">{{ silentChipText }}</span>
+              <span v-if="pausedChipText" class="badge badge-warning" :title="pausedChipTitle">{{ pausedChipText }}</span>
+            </template>
+          </span>
+        </div>
+
+        <a
+          v-if="!isMinimal"
+          class="mi-url mono"
+          :href="monitor.url"
+          target="_blank"
+          rel="noopener noreferrer"
+          :title="monitor.url"
+          @click.stop
+        >{{ monitor.url }}</a>
+
+        <p v-if="!isMinimal && problemText" class="mi-problem">
+          <span class="mi-problem-text mono" :title="problemText">{{ problemText }}</span>
+          <span v-if="status && status.consecutiveFailures > 0" class="num mi-problem-count">
+            {{ status.consecutiveFailures }} {{ status.consecutiveFailures === 1 ? 'failure' : 'failures' }} in a row
+          </span>
+        </p>
+      </div>
+
+      <div class="mi-figure mi-uptime" :title="`${getTimeframeLabel(selectedTimeframe)} uptime`">
+        <span class="mi-figure-value num" :class="uptimeClass">{{ uptimeLoading ? '…' : formatUptime(currentUptime) }}</span>
+        <span class="mi-figure-label">{{ uptimeLabel }}</span>
+      </div>
+
+      <div v-if="!isMinimal" class="mi-figure mi-response" title="Response time of the last check">
+        <span class="mi-figure-value num">{{ status ? `${status.lastResponseTimeMs} ms` : 'N/A' }}</span>
+        <span class="mi-figure-label">response</span>
+      </div>
+
+      <div v-if="!isMinimal" class="mi-strip">
+        <EnhancedStatusChart v-if="statusStrip" v-bind="statusStrip" compact />
+        <span v-else class="mi-strip-empty">{{ isLoadingStats ? 'Loading…' : 'No data yet' }}</span>
+      </div>
+
+      <div v-if="selectedViewMode === 'default'" class="mi-toggle">
+        <button
+          type="button"
+          class="btn btn-icon btn-sm"
+          :aria-expanded="isExpanded"
+          :aria-label="isExpanded ? `Hide details of ${monitor.name}` : `Show details of ${monitor.name}`"
+          @click.stop="$emit('toggle-expanded', monitor.id)"
+        >
+          <MonitorIcon name="chevron-down" class="mi-chevron" />
+        </button>
+      </div>
+    </div>
+
+    <!-- Details: settings, numbers and charts of the timeframe, then the actions -->
+    <div v-if="showDetails" class="mi-details" @click.stop>
+      <MonitorDetailsList
+        :monitor="monitor"
+        :status="status"
+        :silent-until-text="silentUntilText"
+        :daily-pause-text="dailyPauseText"
+      />
+
+      <UptimeMetrics
+        :stats="metricsValues"
+        :timeframe="selectedTimeframe"
+        :is-loading="selectedTimeframe !== '24h' && isLoadingStats"
+      />
+
+      <div class="mi-charts">
         <ResponseTimeChart
+          v-if="selectedTimeframe === '24h'"
           :data="get24hResponseTimeData(responseTimeHistory)"
         />
-        <EnhancedStatusChart
-          :status-down-periods="get24hStatusDownPeriods(responseTimeHistory)"
-          :uptime-percentage="responseTimeHistory?.uptimePercentage24h"
-          :first-check-at="responseTimeHistory?.firstCheckAt"
-          :total-checks="responseTimeHistory?.totalChecks24h"
-          :timeframe="'24h'"
-        />
-      </template>
-
-      <template v-else-if="currentStats">
         <EnhancedResponseTimeChart
+          v-else-if="currentStats"
           :data="currentStats.responseTimeDataPoints"
           :timeframe="selectedTimeframe"
           :window-start="currentStats.periodStart"
           :window-end="currentStats.periodEnd"
         />
-        <EnhancedStatusChart
-          :status-down-periods="currentStats.statusDownPeriods"
-          :uptime-percentage="currentStats.uptimePercentage"
-          :first-check-at="currentStats.firstCheckAt"
-          :total-checks="currentStats.totalChecks"
-          :timeframe="selectedTimeframe"
-          :window-start="currentStats.periodStart"
-          :window-end="currentStats.periodEnd"
-        />
-      </template>
-
-      <div class="monitor-toggle" v-if="selectedViewMode === 'default'">
-        <button
-          @click="$emit('toggle-expanded', monitor.id)"
-          class="btn btn-icon"
-          :class="isExpanded ? 'btn-collapse' : 'btn-expand'"
-          :title="isExpanded ? 'Hide details' : 'Show details'"
-        >
-          <svg v-if="isExpanded" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="m18 15-6-6-6 6"/>
-          </svg>
-          <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="m6 9 6 6 6-6"/>
-          </svg>
-        </button>
+        <EnhancedStatusChart v-if="statusStrip" v-bind="statusStrip" />
       </div>
 
-      <div class="monitor-actions" v-if="isExpanded || selectedViewMode === 'full'">
-        <button
-          @click="$emit('edit', monitor)"
-          class="btn btn-sm btn-primary"
-        >
-          Edit
-        </button>
+      <div class="mi-actions">
+        <button type="button" class="btn btn-sm btn-primary" @click="$emit('edit', monitor)">Edit</button>
         <MonitorStateButton
           :state="monitor.state"
           :silent-until="monitor.silentUntil"
           @state-change="(newState, silentFor) => $emit('state-change', monitor.id, newState, silentFor)"
         />
-        <button
-          @click="$emit('delete', monitor.id)"
-          class="btn btn-sm btn-danger"
-        >
-          Delete
-        </button>
+        <button type="button" class="btn btn-sm btn-outline mi-delete" @click="$emit('delete', monitor.id)">Delete</button>
       </div>
-    </template>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.silent-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  margin-right: 0.5rem;
-  padding: 0.125rem 0.5rem;
-  border: 1px solid var(--warning-soft-border);
-  border-radius: 999px;
-  background: var(--warning-soft);
-  color: var(--warning-soft-text);
-  font-size: 0.75rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+/*
+ * One monitor is one row. All rows use the same columns, so the eye runs down the status,
+ * the uptime and the strip. The columns come from the list (--mi-columns); the defaults
+ * here are for a monitor shown alone.
+ */
+.monitor-item {
+  --mi-status-width: 4.25rem;
+  background: var(--surface);
+  min-width: 0;
 }
 
-.state-until {
-  margin-left: 0.375rem;
-  color: var(--text-muted);
-}
-
-.enhanced-monitor-card.selectable {
+.monitor-item.is-selectable {
+  --mi-status-width: 6rem;
   cursor: pointer;
   user-select: none;
 }
 
-.enhanced-monitor-card.selectable :deep(a),
-.enhanced-monitor-card.selectable :deep(button) {
+/* While the user selects, a click anywhere on the row selects it. */
+.monitor-item.is-selectable :deep(a),
+.monitor-item.is-selectable :deep(button) {
   pointer-events: none;
 }
 
-.enhanced-monitor-card.selected {
-  border-color: var(--accent) !important;
-  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.35) !important;
-  background: var(--surface-2);
+.monitor-item.is-selected {
+  background: var(--accent-soft);
 }
 
-.select-box {
-  width: 1.05rem;
-  height: 1.05rem;
-  margin: 0 0.5rem 0 0;
-  vertical-align: -0.15rem;
-  cursor: pointer;
-  accent-color: var(--accent);
-}
-
-.enhanced-monitor-card {
-  background: var(--surface);
-  border-radius: 8px;
-  border: 1px solid var(--border-subtle);
-  padding: 1.5rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.enhanced-monitor-card.minimal-view {
-  padding: 0.75rem;
-  margin-bottom: 0.5rem;
-}
-
-.enhanced-monitor-card.full-view {
-  padding: 2rem;
-}
-
-.monitor-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 1rem;
-}
-
-.monitor-header.minimal {
-  margin-bottom: 0;
+/* The response column fits "12345 ms". */
+.mi-row {
+  display: grid;
+  grid-template-columns:
+    var(--mi-status-width) minmax(0, 1fr) 5.5rem 5.25rem
+    var(--mi-strip-width, clamp(8rem, 20vw, 15rem)) 2rem;
+  grid-template-areas: 'status main uptime response strip toggle';
   align-items: center;
+  column-gap: var(--space-4);
+  min-height: 3.25rem;
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
 }
 
-.monitor-header h3 {
-  margin: 0;
-  color: var(--text);
-  font-size: 1.1rem;
+.is-full .mi-row {
+  grid-template-columns:
+    var(--mi-status-width) minmax(0, 1fr) 5.5rem 5.25rem
+    var(--mi-strip-width, clamp(8rem, 20vw, 15rem));
+  grid-template-areas: 'status main uptime response strip';
 }
 
-.minimal-view .monitor-header h3 {
-  font-size: 0.95rem;
-  font-weight: 500;
+.is-minimal .mi-row {
+  grid-template-columns: var(--mi-status-width) minmax(0, 1fr) 4.5rem;
+  grid-template-areas: 'status main uptime';
+  column-gap: var(--space-3);
+  min-height: 2.5rem;
+  padding: var(--space-1) var(--space-3);
 }
 
-.monitor-status .status-badge {
-  padding: 0.25rem 0.5rem;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  text-transform: uppercase;
+/* Room for the "No data" badge. */
+.is-minimal {
+  --mi-status-width: 4.25rem;
 }
 
-.minimal-view .monitor-status .status-badge {
-  padding: 0.2rem 0.4rem;
-  font-size: 0.7rem;
+.is-minimal.is-selectable {
+  --mi-status-width: 5.75rem;
 }
 
-.status-up {
-  background: var(--success-soft);
-  color: var(--success-soft-text);
+/* A monitor that is down has a red edge. */
+.is-down {
+  box-shadow: inset 3px 0 0 var(--down);
 }
 
-.status-down {
-  background: var(--danger-soft);
-  color: var(--danger-soft-text);
-}
-
-.monitor-details {
-  margin-bottom: 1rem;
-}
-
-.detail-item {
+.mi-status {
+  grid-area: status;
   display: flex;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
-  font-size: 0.9rem;
+  align-items: center;
+  gap: var(--space-2);
 }
 
-.detail-item strong {
-  color: var(--text-2);
-  min-width: 80px;
+.mi-select {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
 }
 
-.detail-item a {
+.mi-main {
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.mi-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+
+.is-minimal .mi-title {
+  flex-wrap: nowrap;
+}
+
+.mi-name {
+  min-width: 0;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+button.mi-name {
+  cursor: pointer;
+}
+
+button.mi-name:hover {
   color: var(--link);
-  text-decoration: none;
-  word-break: break-all;
 }
 
-.detail-item a:hover {
+.is-inactive .mi-name {
+  color: var(--text-muted);
+}
+
+.mi-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* Minimal: the name keeps room to be read, the tags are cut when the line is short. */
+.is-minimal .mi-name {
+  flex: 0 1 auto;
+  min-width: min(7rem, 60%);
+}
+
+.is-minimal .mi-tags {
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.mi-flag {
+  display: inline-flex;
+  color: var(--warn);
+}
+
+.mi-url {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.mi-url:hover {
+  color: var(--link);
   text-decoration: underline;
 }
 
-.detail-item .active {
-  color: var(--success-text);
-  font-weight: 500;
+/* The reason of the outage, readable without a click. */
+.mi-problem {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-3);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--down);
 }
 
-.detail-item .inactive {
-  color: var(--danger-text);
-  font-weight: 500;
+.mi-problem-text {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
 }
 
-.headers-list {
+.mi-problem-count {
+  white-space: nowrap;
+}
+
+/* A number with a small label below. */
+.mi-figure {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  align-items: flex-end;
+  min-width: 0;
+  line-height: var(--leading-tight);
 }
 
-.header-item {
-  font-size: 0.8rem;
-  background: var(--surface-2);
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  border: 1px solid var(--border-subtle);
+.mi-uptime {
+  grid-area: uptime;
 }
 
-.criteria-code {
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  font-size: 0.8rem;
+.mi-response {
+  grid-area: response;
+}
+
+.mi-figure-value {
+  font-size: var(--text-md);
   color: var(--text);
+  white-space: nowrap;
 }
 
-.prometheus-range {
-  font-size: 0.8rem;
+.mi-figure-label {
+  font-size: var(--text-xs);
   color: var(--text-muted);
-  margin-left: 0.5rem;
+  white-space: nowrap;
 }
 
-.monitor-stats,
-.monitor-stats-compact {
-  background: var(--surface-2);
-  padding: 1rem 0;
-  border-radius: 6px;
-  margin-bottom: 1rem;
-  margin-left: -1.5rem;
-  margin-right: -1.5rem;
-  padding-left: 1.5rem;
-  padding-right: 1.5rem;
+.is-minimal .mi-figure-label {
+  display: none;
 }
 
-.monitor-stats-compact {
-  padding: 0.75rem 0;
-  margin-bottom: 0.5rem;
-  margin-left: 0;
-  margin-right: 0;
-  padding-left: 0;
-  padding-right: 0;
+.level-warning {
+  color: var(--warn);
 }
 
-.stat-item {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
-  font-size: 0.85rem;
+.level-poor {
+  color: var(--down);
+  font-weight: 700;
 }
 
-.stat-item:last-child {
-  margin-bottom: 0;
-}
-
-.stat-label {
+.level-no-data {
   color: var(--text-muted);
 }
 
-.stat-value {
-  font-weight: 500;
-  color: var(--text);
+.mi-strip {
+  grid-area: strip;
+  min-width: 0;
 }
 
-.peer-badge {
-  margin-left: 0.4rem;
-  padding: 0.1rem 0.45rem;
-  border-radius: 999px;
-  background: var(--info-soft);
-  color: var(--info-soft-text);
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  vertical-align: middle;
-}
-
-.stat-value.peer-only-here {
-  color: var(--warning-soft-text);
-  font-weight: 600;
-}
-
-.stat-value.stat-error {
-  color: var(--danger-text);
-  overflow-wrap: anywhere;
-  text-align: right;
-  margin-left: 1rem;
-}
-
-.stat-value.failure-count {
-  color: var(--danger-text);
-  font-weight: 600;
-}
-
-.stat-value.uptime-excellent {
-  color: var(--success-text);
-  font-weight: 600;
-}
-
-.stat-value.uptime-good {
-  color: var(--olive-text);
-  font-weight: 600;
-}
-
-.stat-value.uptime-warning {
-  color: #fd7e14;
-  font-weight: 600;
-}
-
-.stat-value.uptime-poor {
-  color: var(--danger-text);
-  font-weight: 600;
-}
-
-.stat-value.no-data {
+.mi-strip-empty {
+  display: block;
+  padding: 0.125rem var(--space-2);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
   color: var(--text-muted);
-  font-style: italic;
+  text-align: center;
 }
 
-.monitor-toggle {
+.mi-toggle {
+  grid-area: toggle;
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 0.5rem;
-  padding-left: 0;
-  padding-right: 0;
 }
 
-.btn-icon {
-  padding: 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--surface);
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: all 0.2s;
+.mi-chevron {
+  transition: transform 0.15s;
+}
+
+.is-open .mi-chevron {
+  transform: rotate(180deg);
+}
+
+/* The open part sits on a grey ground, under the row, in the width of the name column. */
+.mi-details {
   display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.btn-icon:hover {
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-4) var(--space-4) calc(var(--space-4) + var(--mi-status-width) + var(--space-4));
+  border-top: 1px dashed var(--border-subtle);
   background: var(--surface-2);
-  color: var(--text-2);
-  border-color: var(--input-border);
+  cursor: auto;
+  user-select: text;
 }
 
-.btn-expand:hover {
-  color: var(--link);
-  border-color: var(--accent);
+.mi-charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
 }
 
-.btn-collapse:hover {
-  color: var(--text-muted);
-  border-color: var(--secondary);
-}
-
-.monitor-actions {
+.mi-actions {
   display: flex;
-  gap: 0.5rem;
-  margin-top: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
 }
 
-.btn {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.2s;
-  font-weight: 500;
+/* Delete is the last action and red only on hover: it should not catch the eye. */
+.mi-delete {
+  margin-left: auto;
 }
 
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.mi-delete:hover:not(:disabled) {
+  border-color: var(--down);
+  color: var(--down);
 }
 
-.btn-sm {
-  padding: 0.25rem 0.75rem;
-  font-size: 0.8rem;
-}
-
-.btn-primary {
-  background: var(--accent);
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
-
-.btn-secondary {
-  background: var(--secondary);
-  color: white;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: var(--secondary-hover);
-}
-
-.btn-success {
-  background: var(--success);
-  color: white;
-}
-
-.btn-success:hover:not(:disabled) {
-  background: var(--success-hover);
-}
-
-.btn-danger {
-  background: var(--danger);
-  color: white;
-}
-
-.btn-danger:hover:not(:disabled) {
-  background: var(--danger-hover);
-}
-
-/* Mobile styles */
-@media (max-width: 768px) {
-  .enhanced-monitor-card {
-    padding: 1rem;
-    overflow: hidden;
+/* Tablets: the strip moves below the name. */
+@media (max-width: 1000px) {
+  .mi-row,
+  .is-full .mi-row {
+    grid-template-columns: var(--mi-status-width) minmax(0, 1fr) 5.5rem 5.25rem 2rem;
+    grid-template-areas:
+      'status main uptime response toggle'
+      '.      strip strip strip strip';
+    row-gap: var(--space-2);
   }
 
-  .monitor-header {
-    margin-bottom: 0.75rem;
+  .is-full .mi-row {
+    grid-template-columns: var(--mi-status-width) minmax(0, 1fr) 5.5rem 5.25rem;
+    grid-template-areas:
+      'status main uptime response'
+      '.      strip strip strip';
+  }
+}
+
+/* Phones: the name gets the full width; status and numbers in one line below, then the strip. */
+@media (max-width: 640px) {
+  .mi-row,
+  .is-full .mi-row {
+    grid-template-columns: auto auto minmax(0, 1fr) 2rem;
+    grid-template-areas:
+      'main   main   main     toggle'
+      'status uptime response .'
+      'strip  strip  strip    strip';
+    column-gap: var(--space-4);
+    row-gap: var(--space-1);
+    padding-inline: var(--space-3);
   }
 
-  .monitor-header h3 {
-    font-size: 1rem;
-    margin-bottom: 0.5rem;
+  .is-full .mi-row {
+    grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-areas:
+      'main   main   main'
+      'status uptime response'
+      'strip  strip  strip';
   }
 
-  .monitor-status {
-    margin-bottom: 0.5rem;
+  .mi-strip {
+    margin-top: var(--space-1);
   }
 
-  .detail-item {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.25rem;
-    margin-bottom: 0.75rem;
+  .mi-tags .badge {
+    white-space: normal;
   }
 
-  .detail-item strong {
-    min-width: 0;
+  .mi-row .mi-figure {
+    flex-direction: row;
+    align-items: baseline;
+    gap: var(--space-1);
   }
 
-  .detail-item a {
-    display: block;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  .is-minimal .mi-row {
+    grid-template-columns: var(--mi-status-width) minmax(0, 1fr) 4.5rem;
+    grid-template-areas: 'status main uptime';
+    row-gap: 0;
   }
 
-  .monitor-stats {
-    margin-left: -1rem;
-    margin-right: -1rem;
-    padding-left: 1rem;
-    padding-right: 1rem;
+  .mi-details {
+    padding: var(--space-3);
   }
 
-  .monitor-stats-compact {
-    margin-left: 0;
-    margin-right: 0;
-    padding-left: 0;
-    padding-right: 0;
-  }
-
-  .monitor-toggle {
-    margin-top: 1rem;
-    margin-bottom: 0.5rem;
-  }
-
-  .monitor-actions {
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-top: 0.75rem;
-  }
-
-  .monitor-actions .btn-sm {
-    flex: 1;
-    min-width: 0;
-    text-align: center;
+  .mi-charts {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>

@@ -24,7 +24,7 @@ const form = ref<TenantRequest>({
 const isSubmitting = ref(false)
 const error = ref<string | null>(null)
 
-const title = props.tenant ? 'Edit Tenant' : 'Add New Tenant'
+const title = props.tenant ? 'Edit tenant' : 'Add tenant'
 const isEditing = !!props.tenant
 
 /** The public status page is at /<code>/status, so a new code breaks the old link. */
@@ -69,53 +69,51 @@ const handleClose = () => {
 
 <template>
   <FormModal :title="title" @close="handleClose">
-    <form @submit.prevent="handleSubmit" class="tenant-form">
-      <div v-if="error" class="error-message">
-        {{ error }}
-      </div>
+    <form class="form-stack" @submit.prevent="handleSubmit">
+      <p v-if="error" class="callout callout-danger" role="alert">{{ error }}</p>
 
-      <div class="form-group">
-        <label for="name">Name *</label>
+      <div class="field">
+        <label for="name">Name</label>
         <input
           id="name"
           v-model="form.name"
           type="text"
           required
           :disabled="isSubmitting"
-          placeholder="Enter tenant name"
+          placeholder="For example Acme production"
         />
       </div>
 
-      <div class="form-group">
-        <label for="code">Code *</label>
+      <div class="field">
+        <label for="code">Code</label>
         <input
           id="code"
           v-model="form.code"
+          class="mono"
           type="text"
           required
           :disabled="isSubmitting"
-          placeholder="Enter unique tenant code"
+          placeholder="acme"
           maxlength="50"
           pattern="[a-zA-Z0-9\-_]+"
           title="Only letters, numbers, hyphens, and underscores are allowed"
         />
-        <small class="form-help">
-          Only letters, numbers, hyphens, and underscores are allowed.
-          Your public status page is at <code>/{{ form.code || 'code' }}/status</code>.
-        </small>
-        <small v-if="codeChanged" class="form-warning">
+        <p class="field-hint">
+          Letters, numbers, hyphens and underscores. Your public status page is at
+          <code>/{{ form.code || 'code' }}/status</code>.
+        </p>
+        <p v-if="codeChanged" class="callout callout-warning">
           The old status page link <code>/{{ tenant?.code }}/status</code> stops working.
           Update all links and embedded pages.
-        </small>
+        </p>
       </div>
 
-      <div class="form-group">
-        <label for="description">Description</label>
+      <div class="field">
+        <label for="description">Description <span class="optional">(optional)</span></label>
         <textarea
           id="description"
           v-model="form.description"
           :disabled="isSubmitting"
-          placeholder="Enter tenant description (optional)"
           rows="3"
         ></textarea>
       </div>
@@ -125,113 +123,9 @@ const handleClose = () => {
           Cancel
         </button>
         <button type="submit" :disabled="isSubmitting || !form.name || !form.code" class="btn btn-primary">
-          {{ isSubmitting ? (isEditing ? 'Updating...' : 'Creating...') : (isEditing ? 'Update Tenant' : 'Create Tenant') }}
+          {{ isSubmitting ? 'Saving...' : (isEditing ? 'Save changes' : 'Add tenant') }}
         </button>
       </div>
     </form>
   </FormModal>
 </template>
-
-<style scoped>
-.tenant-form {
-  max-width: 500px;
-  margin: 0 auto;
-}
-
-.error-message {
-  background: var(--danger-soft);
-  color: var(--danger-soft-text);
-  padding: 0.75rem;
-  border-radius: 4px;
-  margin-bottom: 1rem;
-  border: 1px solid var(--danger-soft-border);
-}
-
-.form-group {
-  margin-bottom: 1rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-  color: var(--text-2);
-}
-
-.form-group input,
-.form-group textarea {
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid var(--input-border);
-  border-radius: 4px;
-  font-size: 1rem;
-  transition: border-color 0.2s;
-}
-
-.form-group input:focus,
-.form-group textarea:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
-}
-
-.form-group input:disabled,
-.form-group textarea:disabled {
-  background-color: var(--surface-3);
-  opacity: 1;
-}
-
-.form-help {
-  display: block;
-  margin-top: 0.25rem;
-  color: var(--text-muted);
-  font-size: 0.875rem;
-}
-
-.form-warning {
-  display: block;
-  margin-top: 0.25rem;
-  color: var(--warning-text);
-  font-size: 0.875rem;
-}
-
-.form-actions {
-  display: flex;
-  gap: 1rem;
-  justify-content: flex-end;
-  margin-top: 2rem;
-}
-
-.btn {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.2s;
-  font-weight: 500;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  background: var(--secondary);
-  color: white;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: var(--secondary-hover);
-}
-
-.btn-primary {
-  background: var(--accent);
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
-</style>

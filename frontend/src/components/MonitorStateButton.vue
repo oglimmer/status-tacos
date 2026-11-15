@@ -3,33 +3,33 @@
     <button
       ref="trigger"
       type="button"
-      @click="onMainClick"
+      class="btn btn-sm btn-outline state-btn"
       :class="stateClass"
       :disabled="disabled"
-      class="state-btn"
       :title="stateTooltip"
       :aria-expanded="state === 'ACTIVE' ? pickerOpen : undefined"
       :aria-haspopup="state === 'ACTIVE' ? 'true' : undefined"
+      @click="onMainClick"
     >
-      <i :class="stateIcon"></i>
+      <MonitorIcon :name="stateIcon" class="state-icon" />
       <span class="state-text">{{ stateText }}</span>
     </button>
 
     <button
       v-if="state === 'SILENT'"
       type="button"
-      class="state-btn state-to-active"
+      class="btn btn-sm btn-outline state-btn state-to-active"
       :disabled="disabled"
       title="Send alerts again now"
       @click="emit('stateChange', 'ACTIVE')"
     >
-      <i class="fas fa-bell"></i>
+      <MonitorIcon name="bell" class="state-icon" />
       <span class="state-text">End silence</span>
     </button>
 
     <span v-if="state === 'SILENT' && endText" class="silent-until" :title="endTitle">
-      <i class="fas fa-bell-slash" aria-hidden="true"></i>
-      Silent until {{ endText }}
+      <MonitorIcon name="bell-off" />
+      Silent until <span class="num">{{ endText }}</span>
     </span>
 
     <div v-if="pickerOpen" class="picker-popover">
@@ -45,6 +45,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import type { MonitorState, SilentFor } from '../stores/monitors'
 import { formatSilenceEnd, formatSilenceEndLong } from '../utils/silence'
 import SilencePicker from './SilencePicker.vue'
+import MonitorIcon, { type MonitorIconName } from './MonitorIcon.vue'
 
 interface Props {
   state: MonitorState
@@ -67,21 +68,21 @@ const emit = defineEmits<Emits>()
 const stateConfig = {
   ACTIVE: {
     text: 'Make Silent',
-    icon: 'fas fa-pause-circle',
+    icon: 'bell-off' as MonitorIconName,
     class: 'state-to-silent',
     tooltip: 'Make the monitor silent for 1 hour to 7 days - checks without alerts',
     next: 'SILENT' as MonitorState
   },
   SILENT: {
     text: 'Make Inactive',
-    icon: 'fas fa-stop-circle',
+    icon: 'stop' as MonitorIconName,
     class: 'state-to-inactive',
     tooltip: 'Click to make monitor inactive - no monitoring',
     next: 'INACTIVE' as MonitorState
   },
   INACTIVE: {
     text: 'Make Active',
-    icon: 'fas fa-play-circle',
+    icon: 'play' as MonitorIconName,
     class: 'state-to-active',
     tooltip: 'Click to make monitor active - monitoring with alerts',
     next: 'ACTIVE' as MonitorState
@@ -90,7 +91,7 @@ const stateConfig = {
 
 const currentConfig = computed(() => stateConfig[props.state])
 
-const stateClass = computed(() => `state-btn ${currentConfig.value.class}`)
+const stateClass = computed(() => currentConfig.value.class)
 const stateIcon = computed(() => currentConfig.value.icon)
 const stateText = computed(() => currentConfig.value.text)
 const stateTooltip = computed(() => currentConfig.value.tooltip)
@@ -148,47 +149,58 @@ const pickSilence = (code: SilentFor) => {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
+}
+
+/* The icon tells what the button does: silent (yellow), stop (red), start (green). */
+.state-to-silent .state-icon {
+  color: var(--warn);
+}
+
+.state-to-inactive .state-icon {
+  color: var(--down);
+}
+
+.state-to-active .state-icon {
+  color: var(--up);
 }
 
 .silent-until {
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
-  color: var(--warning-text);
-  font-size: 0.8rem;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
+  gap: var(--space-1);
+  color: var(--warn);
+  font-size: var(--text-sm);
   white-space: nowrap;
 }
 
 .picker-popover {
   position: absolute;
-  top: calc(100% + 6px);
+  top: calc(100% + var(--space-1));
   left: 0;
   z-index: 30;
   width: max-content;
   max-width: calc(100vw - 1.5rem);
-  padding: 0.5rem;
-  background: var(--surface);
+  padding: var(--space-2);
   border: 1px solid var(--border);
-  border-top: 3px solid var(--warning-text);
-  border-radius: 8px;
-  box-shadow: 0 10px 28px -12px rgba(0, 0, 0, 0.35);
+  border-top: 3px solid var(--masa);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
   animation: picker-open 0.14s ease-out;
 }
 
 .picker-title {
-  margin: 0.125rem 0.625rem 0.375rem;
+  margin: 0.125rem var(--space-2) var(--space-1);
   color: var(--text);
-  font-size: 0.85rem;
-  font-weight: 600;
+  font-size: var(--text-sm);
+  font-weight: 700;
 }
 
 .picker-note {
-  margin: 0.5rem 0.625rem 0.125rem;
+  margin: var(--space-2) var(--space-2) 0.125rem;
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
 }
 
 @keyframes picker-open {
@@ -202,94 +214,16 @@ const pickSilence = (code: SilentFor) => {
   .picker-popover {
     animation: none;
   }
-
-  .state-btn:hover:not(:disabled) {
-    transform: none;
-  }
 }
 
-.state-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.25rem 0.75rem;
-  border: 1px solid;
-  border-radius: 4px;
-  font-size: 0.8rem;
-  font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.2s ease-in-out;
-  background: var(--surface);
-}
-
-.state-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.state-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.state-to-silent {
-  color: var(--warning-text);
-  border-color: #d97706;
-}
-
-.state-to-silent:hover:not(:disabled) {
-  background: var(--warning-soft);
-  border-color: #b45309;
-  color: var(--warning-text);
-}
-
-.state-to-inactive {
-  color: var(--danger-text);
-  border-color: #dc2626;
-}
-
-.state-to-inactive:hover:not(:disabled) {
-  background: var(--danger-soft);
-  border-color: #b91c1c;
-  color: var(--danger-text);
-}
-
-.state-to-active {
-  color: var(--success-text);
-  border-color: #059669;
-}
-
-.state-to-active:hover:not(:disabled) {
-  background: var(--success-soft);
-  border-color: #047857;
-  color: var(--success-text);
-}
-
-.state-text {
-  font-weight: 500;
-}
-
+/* On a phone the menu sits at the bottom of the screen, where the thumb is. */
 @media (max-width: 768px) {
   .picker-popover {
     position: fixed;
     top: auto;
-    right: 0.75rem;
-    bottom: 0.75rem;
-    left: 0.75rem;
-  }
-
-  .state-btn {
-    padding: 0.25rem 0.5rem;
-    min-width: 0;
-    flex: 1;
-    text-align: center;
-    justify-content: center;
-    font-size: 0.7rem;
-  }
-
-  .state-text {
-    font-size: 0.7rem;
+    right: var(--space-3);
+    bottom: var(--space-3);
+    left: var(--space-3);
   }
 }
 </style>

@@ -77,6 +77,12 @@ watch(successCriteriaType, (newType, oldType) => {
   emit('update:modelValue', updatedValue)
 })
 
+const criteriaOptions = [
+  { value: 'status_code', label: 'Status code' },
+  { value: 'response_body', label: 'Response body' },
+  { value: 'prometheus', label: 'Prometheus metric' }
+] as const
+
 const updateField = (field: keyof SuccessCriteriaData, value: unknown) => {
   emit('update:modelValue', {
     ...props.modelValue,
@@ -86,229 +92,106 @@ const updateField = (field: keyof SuccessCriteriaData, value: unknown) => {
 </script>
 
 <template>
-  <div class="form-group">
-    <label>Success Criteria *</label>
-    <div class="success-criteria-container">
-      <div class="criteria-toggle">
-        <button
-          type="button"
-          @click="() => { successCriteriaType = 'status_code'; }"
-          :class="['toggle-option', { active: successCriteriaType === 'status_code' }]"
-        >
-          HTTP Status Code
-        </button>
-        <button
-          type="button"
-          @click="() => { successCriteriaType = 'response_body'; }"
-          :class="['toggle-option', { active: successCriteriaType === 'response_body' }]"
-        >
-          Response Body
-        </button>
-        <button
-          type="button"
-          @click="() => { successCriteriaType = 'prometheus'; }"
-          :class="['toggle-option', { active: successCriteriaType === 'prometheus' }]"
-        >
-          Prometheus Metrics
-        </button>
-      </div>
+  <div class="criteria">
+    <div class="button-group criteria-switch" role="group" aria-label="What counts as up">
+      <button
+        v-for="option in criteriaOptions"
+        :key="option.value"
+        type="button"
+        class="btn"
+        :aria-pressed="successCriteriaType === option.value"
+        @click="() => { successCriteriaType = option.value; }"
+      >
+        {{ option.label }}
+      </button>
+    </div>
 
-      <div v-if="successCriteriaType === 'status_code'" class="criteria-fields">
-        <div class="form-subgroup">
-          <label for="statusCodeRegex">Status Code Pattern *</label>
-          <input
-            id="statusCodeRegex"
-            :value="modelValue.statusCodeRegex"
-            @input="updateField('statusCodeRegex', ($event.target as HTMLInputElement).value)"
-            type="text"
-            placeholder="^[23]\d{2}$"
-            required
-          />
-          <small class="form-help-text">
-            Regex pattern for successful HTTP status codes (default: 2xx and 3xx)
-          </small>
-        </div>
-      </div>
+    <div v-if="successCriteriaType === 'status_code'" class="field">
+      <label for="statusCodeRegex">Status code pattern</label>
+      <input
+        id="statusCodeRegex"
+        class="mono"
+        :value="modelValue.statusCodeRegex"
+        @input="updateField('statusCodeRegex', ($event.target as HTMLInputElement).value)"
+        type="text"
+        placeholder="^[23]\d{2}$"
+        required
+      />
+      <p class="field-hint">A regex for the HTTP status codes that count as up. The default is 2xx and 3xx.</p>
+    </div>
 
-      <div v-if="successCriteriaType === 'response_body'" class="criteria-fields">
-        <div class="form-subgroup">
-          <label for="responseBodyRegex">Response Body Pattern *</label>
-          <input
-            id="responseBodyRegex"
-            :value="modelValue.responseBodyRegex"
-            @input="updateField('responseBodyRegex', ($event.target as HTMLInputElement).value)"
-            type="text"
-            placeholder="success|ok|healthy"
-            required
-          />
-          <small class="form-help-text">
-            Regex pattern to match against response body content
-          </small>
-        </div>
-      </div>
+    <div v-if="successCriteriaType === 'response_body'" class="field">
+      <label for="responseBodyRegex">Response body pattern</label>
+      <input
+        id="responseBodyRegex"
+        class="mono"
+        :value="modelValue.responseBodyRegex"
+        @input="updateField('responseBodyRegex', ($event.target as HTMLInputElement).value)"
+        type="text"
+        placeholder="success|ok|healthy"
+        required
+      />
+      <p class="field-hint">A regex that must match the body of the response.</p>
+    </div>
 
-      <div v-if="successCriteriaType === 'prometheus'" class="criteria-fields">
-        <div class="form-subgroup">
-          <label for="prometheusKey">Metric Key *</label>
-          <input
-            id="prometheusKey"
-            :value="modelValue.prometheusKey"
-            @input="updateField('prometheusKey', ($event.target as HTMLInputElement).value)"
-            type="text"
-            placeholder="cpu_usage"
-            required
-          />
-          <small class="form-help-text">
-            Prometheus metric key for success evaluation
-          </small>
-        </div>
-        <div class="prometheus-thresholds">
-          <div class="form-subgroup">
-            <label for="prometheusMinValue">Min Value</label>
-            <input
-              id="prometheusMinValue"
-              :value="modelValue.prometheusMinValue ?? ''"
-              @input="updateField('prometheusMinValue', ($event.target as HTMLInputElement).value === '' ? undefined : parseFloat(($event.target as HTMLInputElement).value))"
-              type="number"
-              step="0.01"
-              placeholder="0"
-            />
-          </div>
-          <div class="form-subgroup">
-            <label for="prometheusMaxValue">Max Value</label>
-            <input
-              id="prometheusMaxValue"
-              :value="modelValue.prometheusMaxValue ?? ''"
-              @input="updateField('prometheusMaxValue', ($event.target as HTMLInputElement).value === '' ? undefined : parseFloat(($event.target as HTMLInputElement).value))"
-              type="number"
-              step="0.01"
-              placeholder="100"
-            />
-          </div>
-        </div>
-        <small class="form-help-text">
-          At least one threshold (min or max) is required
-        </small>
+    <div v-if="successCriteriaType === 'prometheus'" class="form-grid">
+      <div class="field span-all">
+        <label for="prometheusKey">Metric key</label>
+        <input
+          id="prometheusKey"
+          class="mono"
+          :value="modelValue.prometheusKey"
+          @input="updateField('prometheusKey', ($event.target as HTMLInputElement).value)"
+          type="text"
+          placeholder="cpu_usage"
+          required
+        />
+        <p class="field-hint">The Prometheus metric that decides if the service is up.</p>
       </div>
+      <div class="field">
+        <label for="prometheusMinValue">Min value</label>
+        <input
+          id="prometheusMinValue"
+          class="num"
+          :value="modelValue.prometheusMinValue ?? ''"
+          @input="updateField('prometheusMinValue', ($event.target as HTMLInputElement).value === '' ? undefined : parseFloat(($event.target as HTMLInputElement).value))"
+          type="number"
+          step="0.01"
+          placeholder="0"
+        />
+      </div>
+      <div class="field">
+        <label for="prometheusMaxValue">Max value</label>
+        <input
+          id="prometheusMaxValue"
+          class="num"
+          :value="modelValue.prometheusMaxValue ?? ''"
+          @input="updateField('prometheusMaxValue', ($event.target as HTMLInputElement).value === '' ? undefined : parseFloat(($event.target as HTMLInputElement).value))"
+          type="number"
+          step="0.01"
+          placeholder="100"
+        />
+      </div>
+      <p class="field-hint span-all">Set at least one of min and max.</p>
     </div>
   </div>
 </template>
 
 <style scoped>
-.form-group {
-  margin-bottom: 1.5rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-  color: var(--text);
-}
-
-.success-criteria-container {
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 1rem;
-  background: var(--surface-2);
-  box-sizing: border-box;
-  width: 100%;
-}
-
-.criteria-toggle {
+.criteria {
   display: flex;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  overflow: hidden;
-  margin-bottom: 1rem;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
-.toggle-option {
-  flex: 1;
-  padding: 0.75rem 1rem;
-  border: none;
-  background: var(--surface);
-  color: var(--text-muted);
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border-right: 1px solid var(--border);
-  position: relative;
-  z-index: 1;
-  pointer-events: auto;
+/* The three choices share the width; on a phone they still fit in one row */
+.criteria-switch {
+  align-self: flex-start;
+  max-width: 100%;
 }
 
-.toggle-option:last-child {
-  border-right: none;
-}
-
-.toggle-option:hover {
-  background: var(--surface-2);
-  color: var(--text-2);
-}
-
-.toggle-option.active {
-  background: var(--accent);
-  color: white;
-}
-
-.criteria-fields {
-  padding-top: 0.5rem;
-}
-
-.form-subgroup {
-  margin-bottom: 0.75rem;
-}
-
-.form-subgroup:last-child {
-  margin-bottom: 0;
-}
-
-.form-subgroup label {
-  display: block;
-  margin-bottom: 0.25rem;
-  font-weight: 500;
-  color: var(--text-2);
-  font-size: 0.875rem;
-}
-
-.form-subgroup input[type="text"],
-.form-subgroup input[type="number"] {
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 0.875rem;
-  transition: border-color 0.2s;
-  box-sizing: border-box;
-}
-
-.form-subgroup input:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
-}
-
-.prometheus-thresholds {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  margin-top: 0.5rem;
-}
-
-.form-help-text {
-  color: var(--text-muted);
-  font-size: 0.85rem;
-  margin-top: 0.5rem;
-  display: block;
-}
-
-@media (max-width: 768px) {
-  .prometheus-thresholds {
-    grid-template-columns: 1fr;
-    gap: 0.5rem;
-  }
+.criteria-switch > .btn {
+  flex: 1 1 auto;
+  white-space: normal;
 }
 </style>

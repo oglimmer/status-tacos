@@ -4,6 +4,7 @@ import { useAlertContactsStore, type AlertContactRequest, type AlertContactRespo
 import { useAuthStore } from '../stores/auth'
 import type { MonitorResponse } from '../stores/monitors'
 import { apiService, type CurrentUser } from '../services/api'
+import FormModal from './FormModal.vue'
 
 const props = defineProps<{
   contact?: AlertContactResponse | null
@@ -244,42 +245,43 @@ const initializeHeaders = () => {
 const handleClose = () => {
   emit('close')
 }
+
+const VARIABLES = ['MONITOR_NAME', 'MONITOR_URL', 'TENANT_NAME', 'STATUS_CODE', 'RESPONSE_BODY', 'ALERT_TYPE', 'TIMESTAMP']
 </script>
 
 <template>
-  <!-- In body: a parent with backdrop-filter (the dashboard card) would hold position: fixed -->
-  <Teleport to="body">
-    <div class="modal-overlay" @click="handleClose">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h2>{{ props.contact ? 'Edit Alert Contact' : 'Add Alert Contact' }}</h2>
-          <button @click="handleClose" class="close-btn" type="button">
-            ×
-          </button>
-        </div>
+  <FormModal
+    :title="props.contact ? 'Edit alert contact' : 'Add alert contact'"
+    size="md"
+    @close="handleClose"
+  >
+    <form @submit.prevent="handleSubmit" class="form-stack">
+      <p v-if="error" class="callout callout-danger" role="alert">{{ error }}</p>
 
-        <form @submit.prevent="handleSubmit" class="alert-contact-form">
-          <div class="form-group">
-            <label for="type">Alert Type *</label>
+      <section class="form-section" aria-labelledby="contact-target-title">
+        <h3 id="contact-target-title" class="form-section-title">Where alerts go</h3>
+        <div class="form-grid">
+          <div class="field">
+            <label for="type">Type</label>
             <select id="type" v-model="form.type" required>
               <option value="EMAIL">Email</option>
-              <option value="HTTP">HTTP Webhook</option>
+              <option value="HTTP">HTTP webhook</option>
               <option value="TEAMS">Microsoft Teams</option>
             </select>
           </div>
 
-          <div class="form-group">
-            <label for="name">Name (Optional)</label>
+          <div class="field">
+            <label for="name">Name <span class="optional">(optional)</span></label>
             <input
               id="name"
               v-model="form.name"
               type="text"
-              placeholder="e.g., Primary Admin"
+              placeholder="For example Primary admin"
             />
           </div>
 
-          <div v-if="form.type === 'EMAIL'" class="form-group">
-            <label for="email">Email Address *</label>
+          <div v-if="form.type === 'EMAIL'" class="field span-all">
+            <label for="email">Email address</label>
             <input
               id="email"
               v-model="form.value"
@@ -289,95 +291,42 @@ const handleClose = () => {
             />
           </div>
 
-          <div v-if="form.type === 'HTTP'" class="form-group">
-            <label for="url">Webhook URL *</label>
+          <div v-if="form.type === 'HTTP'" class="field span-all">
+            <label for="url">Webhook URL</label>
             <input
               id="url"
               v-model="form.value"
+              class="mono"
               type="url"
               placeholder="https://example.com/webhook"
               required
             />
-            <small class="form-help-text">
-              Supports variables: &#123;&#123;MONITOR_NAME&#125;&#125;, &#123;&#123;MONITOR_URL&#125;&#125;, &#123;&#123;TENANT_NAME&#125;&#125;, &#123;&#123;STATUS_CODE&#125;&#125;, &#123;&#123;RESPONSE_BODY&#125;&#125;,&#123;&#123;ALERT_TYPE&#125;&#125;, &#123;&#123;TIMESTAMP&#125;&#125;
-            </small>
+            <p class="field-hint">
+              You can use these variables:
+              <template v-for="(name, index) in VARIABLES" :key="name"><code v-text="`{{${name}}}`"></code><template v-if="index < VARIABLES.length - 1">, </template></template>
+            </p>
           </div>
 
-          <div v-if="form.type === 'TEAMS'" class="form-group">
-            <label for="teamsUrl">Teams Workflow URL *</label>
+          <div v-if="form.type === 'TEAMS'" class="field span-all">
+            <label for="teamsUrl">Teams workflow URL</label>
             <input
               id="teamsUrl"
               v-model="form.value"
+              class="mono"
               type="url"
               placeholder="https://….powerplatform.com/…/triggers/manual/paths/invoke?…"
               required
             />
-            <small class="form-help-text">
+            <p class="field-hint">
               In Teams, open the channel, select "…" → Workflows → "Send webhook alerts to a channel",
               and copy the URL here. Keep the URL secret: everybody with it can post to the channel.
               Each alert is a card with the monitor, URL, reason, status code, response time,
               down since / downtime and links to the monitored URL and Status Tacos.
-            </small>
+            </p>
           </div>
 
-          <div v-if="form.type === 'HTTP'" class="form-group">
-            <label for="method">HTTP Method</label>
-            <select id="method" v-model="form.httpMethod">
-              <option value="GET">GET</option>
-              <option value="POST">POST</option>
-            </select>
-          </div>
-
-          <div v-if="form.type === 'HTTP' && form.httpMethod === 'POST'" class="form-group">
-            <label for="contentType">Content Type</label>
-            <select id="contentType" v-model="form.httpContentType">
-              <option value="application/json">JSON (application/json)</option>
-              <option value="text/plain">Plain Text (text/plain)</option>
-            </select>
-          </div>
-
-          <div v-if="form.type === 'HTTP' && form.httpMethod === 'POST'" class="form-group">
-            <label for="body">Request Body</label>
-            <textarea
-              id="body"
-              v-model="form.httpBody"
-              placeholder="Request body content with variables"
-              rows="4"
-            ></textarea>
-            <small class="form-help-text">
-              Supports the same variables as URL. Leave empty for no body.
-            </small>
-          </div>
-
-          <div v-if="form.type === 'HTTP'" class="form-group">
-            <label>Custom Headers</label>
-            <div class="headers-container">
-              <div v-for="item in headerItems" :key="item.id" class="header-row">
-                <input
-                  :value="item.key"
-                  @input="updateHeaderKey(item.id, ($event.target as HTMLInputElement).value)"
-                  placeholder="Header name"
-                  class="header-key"
-                  maxlength="100"
-                />
-                <input
-                  :value="item.value"
-                  @input="updateHeaderValue(item.id, ($event.target as HTMLInputElement).value)"
-                  placeholder="Header value"
-                  class="header-value"
-                  maxlength="200"
-                />
-                <button @click="removeHeader(item.id)" type="button" class="remove-header-btn">×</button>
-              </div>
-              <button @click="addHeader" type="button" class="add-header-btn">+ Add Header</button>
-            </div>
-            <small class="form-help-text">
-              Header values support the same variables as URL.
-            </small>
-          </div>
-
-          <div v-if="currentUser && currentUser.tenants.length > 1" class="form-group">
-            <label for="tenant">Tenant *</label>
+          <div v-if="currentUser && currentUser.tenants.length > 1" class="field span-all">
+            <label for="tenant">Tenant</label>
             <select
               id="tenant"
               v-model="selectedTenantId"
@@ -388,327 +337,172 @@ const handleClose = () => {
                 {{ tenant.name }}
               </option>
             </select>
-            <small v-if="props.contact" class="form-help-text">
-              Tenant cannot be changed when editing
-            </small>
+            <p v-if="props.contact" class="field-hint">
+              The tenant cannot change after the contact is created.
+            </p>
+          </div>
+        </div>
+
+        <label class="check">
+          <input v-model="form.isActive" type="checkbox" />
+          Contact is active
+        </label>
+      </section>
+
+      <section v-if="form.type === 'HTTP'" class="form-section" aria-labelledby="contact-request-title">
+        <h3 id="contact-request-title" class="form-section-title">Webhook request</h3>
+        <div class="form-grid">
+          <div class="field">
+            <label for="method">Method</label>
+            <select id="method" v-model="form.httpMethod" class="mono">
+              <option value="GET">GET</option>
+              <option value="POST">POST</option>
+            </select>
           </div>
 
-          <div class="form-group">
-            <label>Send Alerts For</label>
-            <label class="checkbox-label">
-              <input v-model="form.allMonitors" type="radio" :value="true" name="scope" />
-              All monitors of the tenant
-            </label>
-            <label class="checkbox-label">
-              <input v-model="form.allMonitors" type="radio" :value="false" name="scope" />
-              Only selected monitors
-            </label>
-            <div v-if="!form.allMonitors" class="monitor-list">
-              <div v-if="monitorsLoading" class="monitor-list-empty">Loading monitors…</div>
-              <div v-else-if="tenantMonitors.length === 0" class="monitor-list-empty">
-                This tenant has no monitors yet.
-              </div>
-              <label
-                v-for="monitor in tenantMonitors"
-                :key="monitor.id"
-                class="checkbox-label monitor-option"
-              >
-                <input v-model="form.monitorIds" type="checkbox" :value="monitor.id" />
-                <span class="monitor-option-text">
-                  <span>{{ monitor.name }}</span>
-                  <small>{{ monitor.url }}</small>
-                </span>
-              </label>
-            </div>
-            <small v-if="!form.allMonitors" class="form-help-text">
-              New monitors are not added to this contact automatically.
-            </small>
+          <div v-if="form.httpMethod === 'POST'" class="field">
+            <label for="contentType">Content type</label>
+            <select id="contentType" v-model="form.httpContentType">
+              <option value="application/json">JSON (application/json)</option>
+              <option value="text/plain">Plain text (text/plain)</option>
+            </select>
           </div>
 
-          <div class="form-group">
-            <label class="checkbox-label">
+          <div v-if="form.httpMethod === 'POST'" class="field span-all">
+            <label for="body">Body <span class="optional">(optional)</span></label>
+            <textarea
+              id="body"
+              v-model="form.httpBody"
+              class="mono"
+              placeholder="The body, with variables"
+              rows="4"
+            ></textarea>
+            <p class="field-hint">The same variables as in the URL work here. Leave it empty for no body.</p>
+          </div>
+        </div>
+
+        <div class="field">
+          <span class="field-label">Headers</span>
+          <div class="repeat-rows">
+            <p v-if="headerItems.length === 0" class="field-hint">No headers.</p>
+            <div v-for="(item, index) in headerItems" :key="item.id" class="repeat-row">
               <input
-                v-model="form.isActive"
-                type="checkbox"
+                :value="item.key"
+                @input="updateHeaderKey(item.id, ($event.target as HTMLInputElement).value)"
+                placeholder="Name"
+                class="input mono header-key"
+                :aria-label="`Header ${index + 1} name`"
+                maxlength="100"
               />
-              <span class="checkmark"></span>
-              Contact is active
+              <input
+                :value="item.value"
+                @input="updateHeaderValue(item.id, ($event.target as HTMLInputElement).value)"
+                placeholder="Value"
+                class="input mono header-value"
+                :aria-label="`Header ${index + 1} value`"
+                maxlength="200"
+              />
+              <button
+                @click="removeHeader(item.id)"
+                type="button"
+                class="btn btn-icon btn-sm"
+                :aria-label="`Remove header ${item.key || index + 1}`"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            </div>
+            <button @click="addHeader" type="button" class="btn btn-link btn-sm repeat-add">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              Add header
+            </button>
+          </div>
+          <p class="field-hint">Header values can use the same variables as the URL.</p>
+        </div>
+      </section>
+
+      <section class="form-section" aria-labelledby="contact-scope-title">
+        <h3 id="contact-scope-title" class="form-section-title">Send alerts for</h3>
+        <div class="scope-choice" role="radiogroup" aria-labelledby="contact-scope-title">
+          <label class="check">
+            <input v-model="form.allMonitors" type="radio" :value="true" name="scope" />
+            All monitors of the tenant
+          </label>
+          <label class="check">
+            <input v-model="form.allMonitors" type="radio" :value="false" name="scope" />
+            Only selected monitors
+          </label>
+        </div>
+        <template v-if="!form.allMonitors">
+          <div class="monitor-list">
+            <p v-if="monitorsLoading" class="monitor-list-empty">Loading monitors…</p>
+            <p v-else-if="tenantMonitors.length === 0" class="monitor-list-empty">
+              This tenant has no monitors yet.
+            </p>
+            <label
+              v-for="monitor in tenantMonitors"
+              :key="monitor.id"
+              class="check monitor-option"
+            >
+              <input v-model="form.monitorIds" type="checkbox" :value="monitor.id" />
+              <span class="monitor-option-text">
+                <span>{{ monitor.name }}</span>
+                <small class="mono">{{ monitor.url }}</small>
+              </span>
             </label>
           </div>
+          <p class="field-hint">New monitors are not added to this contact automatically.</p>
+        </template>
+      </section>
 
-          <div v-if="error" class="error-message">
-            {{ error }}
-          </div>
-
-          <div class="form-actions">
-            <button type="button" @click="handleClose" class="btn btn-cancel">
-              Cancel
-            </button>
-            <button type="submit" :disabled="isSubmitting" class="btn btn-primary">
-              {{ isSubmitting
-                ? (props.contact ? 'Updating...' : 'Creating...')
-                : (props.contact ? 'Update Alert Contact' : 'Create Alert Contact')
-              }}
-            </button>
-          </div>
-        </form>
+      <div class="form-actions">
+        <button type="button" @click="handleClose" class="btn btn-secondary">
+          Cancel
+        </button>
+        <button type="submit" :disabled="isSubmitting" class="btn btn-primary">
+          {{ isSubmitting
+            ? 'Saving...'
+            : (props.contact ? 'Save changes' : 'Add alert contact')
+          }}
+        </button>
       </div>
-    </div>
-  </Teleport>
+    </form>
+  </FormModal>
 </template>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+.scope-choice {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: var(--surface);
-  border-radius: 8px;
-  width: 90%;
-  max-width: 500px;
-  max-height: 90vh;
-  overflow-y: auto;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.5rem;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.modal-header h2 {
-  margin: 0;
-  color: var(--text);
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: var(--text-muted);
-  padding: 0;
-  width: 2rem;
-  height: 2rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.close-btn:hover {
-  color: var(--text-2);
-}
-
-.alert-contact-form {
-  padding: 1.5rem;
-}
-
-.form-group {
-  margin-bottom: 1.5rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-  color: var(--text);
-}
-
-.form-group input[type="text"],
-.form-group input[type="email"],
-.form-group input[type="url"],
-.form-group select,
-.form-group textarea {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 1rem;
-  transition: border-color 0.2s;
-}
-
-.form-group input:focus,
-.form-group select:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
-}
-
-.form-group select:disabled {
-  background-color: var(--surface-2);
-  color: var(--text-muted);
-  cursor: not-allowed;
-}
-
-.form-help-text {
-  color: var(--text-muted);
-  font-size: 0.875rem;
-  margin-top: 0.5rem;
-  display: block;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  font-weight: normal !important;
-}
-
-.checkbox-label input[type="checkbox"] {
-  margin-right: 0.5rem;
-}
-
-.error-message {
-  background: var(--danger-soft);
-  color: var(--danger-soft-text);
-  padding: 0.75rem;
-  border-radius: 4px;
-  margin-bottom: 1rem;
-  border: 1px solid var(--danger-soft-border);
-}
-
-.form-actions {
-  display: flex;
-  gap: 1rem;
-  justify-content: flex-end;
-  margin-top: 2rem;
-}
-
-.btn {
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 1rem;
-  transition: all 0.2s;
-  font-weight: 500;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-cancel {
-  background: var(--secondary);
-  color: white;
-}
-
-.btn-cancel:hover:not(:disabled) {
-  background: var(--secondary-hover);
-}
-
-.btn-primary {
-  background: var(--accent);
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
-
-.headers-container {
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 1rem;
-  background: var(--surface-2);
-  box-sizing: border-box;
-  width: 100%;
-}
-
-.header-row {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-  align-items: center;
-  max-width: 100%;
-  box-sizing: border-box;
-}
-
-.header-key,
-.header-value {
-  flex: 1;
-  min-width: 120px;
-  padding: 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 0.875rem;
-}
-
-.remove-header-btn {
-  background: var(--danger);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  width: 2rem;
-  height: 2rem;
-  cursor: pointer;
-  font-size: 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.remove-header-btn:hover {
-  background: var(--danger-hover);
-}
-
-.add-header-btn {
-  background: var(--success);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: 0.5rem 1rem;
-  cursor: pointer;
-  font-size: 0.875rem;
-  margin-top: 0.5rem;
-  width: fit-content;
-}
-
-.add-header-btn:hover {
-  background: var(--success-hover);
-}
-
-.form-group textarea {
-  resize: vertical;
-  min-height: 100px;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
 }
 
 .monitor-list {
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 0.5rem 0.75rem;
-  margin-top: 0.5rem;
-  background: var(--surface-2);
-  max-height: 220px;
+  max-height: 15rem;
   overflow-y: auto;
-}
-
-.monitor-list-empty {
-  color: var(--text-muted);
-  font-size: 0.875rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
 }
 
 .monitor-option {
-  align-items: flex-start !important;
-  margin-bottom: 0.4rem;
+  display: flex;
+  align-items: flex-start;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
-.monitor-option input[type="checkbox"] {
+.monitor-option:last-child {
+  border-bottom: 0;
+}
+
+.monitor-option:hover {
+  background: var(--surface-2);
+}
+
+.monitor-option input {
   margin-top: 0.2rem;
 }
 
@@ -719,9 +513,15 @@ const handleClose = () => {
 }
 
 .monitor-option-text small {
+  font-size: var(--text-xs);
   color: var(--text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+}
+
+.monitor-list-empty {
+  margin: 0;
+  padding: var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
 }
 </style>

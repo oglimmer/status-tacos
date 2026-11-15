@@ -3,6 +3,9 @@ defineProps<{
   title: string
   // For editors that need the room, for example the status page editor
   wide?: boolean
+  // 'md' gives a medium dialog for long forms with fields side by side.
+  // Without it the dialog stays small.
+  size?: 'md'
 }>()
 
 defineEmits<{
@@ -11,14 +14,35 @@ defineEmits<{
 </script>
 
 <template>
-  <!-- In body: a parent with backdrop-filter (the dashboard card) would hold position: fixed -->
+  <!-- In body: a parent with a transform or filter would hold position: fixed -->
   <Teleport to="body">
     <div class="modal-overlay" @click="$emit('close')">
-      <div class="modal-content" :class="{ wide }" @click.stop>
+      <div
+        class="modal-content"
+        :class="{ wide, 'size-md': size === 'md' && !wide }"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="title"
+        @click.stop
+      >
         <div class="modal-header">
           <h2>{{ title }}</h2>
-          <button @click="$emit('close')" class="close-btn" type="button">
-            ×
+          <button
+            type="button"
+            class="btn btn-icon close-btn"
+            aria-label="Close"
+            @click="$emit('close')"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
           </button>
         </div>
 
@@ -33,32 +57,36 @@ defineEmits<{
 <style scoped>
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  inset: 0;
+  z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  padding: var(--space-4);
+  background: var(--overlay);
 }
 
 .modal-content {
-  background: var(--surface);
-  border-radius: 8px;
-  width: 90%;
+  width: 100%;
   max-width: 500px;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-2);
+}
+
+/* The medium dialog has room for two form columns. On a phone it is full width like the others. */
+.modal-content.size-md {
+  max-width: 720px;
 }
 
 /* The wide modal fills the window height. Its body gives the space to the content, which keeps
    its own buttons in view. */
 .modal-content.wide {
   max-width: 1400px;
-  width: 96%;
   height: 92vh;
   height: 92dvh;
   max-height: none;
@@ -69,7 +97,6 @@ defineEmits<{
 
 .modal-content.wide .modal-header {
   flex: none;
-  padding: 0.75rem 1.5rem;
 }
 
 .modal-content.wide .modal-body {
@@ -77,41 +104,40 @@ defineEmits<{
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 1rem 1.5rem;
+  padding: var(--space-4) var(--space-5);
 }
 
+/* The header stays in view while a long form scrolls. */
 .modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.5rem;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-5);
   border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface);
 }
 
 .modal-header h2 {
   margin: 0;
+  font-size: var(--text-lg);
   color: var(--text);
 }
 
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: var(--text-muted);
-  padding: 0;
-  width: 2rem;
-  height: 2rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.close-btn:hover {
-  color: var(--text-2);
-}
-
 .modal-body {
-  padding: 1.5rem;
+  padding: var(--space-5);
+}
+
+@media (max-width: 520px) {
+  .modal-overlay {
+    padding: var(--space-2);
+  }
+
+  .modal-body {
+    padding: var(--space-4);
+  }
 }
 </style>

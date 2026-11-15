@@ -3,7 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useTenantsStore } from '../stores/tenants'
 import { useAuthStore } from '../stores/auth'
 import TenantForm from './TenantForm.vue'
-import TenantsHeader from './TenantsHeader.vue'
+import PageHeader from './PageHeader.vue'
 import TenantsSummary from './TenantsSummary.vue'
 import TenantCard from './TenantCard.vue'
 import LoadingState from './LoadingState.vue'
@@ -78,7 +78,19 @@ const handleToggleFilter = () => {
 
 <template>
   <div class="tenants-management">
-    <TenantsHeader @add-tenant="handleAddTenant" />
+    <PageHeader
+      title="Tenants"
+      subtitle="Each tenant groups monitors, alert contacts and users, and has its own status page."
+    >
+      <template #actions>
+        <button type="button" class="btn btn-primary" @click="handleAddTenant">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          Add Tenant
+        </button>
+      </template>
+    </PageHeader>
 
     <TenantsSummary
       v-if="!tenantsStore.isLoading && !tenantsStore.error && tenantsStore.tenants.length > 0"
@@ -105,7 +117,11 @@ const handleToggleFilter = () => {
       @action="handleAddTenant"
     />
 
-    <div v-else class="tenants-list">
+    <p v-else-if="filteredTenants.length === 0" class="list-empty">
+      No active tenants.
+    </p>
+
+    <ul v-else class="list tenants-list" aria-label="Tenants">
       <TenantCard
         v-for="tenant in filteredTenants"
         :key="tenant.id"
@@ -113,7 +129,7 @@ const handleToggleFilter = () => {
         @edit="handleEdit"
         @toggle-status="handleToggleStatus"
       />
-    </div>
+    </ul>
 
     <TenantForm
       v-if="showForm"
@@ -125,10 +141,12 @@ const handleToggleFilter = () => {
 </template>
 
 <style scoped>
-.tenants-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 2rem;
+.list-empty {
+  margin: 0;
+  padding: var(--space-5) var(--space-4);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--text-muted);
+  text-align: center;
 }
 </style>

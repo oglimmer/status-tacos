@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+
 interface ChartProps {
   data: number[]
   title?: string
 }
 
-defineProps<ChartProps>()
+const props = defineProps<ChartProps>()
 
 // Generate SVG path for response time chart
 const generateResponseTimeChart = (data: number[]): string => {
@@ -55,185 +57,119 @@ const getTimeLabels = (): string[] => {
 
   return labels
 }
+
+const path = computed(() => generateResponseTimeChart(props.data))
+const maxResponseTime = computed(() => getMaxResponseTime(props.data))
+// The labels move with the clock: they are made again when new data arrives
+const timeLabels = computed(() => {
+  void props.data
+  return getTimeLabels()
+})
 </script>
 
 <template>
-  <div class="response-time-chart">
-    <div class="chart-header">
-      <span class="chart-title">{{ title || 'Response Time (24h)' }}</span>
+  <div class="rt-chart">
+    <div class="rt-chart-head">
+      <span class="rt-chart-title">{{ title || 'Response time (24h)' }}</span>
+      <span v-if="data.length > 0" class="rt-chart-max num" title="Highest response time">max {{ maxResponseTime }} ms</span>
     </div>
-    <div class="chart-container">
-      <div class="chart-y-axis">
-        <span class="y-axis-label" v-if="data.length > 0">{{ getMaxResponseTime(data) }}ms</span>
+    <div v-if="data.length === 0" class="rt-chart-empty">No data yet</div>
+    <template v-else>
+      <svg class="rt-chart-svg" viewBox="0 0 300 30" preserveAspectRatio="none" aria-hidden="true">
+        <path
+          class="rt-chart-line"
+          :d="path"
+          fill="none"
+          stroke-width="1.5"
+          vector-effect="non-scaling-stroke"
+        />
+      </svg>
+      <div class="rt-chart-axis" aria-hidden="true">
+        <span
+          v-for="(label, index) in timeLabels"
+          :key="index"
+          :style="{ left: `${(index / (timeLabels.length - 1)) * 100}%` }"
+        >{{ label }}</span>
       </div>
-      <div class="chart-main">
-        <div v-if="data.length === 0" class="chart-placeholder">
-          <span class="placeholder-text">No data available</span>
-        </div>
-        <div v-else class="chart-svg-container">
-          <svg class="chart-svg" viewBox="0 0 300 30" preserveAspectRatio="none">
-            <path
-              :d="generateResponseTimeChart(data)"
-              fill="none"
-              stroke="#007bff"
-              stroke-width="2"
-              vector-effect="non-scaling-stroke"
-            />
-          </svg>
-
-          <!-- X-axis labels -->
-          <div class="x-axis-labels">
-            <span
-              v-for="(label, index) in getTimeLabels()"
-              :key="index"
-              class="x-axis-label"
-              :style="{ left: `${(index / (getTimeLabels().length - 1)) * 100}%` }"
-            >
-              {{ label }}
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
+    </template>
   </div>
 </template>
 
 <style scoped>
-.response-time-chart {
-  margin-bottom: 1rem;
-  padding-left: 0;
-  padding-right: 0;
+/* A small line chart: the title and the highest value above, the time below. */
+.rt-chart {
+  min-width: 0;
 }
 
-.chart-header {
-  margin-bottom: 0.5rem;
-}
-
-.chart-title {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.chart-container {
+.rt-chart-head {
   display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-}
-
-.chart-y-axis {
-  display: flex;
-  align-items: flex-start;
-  height: 30px;
-  padding-top: 2px;
-}
-
-.y-axis-label {
-  font-size: 0.7rem;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+  font-size: var(--text-xs);
   color: var(--text-muted);
-  font-weight: 500;
-  white-space: nowrap;
-  writing-mode: horizontal-tb;
 }
 
-.chart-main {
-  flex: 1;
-  position: relative;
+.rt-chart-title {
+  font-weight: 700;
+  color: var(--text-2);
 }
 
-.chart-svg-container {
-  position: relative;
+.rt-chart-max {
+  color: var(--text-muted);
 }
 
-.chart-svg {
+.rt-chart-svg,
+.rt-chart-empty {
+  display: block;
   width: 100%;
-  height: 30px;
-  background: linear-gradient(to bottom, var(--surface-2) 0%, var(--surface) 100%);
+  height: 2.5rem;
   border: 1px solid var(--border-subtle);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
 }
 
-.chart-placeholder {
-  height: 30px;
-  background: var(--surface-2);
-  border: 1px solid var(--border-subtle);
-  border-radius: 4px;
+.rt-chart-line {
+  stroke: var(--brand);
+}
+
+.rt-chart-empty {
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
 }
 
-.x-axis-labels {
+.rt-chart-axis {
   position: relative;
-  height: 15px;
-  margin-top: 0.25rem;
+  height: 1rem;
+  margin-top: 0.125rem;
 }
 
-.x-axis-label {
+.rt-chart-axis span {
   position: absolute;
-  font-size: 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem; /* 12px: small axis labels, still readable */
   color: var(--text-muted);
-  transform: translateX(-50%);
   white-space: nowrap;
+  transform: translateX(-50%);
 }
 
-.placeholder-text {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  font-style: italic;
+.rt-chart-axis span:first-child {
+  transform: none;
 }
 
-/* Mobile styles */
-@media (max-width: 768px) {
-  .response-time-chart {
-    margin-bottom: 0.75rem;
-    padding-left: 0;
-    padding-right: 0;
-  }
+.rt-chart-axis span:last-child {
+  transform: translateX(-100%);
+}
 
-  .chart-container {
-    flex-direction: row;
-    gap: 0;
-    align-items: flex-start;
-  }
-
-  .chart-y-axis {
+@media (max-width: 520px) {
+  /* Only start, middle and now fit on a phone. */
+  .rt-chart-axis span:nth-child(2),
+  .rt-chart-axis span:nth-child(4) {
     display: none;
-  }
-
-  .y-axis-label {
-    font-size: 0.65rem;
-  }
-
-  .chart-title {
-    font-size: 0.75rem;
-  }
-
-  .chart-main {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-  }
-
-  .chart-svg {
-    height: 25px;
-    width: 100%;
-  }
-
-  .chart-placeholder {
-    height: 25px;
-  }
-
-  .x-axis-labels {
-    height: 12px;
-  }
-
-  .x-axis-label {
-    font-size: 0.55rem;
-  }
-
-  .placeholder-text {
-    font-size: 0.65rem;
   }
 }
 </style>

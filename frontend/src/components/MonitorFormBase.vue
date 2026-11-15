@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch, nextTick } from 'vue'
 import { useMonitorsStore, type MonitorRequest, type MonitorResponse, type MonitorState, type SilentFor } from '../stores/monitors'
 import { silenceEnd } from '../utils/silence'
 import { browserTimeZone, formatPauseInBrowserZone, timeZones, wallTime } from '../utils/dailyPause'
@@ -344,100 +344,106 @@ const handleSubmit = async () => {
 const handleClose = () => {
   emit('close')
 }
+
+// The error shows at the top of the form. In a long form the user is at the bottom, so bring it into view.
+const errorBox = ref<HTMLElement | null>(null)
+watch(error, async (message) => {
+  if (!message) return
+  await nextTick()
+  errorBox.value?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
+})
 </script>
 
 <template>
-  <FormModal :title="title" @close="handleClose">
-    <form @submit.prevent="handleSubmit" class="monitor-form">
-      <div class="form-group">
-        <label for="monitor-name">Monitor Name *</label>
-        <input
-          id="monitor-name"
-          v-model="form.name"
-          type="text"
-          placeholder="e.g., Shop API"
-          required
-        />
-      </div>
+  <FormModal :title="title" size="md" @close="handleClose">
+    <form @submit.prevent="handleSubmit" class="form-stack">
+      <p v-if="error" ref="errorBox" class="callout callout-danger" role="alert">
+        {{ error }}
+      </p>
 
-      <div class="form-group">
-        <label for="monitor-environment">Environment</label>
-        <select id="monitor-environment" v-model="form.environment">
-          <option :value="null">Not set</option>
-          <option value="PROD">Production</option>
-          <option value="STAGE">Stage</option>
-          <option value="DEV">Development</option>
-        </select>
-        <small class="field-note">Where the service runs. The card shows it next to the name, so the name does not need it.</small>
-      </div>
+      <section class="form-section" aria-labelledby="monitor-basics-title">
+        <h3 id="monitor-basics-title" class="form-section-title">Basics</h3>
+        <div class="form-grid">
+          <div class="field">
+            <label for="monitor-name">Name</label>
+            <input
+              id="monitor-name"
+              v-model="form.name"
+              type="text"
+              placeholder="For example Shop API"
+              required
+            />
+          </div>
 
-      <div class="form-group">
-        <label for="monitor-url">URL to Monitor *</label>
-        <input
-          id="monitor-url"
-          v-model="form.url"
-          type="url"
-          placeholder="https://api.example.com/health"
-          required
-        />
-      </div>
+          <div class="field">
+            <label for="monitor-environment">Environment</label>
+            <select id="monitor-environment" v-model="form.environment">
+              <option :value="null">Not set</option>
+              <option value="PROD">Production</option>
+              <option value="STAGE">Stage</option>
+              <option value="DEV">Development</option>
+            </select>
+            <p class="field-hint">Shows next to the name, so the name does not need it.</p>
+          </div>
 
-      <div v-if="isEditMode && monitor && !(currentUser && currentUser.tenants.length > 1)" class="form-group">
-        <label for="monitor-tenant">Tenant</label>
-        <input
-          id="monitor-tenant"
-          :value="monitor.tenant.name"
-          type="text"
-          disabled
-          class="disabled-field"
-        />
-      </div>
+          <div class="field span-all">
+            <label for="monitor-url">URL</label>
+            <input
+              id="monitor-url"
+              v-model="form.url"
+              class="mono"
+              type="url"
+              placeholder="https://api.example.com/health"
+              required
+            />
+          </div>
 
-      <div v-else-if="isEditMode && monitor && currentUser" class="form-group">
-        <label for="monitor-tenant-move">Tenant</label>
-        <select
-          id="monitor-tenant-move"
-          v-model="form.tenantId"
-          required
-        >
-          <option v-for="tenant in currentUser.tenants" :key="tenant.id" :value="tenant.id">
-            {{ tenant.name }}
-          </option>
-        </select>
-        <small v-if="isTenantChanged" class="field-note tenant-move-note">
-          The monitor moves with all its history. Alert contacts of the old tenant that are
-          limited to selected monitors lose this monitor.
-        </small>
-      </div>
+          <div v-if="isEditMode && monitor && !(currentUser && currentUser.tenants.length > 1)" class="field">
+            <label for="monitor-tenant">Tenant</label>
+            <input
+              id="monitor-tenant"
+              :value="monitor.tenant.name"
+              type="text"
+              disabled
+            />
+          </div>
 
-      <div v-else-if="currentUser && currentUser.tenants.length > 1" class="form-group">
-        <label for="monitor-tenant-select">Tenant *</label>
-        <select
-          id="monitor-tenant-select"
-          v-model="form.tenantId"
-          required
-        >
-          <option v-for="tenant in currentUser.tenants" :key="tenant.id" :value="tenant.id">
-            {{ tenant.name }}
-          </option>
-        </select>
-      </div>
+          <div v-else-if="isEditMode && monitor && currentUser" class="field" :class="{ 'span-all': isTenantChanged }">
+            <label for="monitor-tenant-move">Tenant</label>
+            <select
+              id="monitor-tenant-move"
+              v-model="form.tenantId"
+              required
+            >
+              <option v-for="tenant in currentUser.tenants" :key="tenant.id" :value="tenant.id">
+                {{ tenant.name }}
+              </option>
+            </select>
+            <p v-if="isTenantChanged" class="callout callout-warning">
+              The monitor moves with all its history. Alert contacts of the old tenant that are
+              limited to selected monitors lose this monitor.
+            </p>
+          </div>
 
-      <HttpHeadersInput v-model="form.httpHeaders" />
+          <div v-else-if="currentUser && currentUser.tenants.length > 1" class="field">
+            <label for="monitor-tenant-select">Tenant</label>
+            <select
+              id="monitor-tenant-select"
+              v-model="form.tenantId"
+              required
+            >
+              <option v-for="tenant in currentUser.tenants" :key="tenant.id" :value="tenant.id">
+                {{ tenant.name }}
+              </option>
+            </select>
+          </div>
 
-      <SuccessCriteriaInput
-        v-if="!isInitializing"
-        v-model="successCriteriaData"
-      />
-
-      <div class="form-group">
-        <label>Check Settings *</label>
-        <div class="check-settings">
-          <div class="form-subgroup">
-            <label for="check-interval">Check Interval (seconds)</label>
+          <div class="field">
+            <label for="check-interval">Check every <span class="optional">(seconds)</span></label>
             <input
               id="check-interval"
               v-model.number="form.checkInterval"
+              class="num"
               type="number"
               min="15"
               max="3600"
@@ -445,14 +451,115 @@ const handleClose = () => {
               placeholder="15"
               required
             />
-            <small class="field-note">Time between two checks. A multiple of 15 seconds (15 to 3600).</small>
+            <p class="field-hint">A multiple of 15, from 15 to 3600.</p>
           </div>
+        </div>
 
-          <div class="form-subgroup">
-            <label for="connect-timeout">Connect Timeout (seconds)</label>
+        <div class="toggle-field">
+          <label class="check" for="show-on-public-page">
+            <input id="show-on-public-page" v-model="form.showOnPublicPage" type="checkbox" />
+            Show on the public status page
+          </label>
+          <p class="field-hint">
+            Anyone can see the
+            <router-link v-if="publicPagePath" :to="publicPagePath" target="_blank">public status page</router-link>
+            <template v-else>public status page</template>
+            of the tenant without sign-in. It shows only the name, the current status and the 90-day uptime.
+          </p>
+        </div>
+      </section>
+
+      <section class="form-section" aria-labelledby="monitor-criteria-title">
+        <h3 id="monitor-criteria-title" class="form-section-title">Success criteria</h3>
+        <SuccessCriteriaInput
+          v-if="!isInitializing"
+          v-model="successCriteriaData"
+        />
+      </section>
+
+      <section class="form-section" aria-labelledby="monitor-headers-title">
+        <h3 id="monitor-headers-title" class="form-section-title">Request headers</h3>
+        <p class="field-hint">Extra HTTP headers that each check sends, for example a token.</p>
+        <HttpHeadersInput v-model="form.httpHeaders" />
+      </section>
+
+      <section class="form-section" aria-labelledby="monitor-alerting-title">
+        <h3 id="monitor-alerting-title" class="form-section-title">Alerting</h3>
+        <div class="form-grid">
+          <div class="field">
+            <label for="alerting-threshold">Alert after <span class="optional">(seconds down)</span></label>
+            <input
+              id="alerting-threshold"
+              v-model.number="form.alertingThreshold"
+              class="num"
+              type="number"
+              min="15"
+              step="15"
+              placeholder="30"
+              required
+            />
+            <p class="field-hint">A multiple of 15, at least 15.</p>
+          </div>
+          <div class="field">
+            <span class="field-label">State</span>
+            <MonitorStateButton
+              :state="form.state"
+              :silent-until="formSilentUntil"
+              @state-change="onStateChange"
+            />
+          </div>
+        </div>
+      </section>
+
+      <section class="form-section" aria-labelledby="monitor-pause-title">
+        <h3 id="monitor-pause-title" class="form-section-title">Daily pause</h3>
+        <div class="toggle-field">
+          <label class="check" for="daily-pause-enabled">
+            <input id="daily-pause-enabled" v-model="pauseEnabled" type="checkbox" @change="onPauseToggle" />
+            Pause checks every day
+          </label>
+          <p class="field-hint">
+            For a planned downtime each day, for example a database dump. In this time the monitor has no
+            checks and sends no alerts. The uptime does not count this time.
+          </p>
+        </div>
+        <div v-if="pauseEnabled" class="form-grid">
+          <div class="field">
+            <label for="daily-pause-from">From</label>
+            <input id="daily-pause-from" v-model="form.dailyPauseFrom" class="num" type="time" required />
+          </div>
+          <div class="field">
+            <label for="daily-pause-until">Until</label>
+            <input id="daily-pause-until" v-model="form.dailyPauseUntil" class="num" type="time" required />
+          </div>
+          <div class="field span-all">
+            <label for="daily-pause-timezone">Time zone of these times</label>
+            <select id="daily-pause-timezone" v-model="form.dailyPauseTimezone" required>
+              <option v-for="tz in pauseTimeZoneOptions" :key="tz" :value="tz">
+                {{ tz }}{{ tz === myTimeZone ? ' (your time zone)' : '' }}
+              </option>
+            </select>
+            <p class="field-hint">
+              The times are in {{ form.dailyPauseTimezone || 'UTC' }}. It is {{ pauseZoneNow }} there now.
+              The pause follows the summer and winter time of this zone.
+              <template v-if="pauseInBrowserZone">
+                Today in your time zone ({{ myTimeZone }}): {{ pauseInBrowserZone }}.
+              </template>
+              <template v-if="pausePastMidnight">The end is before the start, so the pause goes past midnight.</template>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="form-section" aria-labelledby="monitor-advanced-title">
+        <h3 id="monitor-advanced-title" class="form-section-title">Advanced</h3>
+        <div class="form-grid">
+          <div class="field">
+            <label for="connect-timeout">Connect timeout <span class="optional">(seconds)</span></label>
             <input
               id="connect-timeout"
               v-model.number="form.connectTimeout"
+              class="num"
               type="number"
               min="1"
               max="10"
@@ -460,103 +567,21 @@ const handleClose = () => {
               placeholder="5"
               required
             />
-            <small class="field-note">Maximum wait for the connection to the server (1 to 10).</small>
-          </div>
-
-          <div class="form-subgroup">
-            <label for="alerting-threshold">Alerting Threshold (seconds)</label>
-            <input
-              id="alerting-threshold"
-              v-model.number="form.alertingThreshold"
-              type="number"
-              min="15"
-              step="15"
-              placeholder="30"
-              required
-            />
-            <small class="field-note">
-              Time down before the alert goes out. A multiple of 15 seconds (minimum: 15).
-            </small>
+            <p class="field-hint">Maximum wait for the connection, 1 to 10.</p>
           </div>
         </div>
-      </div>
-
-      <div class="form-group">
-        <label class="checkbox-label" for="daily-pause-enabled">
-          <input id="daily-pause-enabled" v-model="pauseEnabled" type="checkbox" @change="onPauseToggle" />
-          Pause checks every day
-        </label>
-        <small class="field-note">
-          For a planned downtime each day, for example a database dump. In this time the monitor has no
-          checks and sends no alerts. The uptime does not count this time.
-        </small>
-        <div v-if="pauseEnabled" class="check-settings pause-settings">
-          <div class="pause-times">
-            <div class="form-subgroup">
-              <label for="daily-pause-from">From</label>
-              <input id="daily-pause-from" v-model="form.dailyPauseFrom" type="time" required />
-            </div>
-            <div class="form-subgroup">
-              <label for="daily-pause-until">Until</label>
-              <input id="daily-pause-until" v-model="form.dailyPauseUntil" type="time" required />
-            </div>
-          </div>
-          <div class="form-subgroup">
-            <label for="daily-pause-timezone">Time zone of these times</label>
-            <select id="daily-pause-timezone" v-model="form.dailyPauseTimezone" required>
-              <option v-for="tz in pauseTimeZoneOptions" :key="tz" :value="tz">
-                {{ tz }}{{ tz === myTimeZone ? ' (your time zone)' : '' }}
-              </option>
-            </select>
-            <small class="field-note">
-              The times are in {{ form.dailyPauseTimezone || 'UTC' }}. It is {{ pauseZoneNow }} there now.
-              The pause follows the summer and winter time of this zone.
-              <template v-if="pauseInBrowserZone">
-                Today in your time zone ({{ myTimeZone }}): {{ pauseInBrowserZone }}.
-              </template>
-              <template v-if="pausePastMidnight">The end is before the start, so the pause goes past midnight.</template>
-            </small>
-          </div>
+        <div class="toggle-field">
+          <label class="check" for="use-system-dns">
+            <input id="use-system-dns" v-model="form.useSystemDns" type="checkbox" />
+            Use the DNS server of the backend
+          </label>
+          <p class="field-hint">
+            Off (default): each check asks the nameservers of the domain for the IP, so a changed IP shows at the
+            next check. On: the DNS server of the backend gives the IP. It can keep an old IP for hours after a
+            change. Use this for names that only the DNS of the backend knows.
+          </p>
         </div>
-      </div>
-
-      <div class="form-group">
-        <label class="checkbox-label" for="use-system-dns">
-          <input id="use-system-dns" v-model="form.useSystemDns" type="checkbox" />
-          Use the DNS server of the backend
-        </label>
-        <small class="field-note">
-          Off (default): each check asks the nameservers of the domain for the IP, so a changed IP shows at the
-          next check. On: the DNS server of the backend gives the IP. It can keep an old IP for hours after a
-          change. Use this for names that only the DNS of the backend knows.
-        </small>
-      </div>
-
-      <div class="form-group">
-        <label class="checkbox-label" for="show-on-public-page">
-          <input id="show-on-public-page" v-model="form.showOnPublicPage" type="checkbox" />
-          Show on the public status page
-        </label>
-        <small class="field-note">
-          Anyone can see the
-          <router-link v-if="publicPagePath" :to="publicPagePath" target="_blank">public status page</router-link>
-          <template v-else>public status page</template>
-          of the tenant without sign-in. It shows only the name, the current status and the 90-day uptime.
-        </small>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">Monitor State</label>
-        <MonitorStateButton
-          :state="form.state"
-          :silent-until="formSilentUntil"
-          @state-change="onStateChange"
-        />
-      </div>
-
-      <div v-if="error" class="error-message">
-        {{ error }}
-      </div>
+      </section>
 
       <div class="form-actions">
         <button
@@ -578,155 +603,3 @@ const handleClose = () => {
     </form>
   </FormModal>
 </template>
-
-<style scoped>
-.monitor-form {
-  display: flex;
-  flex-direction: column;
-}
-
-.form-group {
-  margin-bottom: 1.5rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-  color: var(--text);
-}
-
-.form-group input[type="text"],
-.form-group input[type="url"],
-.form-group input[type="email"],
-.form-group input[type="number"],
-.form-group input[type="time"],
-.form-group select {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 1rem;
-  transition: border-color 0.2s;
-  box-sizing: border-box;
-}
-
-.form-group input:focus,
-.form-group select:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
-}
-
-.check-settings {
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 1rem;
-  background: var(--surface-2);
-  box-sizing: border-box;
-  width: 100%;
-}
-
-.form-subgroup {
-  margin-bottom: 0.75rem;
-}
-
-.pause-settings {
-  margin-top: 0.75rem;
-}
-
-.pause-times {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-
-.form-subgroup:last-child {
-  margin-bottom: 0;
-}
-
-.form-group .form-subgroup label {
-  margin-bottom: 0.25rem;
-  color: var(--text-2);
-  font-size: 0.875rem;
-}
-
-.disabled-field {
-  background-color: var(--surface-2) !important;
-  color: var(--text-muted) !important;
-  cursor: not-allowed !important;
-}
-
-.field-note.tenant-move-note {
-  color: var(--warning-text);
-}
-
-.field-note {
-  display: block;
-  margin-top: 0.25rem;
-  font-size: 0.875rem;
-  color: var(--text-muted);
-  font-style: italic;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  font-weight: normal !important;
-}
-
-.checkbox-label input[type="checkbox"] {
-  margin-right: 0.5rem;
-  width: auto;
-}
-
-.error-message {
-  background: var(--danger-soft);
-  color: var(--danger-soft-text);
-  padding: 0.75rem;
-  border-radius: 4px;
-  margin-bottom: 1rem;
-  border: 1px solid var(--danger-soft-border);
-}
-
-.form-actions {
-  display: flex;
-  gap: 1rem;
-  justify-content: flex-end;
-  margin-top: 2rem;
-}
-
-.btn {
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 1rem;
-  transition: all 0.2s;
-  font-weight: 500;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  background: var(--secondary);
-  color: white;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: var(--secondary-hover);
-}
-
-.btn-primary {
-  background: var(--accent);
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
-</style>

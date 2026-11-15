@@ -2,7 +2,9 @@
 import { ref } from 'vue'
 import type { Tenant, TenantUser } from '../services/api'
 
-defineProps<{
+// The users of one tenant: a form to add a user by email, then one row per user.
+
+const props = defineProps<{
   tenant: Tenant
   users: TenantUser[]
   isLoading: boolean
@@ -15,6 +17,10 @@ const emit = defineEmits<{
 
 const newUserEmail = ref('')
 const isAssigning = ref(false)
+const inputId = `add-user-${props.tenant.id}`
+
+const fullName = (user: TenantUser) =>
+  [user.firstName, user.lastName].filter(Boolean).join(' ')
 
 const handleAssignUser = async () => {
   if (!newUserEmail.value.trim() || isAssigning.value) return
@@ -43,166 +49,133 @@ const handleRemoveUser = async (email: string) => {
 
 <template>
   <div class="user-management">
-    <h4>Users in {{ tenant.name }}</h4>
+    <h4 class="sr-only">Users in {{ tenant.name }}</h4>
 
-    <div class="add-user-form">
-      <div class="input-group">
-        <input
-          v-model="newUserEmail"
-          type="email"
-          placeholder="Enter user email"
-          :disabled="isAssigning"
-          @keyup.enter="handleAssignUser"
-        />
-        <button
-          @click="handleAssignUser"
-          :disabled="!newUserEmail.trim() || isAssigning"
-          class="btn btn-primary btn-sm"
-        >
-          {{ isAssigning ? 'Adding...' : 'Add User' }}
-        </button>
-      </div>
-    </div>
-
-    <div v-if="isLoading" class="loading">
-      Loading users...
-    </div>
-
-    <div v-else-if="users.length === 0" class="empty-users">
-      No users assigned to this tenant.
-    </div>
-
-    <div v-else class="users-list">
-      <div
-        v-for="user in users"
-        :key="user.id"
-        class="user-item"
+    <form class="add-user" @submit.prevent="handleAssignUser">
+      <label :for="inputId" class="sr-only">Email of the user to add</label>
+      <input
+        :id="inputId"
+        v-model="newUserEmail"
+        type="email"
+        class="input"
+        placeholder="Email of the user to add"
+        autocomplete="off"
+        :disabled="isAssigning"
+      />
+      <button
+        type="submit"
+        :disabled="!newUserEmail.trim() || isAssigning"
+        class="btn btn-secondary btn-sm"
       >
-        <div class="user-info">
-          <div class="user-name">
-            {{ user.firstName }} {{ user.lastName }}
-          </div>
-          <div class="user-email">{{ user.email }}</div>
-        </div>
+        {{ isAssigning ? 'Adding...' : 'Add User' }}
+      </button>
+    </form>
+
+    <p v-if="isLoading" class="users-note">
+      Loading users...
+    </p>
+
+    <p v-else-if="users.length === 0" class="users-note">
+      No users assigned to this tenant.
+    </p>
+
+    <ul v-else class="users-list">
+      <li v-for="user in users" :key="user.id" class="user-row">
+        <span class="user-name truncate" :class="{ muted: !fullName(user) }">
+          {{ fullName(user) || 'No name' }}
+        </span>
+        <span class="user-email mono truncate" :title="user.email">{{ user.email }}</span>
         <button
+          type="button"
+          class="btn btn-quiet-danger btn-sm"
+          :aria-label="`Remove ${user.email}`"
           @click="handleRemoveUser(user.email)"
-          class="btn btn-danger btn-sm"
         >
           Remove
         </button>
-      </div>
-    </div>
+      </li>
+    </ul>
   </div>
 </template>
 
 <style scoped>
 .user-management {
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--border-subtle);
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
-.user-management h4 {
-  margin: 0 0 1rem 0;
-  color: var(--text-2);
-  font-size: 1rem;
-}
-
-.add-user-form {
-  margin-bottom: 1rem;
-}
-
-.input-group {
+/* Input and button on one row. */
+.add-user {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
-.input-group input {
-  flex: 1;
-  padding: 0.375rem 0.5rem;
-  border: 1px solid var(--input-border);
-  border-radius: 4px;
-  font-size: 0.875rem;
+.add-user .input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 1.875rem;
+  padding-block: var(--space-1);
+  font-size: var(--text-sm);
 }
 
-.input-group input:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
-}
-
-.loading, .empty-users {
+.users-note {
+  margin: 0;
+  font-size: var(--text-sm);
   color: var(--text-muted);
-  font-style: italic;
-  text-align: center;
-  padding: 1rem;
 }
 
 .users-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.user-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.5rem;
-  background: var(--surface-2);
-  border-radius: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
   border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface);
 }
 
-.user-info {
-  flex: 1;
+.user-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--text-sm);
+}
+
+.user-row:last-child {
+  border-bottom: 0;
 }
 
 .user-name {
-  font-weight: 500;
-  color: var(--text-2);
+  font-weight: 700;
+  color: var(--text);
 }
 
-.user-email {
-  font-size: 0.875rem;
+.user-name.muted {
+  font-weight: 400;
   color: var(--text-muted);
 }
 
-.btn {
-  padding: 0.375rem 0.75rem;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.875rem;
-  transition: all 0.2s;
-  font-weight: 500;
+.user-email {
+  color: var(--text-2);
 }
 
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
+/* On a phone the name and the email stack, the button stays on the right. */
+@media (max-width: 520px) {
+  .user-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 0;
+  }
 
-.btn-sm {
-  padding: 0.25rem 0.5rem;
-  font-size: 0.8rem;
-}
+  .user-email {
+    grid-row: 2;
+  }
 
-.btn-primary {
-  background: var(--accent);
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
-
-.btn-danger {
-  background: var(--danger);
-  color: white;
-}
-
-.btn-danger:hover:not(:disabled) {
-  background: var(--danger-hover);
+  .user-row .btn {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
 }
 </style>

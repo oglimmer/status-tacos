@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
+import MonitorIcon from './MonitorIcon.vue'
 import type { TimeframeType } from './TimeframeSwitcher.vue'
 import { checkedFromMs, downFractionColumns, formatUptime, getTimeframeLabel, parseUtc, timeWindow, uptimeLevel } from '../utils/uptime'
 
@@ -20,6 +21,8 @@ interface StatusChartProps {
   firstCheckAt?: string
   totalChecks?: number
   title?: string
+  // Only the strip, without title and time labels: for a row of the monitor list
+  compact?: boolean
 }
 
 const props = defineProps<StatusChartProps>()
@@ -53,12 +56,19 @@ const unlockBodyScroll = () => {
   }
 }
 
-const openModal = () => {
+const titleId = useId()
+const closeButton = ref<HTMLButtonElement | null>(null)
+const stripButton = ref<HTMLButtonElement | null>(null)
+
+const openModal = async () => {
   showModal.value = true
+  await nextTick()
+  closeButton.value?.focus()
 }
 
 const closeModal = () => {
   showModal.value = false
+  stripButton.value?.focus()
 }
 
 watch(showModal, isOpen => {
@@ -153,6 +163,14 @@ const timeLabels = computed((): string[] => {
   })
 })
 
+// The more of a slot was down, the stronger the red
+const downOpacity = (fraction: number): number => Math.round((0.35 + 0.65 * fraction) * 100) / 100
+
+const stripLabel = computed(
+  () =>
+    `Status of the ${getTimeframeLabel(props.timeframe)}: ${props.statusDownPeriods.length} downtime periods, ${formatUptime(props.uptimePercentage)} uptime. Show the downtime periods.`
+)
+
 // Format downtime periods for display. The backend sends them sorted by start.
 const formatDowntimePeriods = (statusDownPeriods: StatusDownPeriod[]): { start: string, end: string, duration: string }[] => {
   return statusDownPeriods
@@ -199,85 +217,77 @@ const formatDuration = (ms: number): string => {
 </script>
 
 <template>
-  <div class="status-chart">
-    <div class="chart-header">
-      <div class="chart-title-row">
-        <span class="chart-title">{{ title || `Status (${getTimeframeLabel(timeframe)})` }}</span>
-        <span
-          class="uptime-badge clickable"
-          :class="uptimeLevel(uptimePercentage)"
-          @click="openModal"
+  <div class="status-chart" :class="{ compact }">
+    <div v-if="!compact" class="sc-head">
+      <span class="sc-title">{{ title || `Status (${getTimeframeLabel(timeframe)})` }}</span>
+      <span class="sc-uptime num" :class="`level-${uptimeLevel(uptimePercentage)}`">
+        {{ formatUptime(uptimePercentage) }} uptime
+      </span>
+    </div>
+
+    <!-- A click on the strip shows the list of downtime periods -->
+    <button
+      ref="stripButton"
+      type="button"
+      class="sc-strip"
+      :aria-label="stripLabel"
+      :title="compact ? stripLabel : undefined"
+      @click.stop="openModal"
+    >
+      <svg ref="svgEl" class="sc-svg" :viewBox="`0 0 ${chartWidth} 30`" preserveAspectRatio="none" shape-rendering="crispEdges">
+        <!-- Before the first check: no data -->
+        <rect v-if="uncheckedWidth > 0" class="sc-no-data" x="0" y="0" :width="uncheckedWidth" height="30">
+          <title>No checks</title>
+        </rect>
+        <!-- One column per pixel, the share of its time slot that was down sets the strength of the red -->
+        <rect
+          v-for="column in downColumns"
+          :key="column.x"
+          class="sc-down"
+          :x="column.x"
+          :y="0"
+          :width="column.width"
+          :height="30"
+          :fill-opacity="downOpacity(column.fraction)"
         >
-          {{ formatUptime(uptimePercentage) }} uptime
-        </span>
-      </div>
-    </div>
-    <div class="chart-container">
-      <div class="chart-y-axis">
-        <span class="y-axis-label">Down</span>
-      </div>
-      <div class="chart-main">
-        <div class="chart-svg-container">
-          <svg ref="svgEl" class="chart-svg" :viewBox="`0 0 ${chartWidth} 30`" preserveAspectRatio="none" shape-rendering="crispEdges">
-            <!-- Before the first check: no data -->
-            <rect v-if="uncheckedWidth > 0" class="no-data" x="0" y="0" :width="uncheckedWidth" height="30">
-              <title>No checks</title>
-            </rect>
-            <!-- One column per pixel, colored by the share of its time slot that was down -->
-            <rect
-              v-for="column in downColumns"
-              :key="column.x"
-              :x="column.x"
-              :y="0"
-              :width="column.width"
-              :height="30"
-              :fill="column.color"
-            >
-              <title>{{ Math.round(column.fraction * 1000) / 10 }}% down (≈{{ formatDuration(column.fraction * slotDuration) }} of {{ formatDuration(slotDuration) }})</title>
-            </rect>
-          </svg>
+          <title>{{ Math.round(column.fraction * 1000) / 10 }}% down (≈{{ formatDuration(column.fraction * slotDuration) }} of {{ formatDuration(slotDuration) }})</title>
+        </rect>
+      </svg>
+    </button>
 
-          <!-- X-axis labels -->
-          <div class="x-axis-labels">
-            <span
-              v-for="(label, index) in timeLabels"
-              :key="index"
-              class="x-axis-label"
-              :style="{ left: `${(index / (timeLabels.length - 1)) * 100}%` }"
-            >
-              {{ label }}
-            </span>
-          </div>
-        </div>
-      </div>
+    <div v-if="!compact" class="sc-axis" aria-hidden="true">
+      <span
+        v-for="(label, index) in timeLabels"
+        :key="index"
+        :style="{ left: `${(index / (timeLabels.length - 1)) * 100}%` }"
+      >{{ label }}</span>
     </div>
 
-    <!-- Modal Dialog -->
     <Teleport to="body">
-      <div v-if="showModal" class="modal-overlay" @click="closeModal">
-        <div class="modal-content" @click.stop>
-          <div class="modal-header">
-            <h3 class="modal-title">Downtime Periods ({{ getTimeframeLabel(timeframe) }})</h3>
-            <button class="modal-close" @click="closeModal">&times;</button>
+      <div v-if="showModal" class="sc-overlay" @click="closeModal" @keydown.esc="closeModal">
+        <div class="sc-dialog" role="dialog" aria-modal="true" :aria-labelledby="titleId" @click.stop>
+          <div class="sc-dialog-head">
+            <h3 :id="titleId" class="sc-dialog-title">Downtime periods ({{ getTimeframeLabel(timeframe) }})</h3>
+            <button ref="closeButton" type="button" class="btn btn-icon btn-sm" aria-label="Close" @click="closeModal">
+              <MonitorIcon name="close" />
+            </button>
           </div>
-          <div class="modal-body">
-            <div v-if="statusDownPeriods.length === 0" class="no-downtime">
-              <p>No downtime periods recorded for this timeframe.</p>
-            </div>
-            <div v-else class="downtime-table-container">
-              <table class="downtime-table">
+          <div class="sc-dialog-body">
+            <p v-if="statusDownPeriods.length === 0" class="sc-none">No downtime in this timeframe.</p>
+            <div v-else class="sc-table-wrap">
+              <table class="sc-table">
                 <thead>
                   <tr>
-                    <th>Start</th>
-                    <th>End</th>
-                    <th>Duration</th>
+                    <th scope="col">Start</th>
+                    <th scope="col">End</th>
+                    <th scope="col">Duration</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="(period, index) in formatDowntimePeriods(statusDownPeriods)" :key="index">
-                    <td>{{ period.start }}</td>
-                    <td>{{ period.end }}</td>
-                    <td>{{ period.duration }}</td>
+                    <td class="num">{{ period.start }}</td>
+                    <td class="num">{{ period.end }}</td>
+                    <td class="num sc-duration">{{ period.duration }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -291,344 +301,182 @@ const formatDuration = (ms: number): string => {
 
 <style scoped>
 .status-chart {
-  margin-bottom: 1rem;
-  padding-left: 0;
-  padding-right: 0;
+  min-width: 0;
 }
 
-.chart-header {
-  margin-bottom: 0.5rem;
-}
-
-.chart-title-row {
+.sc-head {
   display: flex;
+  align-items: baseline;
   justify-content: space-between;
-  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+  font-size: var(--text-xs);
 }
 
-.chart-title {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.uptime-badge {
-  font-size: 0.7rem;
-  padding: 0.2rem 0.4rem;
-  border-radius: 10px;
-  font-weight: 500;
-}
-
-.uptime-badge.excellent {
-  background: var(--success-soft);
-  color: var(--success-soft-text);
-}
-
-.uptime-badge.good {
-  background: var(--info-soft);
-  color: var(--info-soft-text);
-}
-
-.uptime-badge.warning {
-  background: var(--warning-soft);
-  color: var(--warning-soft-text);
-}
-
-.uptime-badge.no-data {
-  background: var(--surface-3);
-  color: var(--text-muted);
-}
-
-.uptime-badge.poor {
-  background: var(--danger-soft);
-  color: var(--danger-soft-text);
-}
-
-.uptime-badge.clickable {
-  cursor: pointer;
-  transition: opacity 0.2s ease;
-}
-
-.uptime-badge.clickable:hover {
-  opacity: 0.8;
-}
-
-.chart-container {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-}
-
-.chart-y-axis {
-  display: flex;
-  align-items: flex-start;
-  height: 30px;
-  padding-top: 2px;
-}
-
-.y-axis-label {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  font-weight: 500;
-  white-space: nowrap;
-  writing-mode: horizontal-tb;
-}
-
-.chart-main {
-  flex: 1;
-  position: relative;
-}
-
-.chart-svg-container {
-  position: relative;
-}
-
-.chart-svg {
-  width: 100%;
-  height: 30px;
-  background: linear-gradient(to bottom, var(--surface-2) 0%, var(--surface) 100%);
-  border: 1px solid var(--border-subtle);
-  border-radius: 4px;
-}
-
-.chart-svg .no-data {
-  fill: var(--border);
-}
-
-.chart-placeholder {
-  height: 30px;
-  background: var(--surface-2);
-  border: 1px solid var(--border-subtle);
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.x-axis-labels {
-  position: relative;
-  height: 15px;
-  margin-top: 0.25rem;
-}
-
-.x-axis-label {
-  position: absolute;
-  font-size: 0.6rem;
-  color: var(--text-muted);
-  transform: translateX(-50%);
-  white-space: nowrap;
-}
-
-.placeholder-text {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  font-style: italic;
-}
-
-/* Modal styles */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  min-height: 100vh;
-  min-height: 100dvh;
-  padding: 1.5rem;
-  box-sizing: border-box;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  z-index: 1000;
-  overflow-y: auto;
-}
-
-.modal-content {
-  background: var(--surface);
-  border-radius: 8px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-  width: min(600px, 100%);
-  max-height: calc(100vh - 3rem);
-  max-height: calc(100dvh - 3rem);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid var(--border-subtle);
-  background: var(--surface-2);
-}
-
-.modal-title {
-  margin: 0;
-  font-size: 1.1rem;
-  color: var(--text);
-  font-weight: 600;
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 0;
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  transition: background-color 0.2s ease;
-}
-
-.modal-close:hover {
-  background: var(--surface-3);
+.sc-title {
+  font-weight: 700;
   color: var(--text-2);
 }
 
-.modal-body {
-  padding: 1.5rem;
-  overflow-y: auto;
-  flex: 1;
+.sc-uptime {
+  color: var(--text-2);
 }
 
-.no-downtime {
-  text-align: center;
+.sc-uptime.level-warning {
+  color: var(--warn);
+}
+
+.sc-uptime.level-poor {
+  color: var(--down);
+  font-weight: 700;
+}
+
+.sc-uptime.level-no-data {
   color: var(--text-muted);
-  font-style: italic;
-  padding: 2rem 0;
 }
 
-.downtime-table-container {
+/* The strip: grey is checked and up, red is down, empty is no checks. */
+.sc-strip {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-3);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.sc-strip:hover {
+  border-color: var(--input-border);
+}
+
+.sc-svg {
+  display: block;
+  width: 100%;
+  height: 1.5rem;
+}
+
+.compact .sc-svg {
+  height: 1.125rem;
+}
+
+.sc-no-data {
+  fill: var(--surface);
+}
+
+.sc-down {
+  fill: var(--down);
+}
+
+.sc-axis {
+  position: relative;
+  height: 1rem;
+  margin-top: 0.125rem;
+}
+
+.sc-axis span {
+  position: absolute;
+  font-family: var(--font-mono);
+  font-size: 0.75rem; /* 12px: small axis labels, still readable */
+  color: var(--text-muted);
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.sc-axis span:first-child {
+  transform: none;
+}
+
+.sc-axis span:last-child {
+  transform: translateX(-100%);
+}
+
+/* The list of downtime periods */
+.sc-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--space-5) var(--space-4);
+  background: var(--overlay);
+  overflow-y: auto;
+}
+
+.sc-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(40rem, 100%);
+  max-height: calc(100dvh - 3rem);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+  overflow: hidden;
+}
+
+.sc-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.sc-dialog-title {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+.sc-dialog-body {
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  overflow-y: auto;
+}
+
+.sc-none {
+  margin: var(--space-4) 0;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.sc-table-wrap {
   overflow-x: auto;
 }
 
-.downtime-table {
+.sc-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
 }
 
-.downtime-table th,
-.downtime-table td {
-  text-align: left;
-  padding: 0.75rem;
+.sc-table th,
+.sc-table td {
+  padding: var(--space-2);
   border-bottom: 1px solid var(--border-subtle);
+  text-align: left;
+  white-space: nowrap;
 }
 
-.downtime-table th {
-  background: var(--surface-2);
-  color: var(--text-2);
-  font-weight: 600;
+.sc-table th {
   position: sticky;
   top: 0;
-  z-index: 1;
+  background: var(--surface);
+  color: var(--text-2);
+  font-weight: 700;
 }
 
-.downtime-table tr:hover {
-  background: var(--surface-2);
+.sc-duration {
+  color: var(--down);
+  font-weight: 700;
 }
 
-.downtime-table td:first-child,
-.downtime-table td:nth-child(2) {
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  font-size: 0.85rem;
-}
-
-.downtime-table td:last-child {
-  font-weight: 500;
-  color: var(--danger-text);
-}
-
-/* Mobile styles */
-@media (max-width: 768px) {
-  .status-chart {
-    margin-bottom: 0.75rem;
-    padding-left: 0;
-    padding-right: 0;
-  }
-
-  .chart-container {
-    flex-direction: row;
-    gap: 0;
-    align-items: flex-start;
-  }
-
-  .chart-y-axis {
+@media (max-width: 520px) {
+  .sc-axis span:nth-child(2),
+  .sc-axis span:nth-child(4) {
     display: none;
-  }
-
-  .y-axis-label {
-    font-size: 0.65rem;
-  }
-
-  .chart-title {
-    font-size: 0.75rem;
-  }
-
-  .chart-title-row {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.25rem;
-  }
-
-  .uptime-badge {
-    font-size: 0.65rem;
-    padding: 0.15rem 0.3rem;
-  }
-
-  .chart-main {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-  }
-
-  .chart-svg {
-    height: 25px;
-    width: 100%;
-  }
-
-  .chart-placeholder {
-    height: 25px;
-  }
-
-  .x-axis-labels {
-    height: 12px;
-  }
-
-  .x-axis-label {
-    font-size: 0.55rem;
-  }
-
-  .placeholder-text {
-    font-size: 0.65rem;
-  }
-
-  .modal-content {
-    width: 100%;
-    max-height: calc(100vh - 2rem);
-    max-height: calc(100dvh - 2rem);
-  }
-
-  .modal-header {
-    padding: 1rem;
-  }
-
-  .modal-body {
-    padding: 1rem;
-  }
-
-  .downtime-table {
-    font-size: 0.8rem;
-  }
-
-  .downtime-table th,
-  .downtime-table td {
-    padding: 0.5rem;
   }
 }
 </style>

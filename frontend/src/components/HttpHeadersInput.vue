@@ -29,8 +29,7 @@ const initializeHeaders = () => {
 }
 
 // Watch for external changes to modelValue
-watch(() => props.modelValue, (newValue, oldValue) => {
-  console.log('watch triggered, newValue:', newValue, 'oldValue:', oldValue, 'isInternalUpdate:', isInternalUpdate.value)
+watch(() => props.modelValue, () => {
   // Only reinitialize if this is not an internal update (from our own emit)
   if (!isInternalUpdate.value) {
     initializeHeaders()
@@ -96,123 +95,41 @@ const updateHttpHeaders = () => {
 </script>
 
 <template>
-  <div class="form-group">
-    <label>Custom Headers</label>
-    <div class="headers-container">
-      <div v-for="item in headerItems" :key="item.id" class="header-row">
-        <input
-          :value="item.key"
-          @input="updateHeaderKey(item.id, ($event.target as HTMLInputElement).value)"
-          placeholder="Header name"
-          class="header-key"
-          maxlength="100"
-        />
-        <input
-          :value="item.value"
-          @input="updateHeaderValue(item.id, ($event.target as HTMLInputElement).value)"
-          placeholder="Header value"
-          class="header-value"
-          maxlength="200"
-        />
-        <button @click="(event) => removeHeader(item.id, event)" type="button" class="remove-header-btn">×</button>
-      </div>
-      <button @click="() => { console.log('Add header clicked!'); addHeader(); }" type="button" class="add-header-btn">+ Add Header</button>
+  <div class="repeat-rows">
+    <p v-if="headerItems.length === 0" class="field-hint">No headers. Checks send the default headers only.</p>
+    <div v-for="(item, index) in headerItems" :key="item.id" class="repeat-row">
+      <input
+        :value="item.key"
+        @input="updateHeaderKey(item.id, ($event.target as HTMLInputElement).value)"
+        placeholder="Name"
+        class="input mono header-key"
+        :aria-label="`Header ${index + 1} name`"
+        maxlength="100"
+      />
+      <input
+        :value="item.value"
+        @input="updateHeaderValue(item.id, ($event.target as HTMLInputElement).value)"
+        placeholder="Value"
+        class="input mono header-value"
+        :aria-label="`Header ${index + 1} value`"
+        maxlength="200"
+      />
+      <button
+        @click="(event) => removeHeader(item.id, event)"
+        type="button"
+        class="btn btn-icon btn-sm repeat-remove"
+        :aria-label="`Remove header ${item.key || index + 1}`"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18" />
+        </svg>
+      </button>
     </div>
-    <small class="form-help-text">
-      Add custom HTTP headers to include with monitor requests.
-    </small>
+    <button @click="() => addHeader()" type="button" class="btn btn-link btn-sm repeat-add">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <path d="M12 5v14M5 12h14" />
+      </svg>
+      Add header
+    </button>
   </div>
 </template>
-
-<style scoped>
-.form-group {
-  margin-bottom: 1.5rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-  color: var(--text);
-}
-
-.headers-container {
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 1rem;
-  background: var(--surface-2);
-  box-sizing: border-box;
-  width: 100%;
-}
-
-.header-row {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-  align-items: center;
-  max-width: 100%;
-  box-sizing: border-box;
-}
-
-.header-key,
-.header-value {
-  flex: 1;
-  min-width: 120px;
-  padding: 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 0.875rem;
-}
-
-.header-key:focus,
-.header-value:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
-}
-
-.remove-header-btn {
-  background: var(--danger);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  width: 2rem;
-  height: 2rem;
-  cursor: pointer;
-  font-size: 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.remove-header-btn:hover {
-  background: var(--danger-hover);
-}
-
-.add-header-btn {
-  background: var(--success);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: 0.5rem 1rem;
-  cursor: pointer;
-  font-size: 0.875rem;
-  margin-top: 0.5rem;
-  width: fit-content;
-  position: relative;
-  z-index: 1;
-  pointer-events: auto;
-}
-
-.add-header-btn:hover {
-  background: var(--success-hover);
-}
-
-.form-help-text {
-  color: var(--text-muted);
-  font-size: 0.85rem;
-  margin-top: 0.5rem;
-  display: block;
-}
-</style>

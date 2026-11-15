@@ -13,84 +13,24 @@ defineProps<ViewModeSwitcherProps>()
 defineEmits<ViewModeSwitcherEmits>()
 
 const viewModes = [
-  { value: 'minimal' as ViewModeType, label: 'Minimal' },
-  { value: 'default' as ViewModeType, label: 'Default' },
-  { value: 'full' as ViewModeType, label: 'Full' }
+  { value: 'minimal' as ViewModeType, label: 'Minimal', title: 'One short line per monitor' },
+  { value: 'default' as ViewModeType, label: 'Default', title: 'One row per monitor, details on click' },
+  { value: 'full' as ViewModeType, label: 'Full', title: 'All details of all monitors' }
 ]
 </script>
 
 <template>
-  <div class="viewmode-switcher">
-    <div class="switcher-buttons">
-      <button
-        v-for="viewMode in viewModes"
-        :key="viewMode.value"
-        @click="$emit('update:modelValue', viewMode.value)"
-        class="viewmode-btn"
-        :class="{ active: modelValue === viewMode.value }"
-      >
-        {{ viewMode.label }}
-      </button>
-    </div>
+  <div class="button-group" role="group" aria-label="View">
+    <button
+      v-for="viewMode in viewModes"
+      :key="viewMode.value"
+      type="button"
+      class="btn"
+      :aria-pressed="modelValue === viewMode.value"
+      :title="viewMode.title"
+      @click="$emit('update:modelValue', viewMode.value)"
+    >
+      {{ viewMode.label }}
+    </button>
   </div>
 </template>
-
-<style scoped>
-.viewmode-switcher {
-  margin-bottom: 1rem;
-  display: flex;
-  justify-content: center;
-}
-
-.switcher-buttons {
-  display: flex;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  overflow: hidden;
-  background: var(--surface);
-}
-
-.viewmode-btn {
-  padding: 0.5rem 1rem;
-  border: none;
-  background: var(--surface);
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 0.875rem;
-  font-weight: 500;
-  transition: all 0.2s ease;
-  border-right: 1px solid var(--border);
-}
-
-.viewmode-btn:last-child {
-  border-right: none;
-}
-
-.viewmode-btn:hover:not(.active) {
-  background: var(--surface-2);
-  color: var(--text-2);
-}
-
-.viewmode-btn.active {
-  background: var(--success);
-  color: white;
-}
-
-.viewmode-btn:focus {
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.25);
-}
-
-/* Mobile styles */
-@media (max-width: 768px) {
-  .switcher-buttons {
-    width: 100%;
-  }
-
-  .viewmode-btn {
-    flex: 1;
-    padding: 0.75rem 0.5rem;
-    font-size: 0.8rem;
-  }
-}
-</style>

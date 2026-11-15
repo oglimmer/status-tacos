@@ -59,15 +59,15 @@ const isRadio = props.selected !== undefined
   grid-column: 1 / -1;
   grid-template-columns: subgrid;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--space-3);
   width: 100%;
-  padding: 0.5rem 0.625rem;
+  padding: var(--space-2) var(--space-3);
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--text);
   font: inherit;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   text-align: left;
   cursor: pointer;
 }
@@ -77,7 +77,7 @@ const isRadio = props.selected !== undefined
 }
 
 .silence-option:focus-visible {
-  outline: 2px solid var(--warning-text);
+  outline: 2px solid var(--focus);
   outline-offset: 1px;
 }
 
@@ -87,7 +87,7 @@ const isRadio = props.selected !== undefined
 }
 
 .option-label {
-  font-weight: 600;
+  font-weight: 700;
   white-space: nowrap;
 }
 
@@ -102,7 +102,7 @@ const isRadio = props.selected !== undefined
   display: block;
   height: 100%;
   border-radius: 2px;
-  background: var(--warning-text);
+  background: var(--masa);
   opacity: 0.55;
 }
 
@@ -114,13 +114,13 @@ const isRadio = props.selected !== undefined
 .option-end {
   text-align: right;
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 .silence-option.selected .option-end {
-  text-align: right;
   color: var(--warning-soft-text);
 }
 </style>

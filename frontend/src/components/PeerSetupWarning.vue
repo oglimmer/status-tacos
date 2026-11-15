@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { apiService, type PeerStatus } from '../services/api'
 import { parseUtc } from '../utils/uptime'
+import MonitorIcon from './MonitorIcon.vue'
 
 // Shown to members of the peer tenant when the peer setup does not work
 const status = ref<PeerStatus | null>(null)
@@ -30,28 +31,44 @@ onMounted(async () => {
 
 <template>
   <div v-if="status && (setupProblem || !status.canAlert)" class="peer-warning" role="alert">
-    <p v-if="setupProblem">
-      <strong>Peer setup not valid:</strong> {{ setupProblem }} Until then, this server does not ask
-      the other server before DOWN alerts.
-    </p>
-    <p v-if="!status.canAlert">
-      <strong>This server cannot send alerts</strong>
-      <span v-if="status.cannotAlertSince">
-        since {{ parseUtc(status.cannotAlertSince).toLocaleString() }}</span
-      >. The other server was told. Reason: {{ status.cannotAlertReason || 'unknown' }}
-    </p>
+    <MonitorIcon name="alert" class="peer-warning-icon" />
+    <div class="peer-warning-text">
+      <p v-if="setupProblem">
+        <strong>Peer setup not valid.</strong> {{ setupProblem }} Until then, this server does not ask
+        the other server before DOWN alerts.
+      </p>
+      <p v-if="!status.canAlert">
+        <strong>This server cannot send alerts</strong>
+        <span v-if="status.cannotAlertSince">
+          since <span class="num">{{ parseUtc(status.cannotAlertSince).toLocaleString() }}</span></span
+        >. The other server was told. Reason: {{ status.cannotAlertReason || 'unknown' }}
+      </p>
+    </div>
   </div>
 </template>
 
 <style scoped>
+/* One compact line (or two) with a warning edge: it must stay visible, but not take the page. */
 .peer-warning {
-  margin-bottom: 1.5rem;
-  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--warning-soft-border);
-  border-radius: 8px;
+  border-left: 3px solid var(--masa);
+  border-radius: var(--radius-md);
   background: var(--warning-soft);
   color: var(--warning-soft-text);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
+}
+
+.peer-warning-icon {
+  margin-top: 0.2em;
+}
+
+.peer-warning-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .peer-warning p {
@@ -59,6 +76,6 @@ onMounted(async () => {
 }
 
 .peer-warning p + p {
-  margin-top: 0.5rem;
+  margin-top: var(--space-1);
 }
 </style>

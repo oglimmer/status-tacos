@@ -4,16 +4,18 @@ import { useAuthStore } from '../stores/auth'
 import { useMonitorsStore, isPeerMonitor, type MonitorResponse, type MonitorState, type SilentFor } from '../stores/monitors'
 import MonitorForm from '../components/MonitorForm.vue'
 import MonitorEditForm from '../components/MonitorEditForm.vue'
-import DashboardHeader from '../components/DashboardHeader.vue'
-import PageNavigation from '../components/PageNavigation.vue'
-import MonitorsHeader from '../components/MonitorsHeader.vue'
+import AppShell from '../components/AppShell.vue'
+import PageHeader from '../components/PageHeader.vue'
 import MonitorLimitInfo from '../components/MonitorLimitInfo.vue'
 import PeerSetupWarning from '../components/PeerSetupWarning.vue'
 import DashboardSummary from '../components/DashboardSummary.vue'
 import EnhancedMonitorCard from '../components/EnhancedMonitorCard.vue'
 import BulkEditMonitorsModal from '../components/BulkEditMonitorsModal.vue'
-import type { TimeframeType } from '../components/TimeframeSwitcher.vue'
-import type { ViewModeType } from '../components/ViewModeSwitcher.vue'
+import TimeframeSwitcher, { type TimeframeType } from '../components/TimeframeSwitcher.vue'
+import ViewModeSwitcher, { type ViewModeType } from '../components/ViewModeSwitcher.vue'
+import NameFilter from '../components/NameFilter.vue'
+import TenantFilter from '../components/TenantFilter.vue'
+import MonitorSortSelect from '../components/MonitorSortSelect.vue'
 import LoadingState from '../components/LoadingState.vue'
 import ErrorState from '../components/ErrorState.vue'
 import EmptyState from '../components/EmptyState.vue'
@@ -81,6 +83,25 @@ const filteredMonitors = computed(() => {
 const sortedMonitors = computed(() =>
   sortMonitors(filteredMonitors.value, monitorsStore.getMonitorStatusById, selectedSort.value)
 )
+
+// Down first: the monitors that are down now are a group of their own at the top.
+// Each group keeps the sort of the user.
+const downMonitorIds = computed(() => new Set(monitorsStore.downMonitors.map(s => s.monitorId)))
+const downGroup = computed(() => sortedMonitors.value.filter(m => downMonitorIds.value.has(m.id)))
+const otherGroup = computed(() => sortedMonitors.value.filter(m => !downMonitorIds.value.has(m.id)))
+const otherGroupTitle = computed(() =>
+  otherGroup.value.every(m => monitorsStore.getMonitorStatusById(m.id)?.currentStatus === 'up')
+    ? 'Up'
+    : 'Other monitors'
+)
+const monitorGroups = computed(() => {
+  const groups = [
+    { key: 'down', title: 'Down', monitors: downGroup.value },
+    { key: 'other', title: otherGroupTitle.value, monitors: otherGroup.value }
+  ].filter(group => group.monitors.length > 0)
+  // Without a monitor down, one list without a heading is enough
+  return groups.map(group => ({ ...group, showTitle: downGroup.value.length > 0 }))
+})
 
 const toggleMonitorExpanded = async (monitorId: number) => {
   if (expandedMonitors.value.has(monitorId)) {
@@ -306,108 +327,144 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="dashboard-container">
-    <DashboardHeader />
+  <AppShell>
+    <div class="monitors-page" :class="{ 'is-selecting': selecting }">
+      <PageHeader title="Monitors">
+        <template #actions>
+          <button
+            v-if="monitorsStore.monitors.length > 0"
+            type="button"
+            class="btn btn-outline"
+            :aria-pressed="selecting"
+            title="Select monitors to change settings of many monitors at once"
+            @click="toggleSelectMode"
+          >
+            {{ selecting ? 'Done' : 'Select' }}
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary"
+            :disabled="monitorLimitReached"
+            :title="monitorLimitReached ? 'You have the maximum number of monitors' : undefined"
+            @click="openAddMonitorForm"
+          >
+            Add Monitor
+          </button>
+        </template>
 
-    <main class="dashboard-main">
-      <PageNavigation />
+        <div
+          v-if="(maxMonitors !== null && !monitorsStore.isLoading && !monitorsStore.error) || peerTenantId !== null"
+          class="monitors-notices"
+        >
+          <MonitorLimitInfo
+            v-if="maxMonitors !== null && !monitorsStore.isLoading && !monitorsStore.error"
+            :monitor-count="countedMonitorCount"
+            :max-monitors="maxMonitors"
+          />
+          <PeerSetupWarning v-if="peerTenantId !== null" />
+        </div>
+      </PageHeader>
 
-      <div class="monitors-content">
-        <MonitorsHeader
-          :selected-timeframe="selectedTimeframe"
-          :selected-view-mode="selectedViewMode"
-          :limit-reached="monitorLimitReached"
-          :selecting="selecting"
-          :can-select="monitorsStore.monitors.length > 0"
-          @add-monitor="openAddMonitorForm"
-          @toggle-select-mode="toggleSelectMode"
-          @update:selected-timeframe="selectedTimeframe = $event"
-          @update:selected-view-mode="selectedViewMode = $event"
-        />
-
-        <MonitorLimitInfo
-          v-if="maxMonitors !== null && !monitorsStore.isLoading && !monitorsStore.error"
-          :monitor-count="countedMonitorCount"
-          :max-monitors="maxMonitors"
-        />
-
-        <PeerSetupWarning v-if="peerTenantId !== null" />
-
+      <template v-if="!monitorsStore.isLoading && !monitorsStore.error && monitorsStore.monitors.length > 0">
         <DashboardSummary
-          v-if="!monitorsStore.isLoading && !monitorsStore.error && monitorsStore.monitors.length > 0"
+          class="monitors-stats"
           :summary="summaryData"
-          :tenants="currentUser?.tenants"
-          :selected-tenant-id="selectedTenantId"
           :selected-status-filter="selectedStatusFilter"
-          :selected-name-filter="selectedNameFilter"
-          :selected-sort="selectedSort"
-          @update:selected-tenant-id="selectedTenantId = $event"
           @update:selected-status-filter="selectedStatusFilter = $event"
-          @update:selected-name-filter="selectedNameFilter = $event"
-          @update:selected-sort="selectedSort = $event"
         />
 
-        <LoadingState
-          v-if="monitorsStore.isLoading"
-          message="Loading monitors..."
-        />
+        <div class="toolbar monitors-toolbar">
+          <NameFilter v-model="selectedNameFilter" class="toolbar-search" />
+          <TenantFilter
+            v-if="currentUser?.tenants"
+            v-model="selectedTenantId"
+            :tenants="currentUser.tenants"
+          />
+          <MonitorSortSelect v-model="selectedSort" />
+          <span class="toolbar-spacer" aria-hidden="true"></span>
+          <TimeframeSwitcher v-model="selectedTimeframe" />
+          <ViewModeSwitcher v-model="selectedViewMode" />
+        </div>
+      </template>
 
-        <ErrorState
-          v-else-if="monitorsStore.error"
-          :error="monitorsStore.error"
-        />
+      <LoadingState
+        v-if="monitorsStore.isLoading"
+        message="Loading monitors..."
+      />
 
-        <EmptyState
-          v-else-if="monitorsStore.monitors.length === 0"
-          title="No monitors yet"
-          message="Get started by adding your first monitor to track the status of your endpoints."
-          button-text="Add Your First Monitor"
-          @action="openAddMonitorForm"
-        />
+      <ErrorState
+        v-else-if="monitorsStore.error"
+        :error="monitorsStore.error"
+      />
 
-        <template v-else>
-        <div v-if="selecting" class="selection-bar">
-          <label class="select-all">
+      <EmptyState
+        v-else-if="monitorsStore.monitors.length === 0"
+        title="No monitors yet"
+        message="Get started by adding your first monitor to track the status of your endpoints."
+        button-text="Add Your First Monitor"
+        @action="openAddMonitorForm"
+      />
+
+      <template v-else>
+        <div v-if="selecting" class="selection-bar" role="region" aria-label="Selected monitors">
+          <label class="check">
             <input
               type="checkbox"
               :checked="allVisibleSelected"
               :indeterminate="selectedMonitors.length > 0 && !allVisibleSelected"
               @change="toggleSelectAllVisible"
             />
-            Select all {{ sortedMonitors.length }} shown
+            Select all <span class="num">{{ sortedMonitors.length }}</span> shown
           </label>
-          <span class="selection-count">{{ selectedMonitors.length }} selected</span>
-          <button class="btn-bulk" :disabled="selectedMonitors.length === 0" @click="openBulkEdit">
+          <span class="selection-count muted"><span class="num">{{ selectedMonitors.length }}</span> selected</span>
+          <span class="toolbar-spacer" aria-hidden="true"></span>
+          <button type="button" class="btn btn-sm btn-outline" @click="toggleSelectMode">Cancel</button>
+          <button type="button" class="btn btn-sm btn-primary" :disabled="selectedMonitors.length === 0" @click="openBulkEdit">
             Edit {{ selectedMonitors.length || '' }} {{ selectedMonitors.length === 1 ? 'monitor' : 'monitors' }}
           </button>
         </div>
 
-        <div class="monitors-grid" :class="{ 'minimal-grid': selectedViewMode === 'minimal' }">
-          <EnhancedMonitorCard
-            v-for="monitor in sortedMonitors"
-            :key="monitor.id"
-            :monitor="monitor"
-            :status="monitorsStore.getMonitorStatusById(monitor.id) || null"
-            :response-time-history="monitorsStore.getResponseTimeHistoryById(monitor.id) || null"
-            :uptime-stats7d="monitorsStore.getUptimeStatsById(monitor.id, 'seven_days') || null"
-            :uptime-stats90d="monitorsStore.getUptimeStatsById(monitor.id, 'ninety_days') || null"
-            :selected-timeframe="selectedTimeframe"
-            :selected-view-mode="selectedViewMode"
-            :is-expanded="isMonitorExpanded(monitor.id)"
-            :is-loading-stats="loadingUptimeStats.has(monitor.id)"
-            :is-peer="isPeerMonitor(monitor, peerTenantId)"
-            :selectable="selecting"
-            :selected="selectedIds.has(monitor.id)"
-            @toggle-select="toggleSelected"
-            @toggle-expanded="toggleMonitorExpanded"
-            @edit="openEditModal"
-            @state-change="handleStateChange"
-            @delete="handleMonitorDelete"
-          />
-        </div>
-        </template>
-      </div>
-    </main>
+        <p v-if="sortedMonitors.length === 0" class="monitors-none">
+          No monitor matches the filters.
+        </p>
+
+        <section
+          v-for="group in monitorGroups"
+          :key="group.key"
+          class="page-section monitor-group"
+          :class="`monitor-group-${group.key}`"
+          :aria-label="group.showTitle ? undefined : 'Monitors'"
+          :aria-labelledby="group.showTitle ? `monitor-group-${group.key}` : undefined"
+        >
+          <h2 v-if="group.showTitle" :id="`monitor-group-${group.key}`" class="page-section-title">
+            {{ group.title }} <small class="num">{{ group.monitors.length }}</small>
+          </h2>
+          <ul class="monitor-list" :class="{ 'is-minimal': selectedViewMode === 'minimal' }">
+            <li v-for="monitor in group.monitors" :key="monitor.id">
+              <EnhancedMonitorCard
+                :monitor="monitor"
+                :status="monitorsStore.getMonitorStatusById(monitor.id) || null"
+                :response-time-history="monitorsStore.getResponseTimeHistoryById(monitor.id) || null"
+                :uptime-stats7d="monitorsStore.getUptimeStatsById(monitor.id, 'seven_days') || null"
+                :uptime-stats90d="monitorsStore.getUptimeStatsById(monitor.id, 'ninety_days') || null"
+                :selected-timeframe="selectedTimeframe"
+                :selected-view-mode="selectedViewMode"
+                :is-expanded="isMonitorExpanded(monitor.id)"
+                :is-loading-stats="loadingUptimeStats.has(monitor.id)"
+                :is-peer="isPeerMonitor(monitor, peerTenantId)"
+                :selectable="selecting"
+                :selected="selectedIds.has(monitor.id)"
+                @toggle-select="toggleSelected"
+                @toggle-expanded="toggleMonitorExpanded"
+                @edit="openEditModal"
+                @state-change="handleStateChange"
+                @delete="handleMonitorDelete"
+              />
+            </li>
+          </ul>
+        </section>
+      </template>
+    </div>
 
     <MonitorForm
       v-if="showAddMonitorForm"
@@ -429,114 +486,137 @@ onUnmounted(() => {
       @close="closeEditMonitorForm"
       @success="handleMonitorUpdated"
     />
-  </div>
+  </AppShell>
 </template>
 
 <style scoped>
-.dashboard-container {
-  min-height: 100vh;
-  background: var(--page-bg);
-  background-attachment: fixed;
-}
-
-.dashboard-main {
-  padding: 2rem;
-  max-width: 1200px;
-  margin: 0 auto;
-  background: var(--glass);
-  backdrop-filter: blur(10px);
-  border-radius: 20px;
-  margin-top: 2rem;
-  border: 1px solid var(--glass-border);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
-}
-
-.monitors-content {
+.monitors-page {
   min-height: 400px;
 }
 
-.monitors-grid {
+.monitors-notices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: calc(-1 * var(--space-2));
+}
+
+.monitors-stats {
+  margin-bottom: var(--space-3);
+}
+
+.monitors-toolbar {
+  margin-bottom: var(--space-5);
+}
+
+.toolbar-search {
+  flex: 1 1 14rem;
+  max-width: 20rem;
+}
+
+.monitors-none {
+  margin: 0 0 var(--space-5);
+  padding: var(--space-5);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.monitor-group {
+  margin-bottom: var(--space-5);
+}
+
+.monitor-group-down .page-section-title {
+  color: var(--down);
+}
+
+/* The rows of the list. Each monitor draws its own row; the list draws the lines between. */
+.monitor-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.monitor-list > li + li {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.monitor-group-down .monitor-list {
+  border-color: var(--danger-soft-border);
+}
+
+/* Minimal: short lines in as many columns as fit. The lines between come from a shadow. */
+.monitor-list.is-minimal {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 2rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
 }
 
-.monitors-grid.minimal-grid {
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 0.5rem;
+.monitor-list.is-minimal > li,
+.monitor-list.is-minimal > li + li {
+  border-top: 0;
+  box-shadow:
+    1px 0 0 var(--border-subtle),
+    0 1px 0 var(--border-subtle);
 }
 
-/* Multi edit: stays at the top while the user scrolls through the monitors */
+/* Multi edit: the bar stays under the top bar while the user scrolls through the monitors. */
 .selection-bar {
   position: sticky;
-  top: 0.5rem;
+  top: calc(var(--bar-height) + var(--space-2));
   z-index: 10;
   display: flex;
-  align-items: center;
-  gap: 1rem;
   flex-wrap: wrap;
-  padding: 0.6rem 1rem;
-  margin-bottom: 1rem;
-  background: var(--surface);
-  border: 1px solid var(--accent);
-  border-radius: 8px;
-  box-shadow: 0 4px 14px rgba(0, 123, 255, 0.15);
-}
-
-.select-all {
-  display: flex;
   align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  color: var(--text);
-  font-size: 0.9rem;
-}
-
-.select-all input {
-  width: 1.05rem;
-  height: 1.05rem;
-  accent-color: var(--accent);
+  gap: var(--space-2) var(--space-4);
+  margin-bottom: var(--space-4);
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
+  border: 1px solid var(--link);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
 }
 
 .selection-count {
-  color: var(--text-muted);
-  font-size: 0.9rem;
-  font-variant-numeric: tabular-nums;
+  font-size: var(--text-sm);
 }
 
-.btn-bulk {
-  margin-left: auto;
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 4px;
-  background: var(--accent);
-  color: white;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.btn-bulk:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Mobile styles */
-@media (max-width: 768px) {
-  .dashboard-main {
-    padding: 1rem;
+/*
+ * Small screens: the top bar has two rows there, so the selection bar sits at the bottom
+ * of the screen instead. The page gets room at the end, so the bar does not hide the last row.
+ */
+@media (max-width: 920px) {
+  .selection-bar {
+    position: fixed;
+    top: auto;
+    right: var(--space-3);
+    bottom: var(--space-3);
+    left: var(--space-3);
     margin: 0;
-    border-radius: 0;
-    border: none;
-    background: transparent;
-    backdrop-filter: none;
-    box-shadow: none;
   }
 
-  .monitors-grid {
-    grid-template-columns: 1fr !important;
-    gap: 1rem;
-    margin-bottom: 1rem;
+  .monitors-page.is-selecting {
+    padding-bottom: 7rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .toolbar-search {
+    flex-basis: 100%;
+    max-width: none;
+  }
+
+  .monitors-toolbar .toolbar-spacer {
+    display: none;
+  }
+
+  /* Both switches fit in one line. */
+  .monitors-toolbar :deep(.button-group > .btn) {
+    padding-inline: var(--space-3);
   }
 }
 </style>
