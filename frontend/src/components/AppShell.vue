@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import VersionInfo from './VersionInfo.vue'
-import ThemeToggle from './ThemeToggle.vue'
+import ThemeMenu from './ThemeMenu.vue'
 
 // The layout of every page after login: the top bar with the one navigation, then the page.
 
@@ -51,7 +51,7 @@ const handleLogout = () => {
 
         <div class="app-tools">
           <VersionInfo class="app-version" />
-          <ThemeToggle class="app-theme" />
+          <ThemeMenu class="app-theme" />
           <button
             type="button"
             class="btn btn-outline btn-sm"
@@ -238,7 +238,7 @@ const handleLogout = () => {
     display: none;
   }
 
-  .app-theme :deep(.theme-toggle-text) {
+  .app-theme :deep(.theme-trigger-text) {
     display: none;
   }
 }

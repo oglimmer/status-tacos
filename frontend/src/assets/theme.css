@@ -137,6 +137,136 @@
   color-scheme: dark;
 }
 
+/*
+ * The other themes. Each one sets a fixed color-scheme and changes only the colors
+ * that make its look. All other tokens (status, env badges, soft fills) come from the
+ * light or dark values above.
+ * The swatches in ThemeMenu.vue repeat the page, surface and accent colors; keep them the same. Text has 4.5:1 contrast or more on --surface and --page-bg.
+ */
+
+/* Talavera: white glazed tiles, cobalt blue paint, a yolk-yellow dot. */
+:root[data-theme='talavera'] {
+  color-scheme: light;
+  --brand: #2a5cc8;
+  --masa: #f2c230;
+  --down: #c8322a;
+  --page-1: #f1f4fa;
+  --surface: #ffffff;
+  --surface-2: #e8edf7;
+  --surface-3: #d9e1f1;
+  --text: #13203d;
+  --text-2: #2c3a5a;
+  --text-muted: #525f7c;
+  --text-faint: #8893ab;
+  --border: #ccd5e8;
+  --border-subtle: #e1e7f2;
+  --input-border: #a9b6d1;
+  --link: #1d4cb0;
+  --link-hover: #153a88;
+  --accent: #1d4cb0;
+  --accent-hover: #153a88;
+  --accent-soft: #e2e9fa;
+  --secondary: #525f7c;
+  --secondary-hover: #3f4b66;
+  --info-soft-text: #153a88;
+  --info-soft-border: #bccaee;
+  --focus: #1d4cb0;
+  --shadow-1: 0 1px 2px rgb(19 32 61 / 0.08);
+  --shadow-2: 0 12px 32px rgb(19 32 61 / 0.18);
+  --overlay: rgb(19 32 61 / 0.45);
+}
+
+/* Rosa: bright paper and rosa mexicano, the pink of the market stalls. */
+:root[data-theme='rosa'] {
+  color-scheme: light;
+  --brand: #e4007c;
+  --masa: #ffc21a;
+  --page-1: #fdf3f7;
+  --surface: #ffffff;
+  --surface-2: #fbe7ef;
+  --surface-3: #f4d4e2;
+  --text: #3a0c23;
+  --text-2: #5a2340;
+  --text-muted: #7b4762;
+  --text-faint: #b3889e;
+  --border: #eecadb;
+  --border-subtle: #f6dfe9;
+  --input-border: #d7a3bc;
+  --link: #b0005f;
+  --link-hover: #85004a;
+  --accent: #c2006a;
+  --accent-hover: #9c0056;
+  --accent-soft: #fde0ed;
+  --secondary: #7b4762;
+  --secondary-hover: #643a50;
+  --info-soft-text: #85004a;
+  --info-soft-border: #f2bad4;
+  --focus: #b0005f;
+  --shadow-1: 0 1px 2px rgb(58 12 35 / 0.08);
+  --shadow-2: 0 12px 32px rgb(58 12 35 / 0.18);
+  --overlay: rgb(58 12 35 / 0.45);
+}
+
+/* Mole: dark chocolate and roasted chiles, with the gold of toasted sesame. */
+:root[data-theme='mole'] {
+  color-scheme: dark;
+  --brand: #e3a63e;
+  --masa: #f2b53c;
+  --warn: #ff9a45;
+  --page-1: #19110d;
+  --surface: #241813;
+  --surface-2: #1e1510;
+  --surface-3: #34241b;
+  --text: #f4e7db;
+  --text-2: #dccabb;
+  --text-muted: #b19b89;
+  --text-faint: #7b6757;
+  --border: #46342a;
+  --border-subtle: #30231b;
+  --input-border: #5c4537;
+  --link: #f0b84a;
+  --link-hover: #ffd27a;
+  --accent: #f0b84a;
+  --accent-hover: #ffcb66;
+  --on-accent: #19110d;
+  --accent-soft: #3a2a14;
+  --secondary: #5c4537;
+  --secondary-hover: #6d5344;
+  --info-soft-text: #ffd98a;
+  --info-soft-border: #6b5220;
+  --focus: #f0b84a;
+}
+
+/* Lucha: a wrestling night. Deep indigo ring, lilac lights, a gold belt. */
+:root[data-theme='lucha'] {
+  color-scheme: dark;
+  --brand: #8f6bff;
+  --masa: #ffd23f;
+  --page-1: #110f29;
+  --surface: #1a1737;
+  --surface-2: #15122f;
+  --surface-3: #262249;
+  --text: #edecff;
+  --text-2: #cfcdf0;
+  --text-muted: #a3a0cd;
+  --text-faint: #6c6898;
+  --border: #353163;
+  --border-subtle: #24204a;
+  --input-border: #48437c;
+  --link: #bba8ff;
+  --link-hover: #d6caff;
+  --accent: #bba8ff;
+  --accent-hover: #d0c3ff;
+  --on-accent: #110f29;
+  --accent-soft: #2a2459;
+  --secondary: #48437c;
+  --secondary-hover: #57518f;
+  --info-soft-text: #d6caff;
+  --info-soft-border: #463c8a;
+  --focus: #bba8ff;
+  --env-stage: #e08ad8;
+}
+
 body {
   background: var(--page-bg);
   color: var(--text);

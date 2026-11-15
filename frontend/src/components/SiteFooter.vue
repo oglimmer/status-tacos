@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import ThemeToggle from './ThemeToggle.vue'
+import ThemeMenu from './ThemeMenu.vue'
 </script>
 
 <template>
@@ -16,7 +16,7 @@ import ThemeToggle from './ThemeToggle.vue'
       <router-link to="/terms">Terms</router-link>
       <router-link to="/imprint">Imprint</router-link>
     </nav>
-    <ThemeToggle />
+    <ThemeMenu up />
   </footer>
 </template>
 
