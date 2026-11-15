@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
+import { askConfirm } from '../services/confirm'
 import { useAlertContactsStore, type AlertContactResponse } from '../stores/alertContacts'
 import { useAuthStore } from '../stores/auth'
 import AlertContactForm from './AlertContactForm.vue'
@@ -77,7 +78,14 @@ const handleCloseForm = () => {
 }
 
 const handleDelete = async (id: number) => {
-  if (confirm('Are you sure you want to delete this alert contact?')) {
+  const name = alertContactsStore.alertContacts.find((contact) => contact.id === id)?.name
+  const confirmed = await askConfirm({
+    title: name ? `Delete ${name}?` : 'Delete this alert contact?',
+    message: 'Monitors stop sending alerts to it. You cannot undo this.',
+    confirmLabel: 'Delete alert contact',
+    danger: true,
+  })
+  if (confirmed) {
     try {
       await alertContactsStore.deleteAlertContact(id)
     } catch (err) {

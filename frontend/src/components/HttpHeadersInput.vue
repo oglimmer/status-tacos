@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { askConfirm } from '../services/confirm'
 
 interface HeaderItem {
   id: string
@@ -45,7 +46,7 @@ const addHeader = (event?: Event) => {
   updateHttpHeaders()
 }
 
-const removeHeader = (id: string, event?: Event) => {
+const removeHeader = async (id: string, event?: Event) => {
   if (event) {
     event.preventDefault()
     event.stopPropagation()
@@ -53,7 +54,13 @@ const removeHeader = (id: string, event?: Event) => {
 
   const item = headerItems.value.find(item => item.id === id)
   if (item && (item.key || item.value)) {
-    if (!confirm('Are you sure you want to remove this header?')) {
+    const label = item.key ? `the header ${item.key}` : 'this header'
+    const confirmed = await askConfirm({
+      title: `Remove ${label}?`,
+      confirmLabel: 'Remove header',
+      danger: true,
+    })
+    if (!confirmed) {
       return
     }
   }

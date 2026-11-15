@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { askConfirm } from '../services/confirm'
 import { apiService, type ApiToken, type ApiTokenScope, type CreatedApiToken } from '../services/api'
 import { showErrorToast } from '../services/toasts'
 import { parseUtc } from '../utils/uptime'
@@ -77,7 +78,13 @@ const copyToken = async () => {
 }
 
 const deleteToken = async (token: ApiToken) => {
-  if (!confirm(`Delete the token "${token.name}"? Grafana and other tools that use it lose access.`)) {
+  const confirmed = await askConfirm({
+    title: `Delete the token ${token.name}?`,
+    message: 'Grafana and other tools that use it lose access. You cannot undo this.',
+    confirmLabel: 'Delete token',
+    danger: true,
+  })
+  if (!confirmed) {
     return
   }
   deletingId.value = token.id

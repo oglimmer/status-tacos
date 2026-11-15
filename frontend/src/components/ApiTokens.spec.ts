@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import ApiTokens from './ApiTokens.vue'
 import { apiService, type ApiToken } from '../services/api'
+import { askConfirm } from '../services/confirm'
 
 vi.mock('../services/api', () => ({
   apiService: {
@@ -10,6 +11,8 @@ vi.mock('../services/api', () => ({
     deleteApiToken: vi.fn()
   }
 }))
+
+vi.mock('../services/confirm', () => ({ askConfirm: vi.fn() }))
 
 const usedToken: ApiToken = {
   id: 1,
@@ -78,19 +81,19 @@ describe('ApiTokens', () => {
   })
 
   it('deletes a token only after confirmation', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true)
+    vi.mocked(askConfirm).mockReset().mockResolvedValueOnce(false).mockResolvedValueOnce(true)
     const wrapper = mount(ApiTokens)
     await flushPromises()
 
     await wrapper.findAll('.token-list li')[0]!.find('button').trigger('click')
+    await flushPromises()
+    expect(askConfirm).toHaveBeenCalledWith(expect.objectContaining({ confirmLabel: 'Delete token', danger: true }))
     expect(apiService.deleteApiToken).not.toHaveBeenCalled()
 
     await wrapper.findAll('.token-list li')[0]!.find('button').trigger('click')
     await flushPromises()
     expect(apiService.deleteApiToken).toHaveBeenCalledWith(1)
     expect(wrapper.findAll('.token-list li')).toHaveLength(1)
-
-    confirmSpy.mockRestore()
   })
 
   it('has no token type choice without the peer tenant', async () => {

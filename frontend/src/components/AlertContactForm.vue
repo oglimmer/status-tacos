@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
+import { askConfirm } from '../services/confirm'
 import { useAlertContactsStore, type AlertContactRequest, type AlertContactResponse } from '../stores/alertContacts'
 import { useAuthStore } from '../stores/auth'
 import type { MonitorResponse } from '../stores/monitors'
@@ -191,10 +192,16 @@ const addHeader = () => {
   updateHttpHeaders()
 }
 
-const removeHeader = (id: string) => {
+const removeHeader = async (id: string) => {
   const item = headerItems.value.find(item => item.id === id)
   if (item && (item.key || item.value)) {
-    if (!confirm('Are you sure you want to remove this header?')) {
+    const label = item.key ? `the header ${item.key}` : 'this header'
+    const confirmed = await askConfirm({
+      title: `Remove ${label}?`,
+      confirmLabel: 'Remove header',
+      danger: true,
+    })
+    if (!confirmed) {
       return
     }
   }

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+import { askConfirm } from '../services/confirm'
 import { useAuthStore } from '../stores/auth'
 import { useMonitorsStore, isPeerMonitor, type MonitorResponse, type MonitorState, type SilentFor } from '../stores/monitors'
 import MonitorForm from '../components/MonitorForm.vue'
@@ -202,7 +203,13 @@ const handleMonitorDelete = async (id: number) => {
   const monitor = monitorsStore.getMonitorById(id)
   const monitorName = monitor?.name || 'this monitor'
 
-  if (confirm(`Are you sure you want to delete ${monitorName}? This action cannot be undone.`)) {
+  const confirmed = await askConfirm({
+    title: `Delete ${monitorName}?`,
+    message: 'You cannot undo this.',
+    confirmLabel: 'Delete monitor',
+    danger: true,
+  })
+  if (confirmed) {
     try {
       await monitorsStore.deleteMonitor(id)
     } catch (err) {

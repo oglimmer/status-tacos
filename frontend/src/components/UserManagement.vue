@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { askConfirm } from '../services/confirm'
 import type { Tenant, TenantUser } from '../services/api'
 
 // The users of one tenant: a form to add a user by email, then one row per user.
@@ -37,7 +38,13 @@ const handleAssignUser = async () => {
 }
 
 const handleRemoveUser = async (email: string) => {
-  if (confirm(`Are you sure you want to remove ${email} from this tenant?`)) {
+  const confirmed = await askConfirm({
+    title: `Remove ${email}?`,
+    message: `${email} loses access to the monitors and alert contacts of ${props.tenant.name}.`,
+    confirmLabel: 'Remove user',
+    danger: true,
+  })
+  if (confirmed) {
     try {
       await emit('remove-user', email)
     } catch (err) {
