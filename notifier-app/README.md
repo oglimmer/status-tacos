@@ -7,7 +7,14 @@ Notification Center widget shows which monitors are up or down.
 
 - **Menu bar icon:** a bell. A crossed-out bell means a connection problem; the popover tells
   you what is wrong.
-- **Popover:** your account, the connection problem (if any), the settings, sign-out and quit.
+- **Popover:** the monitor list, with the filters of the web app: tenant, environment, status
+  (all, down, up, paused, with counts), name or URL search, sort, and the uptime time frame
+  (24h, 7d, 90d). The filters are saved. The list refreshes every 15 seconds while the popover is
+  open. The account menu has sign-out and quit. Signed out, the popover shows the sign-in and the
+  settings.
+- **Monitors window:** the same list in a normal, resizable window. Open it with the window
+  button in the popover or from the account menu. While it is open, the app has a Dock icon.
+  The window and the popover share the data and the saved filters.
 - **Notifications:** "Monitor Down" with the monitor, the tenant and the down time, for each
   monitor that goes down. Click it to open the monitors page of the web app. The app asks the
   server (`GET /api/v1/alerts`) every 5 seconds.
@@ -43,10 +50,14 @@ in the app settings. The redirect URI is fixed.
 
 ## Project
 
+`AppServices` makes the services once (settings, sign-in, API client, alerts, monitor store).
+The popover (`PopoverView`) and the window (`MonitorsWindow`) both show `MonitorsScreen`, which
+holds the shared `MonitorListView`. The monitor store refreshes only while one of them is on screen.
+
 | Folder | Contents |
 | --- | --- |
-| `StatusTacosAlert/` | The menu bar app: sign-in, Keychain, polling, notifications, settings |
+| `StatusTacosAlert/` | The menu bar app: sign-in, Keychain, polling, notifications, settings, the monitor list |
 | `StatusTacosAlertWidget/` | The WidgetKit widget |
-| `Shared/` | Code for both: the monitor snapshot and the date parsing of the backend |
+| `Shared/` | Code for both: the monitor snapshot, the date parsing of the backend and the brand colors |
 
 Bundle IDs: `de.oglimmer.statustacos.alert` and `de.oglimmer.statustacos.alert.widget`.

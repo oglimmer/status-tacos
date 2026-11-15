@@ -1,5 +1,5 @@
 //
-//  ContentView.swift
+//  SignInView.swift
 //  StatusTacosAlert
 //
 //  Created by Oliver Zimpasser on 6/26/25.
@@ -7,52 +7,26 @@
 
 import SwiftUI
 
-struct ContentView: View {
+/// The sign-in, or the connection settings. Tokens are bound to one server and one identity
+/// provider, so the connection can only change while signed out.
+struct SignInView: View {
     @ObservedObject var authService: AuthenticationService
-    @ObservedObject var alertsService: AlertsService
     @ObservedObject var settings: AppSettings
-    let onClose: () -> Void
 
     @State private var showsConnectionSettings = false
 
     var body: some View {
-        VStack {
-            HStack {
-                Spacer()
-                Button(action: onClose) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(PlainButtonStyle())
-                .padding(.trailing, 8)
-                .padding(.top, 8)
-            }
-
-            Spacer()
-
-            if authService.isAuthenticated {
-                UserInfoView(userInfo: authService.userInfo, connectionProblem: alertsService.connectionProblem, onLogout: {
-                    authService.logout()
-                })
-            } else if showsConnectionSettings {
-                // Tokens are bound to one server and one identity provider,
-                // so the connection can only change while signed out.
+        Group {
+            if showsConnectionSettings {
                 ConnectionSettingsView(settings: settings, onDone: { showsConnectionSettings = false })
             } else {
                 LoginView(authService: authService, settings: settings, onShowConnectionSettings: {
                     showsConnectionSettings = true
                 })
             }
-
-            Spacer()
-
-            Button("Quit Application") {
-                NSApplication.shared.terminate(nil)
-            }
-            .padding(.bottom, 20)
         }
-        .padding()
-        .frame(width: 400, height: 360)
+        .frame(maxWidth: 400, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -116,62 +90,6 @@ struct LoginView: View {
             }
             .buttonStyle(.link)
             .help("Change the server")
-        }
-        .padding()
-    }
-}
-
-struct UserInfoView: View {
-    let userInfo: UserInfo?
-    let connectionProblem: String?
-    let onLogout: () -> Void
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "person.crop.circle.fill")
-                .imageScale(.large)
-                .foregroundStyle(.green)
-                .font(.system(size: 48))
-
-            VStack(spacing: 8) {
-                if let name = userInfo?.name {
-                    Text(name)
-                        .font(.title2)
-                        .fontWeight(.semibold)
-                }
-
-                if let email = userInfo?.email {
-                    Text(email)
-                        .font(.body)
-                        .foregroundColor(.secondary)
-                }
-
-                if let username = userInfo?.preferredUsername {
-                    Text("@\(username)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-
-                if let subject = userInfo?.sub {
-                    Text("ID: \(subject)")
-                        .font(.caption2)
-//                        .foregroundColor(.tertiary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-            }
-
-            if let connectionProblem {
-                Label(connectionProblem, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundColor(.red)
-                    .multilineTextAlignment(.center)
-            }
-
-            Button("Sign Out") {
-                onLogout()
-            }
-            .buttonStyle(.bordered)
         }
         .padding()
     }
@@ -256,10 +174,6 @@ struct ConnectionSettingsView: View {
 }
 
 #Preview {
-    ContentView(
-        authService: AuthenticationService.shared,
-        alertsService: AlertsService(authService: AuthenticationService.shared, settings: AppSettings.shared),
-        settings: AppSettings.shared,
-        onClose: {}
-    )
+    SignInView(authService: AuthenticationService.shared, settings: AppSettings.shared)
+        .frame(width: 400, height: 360)
 }

@@ -22,16 +22,6 @@ struct AlertItem: Codable, Identifiable {
     }
 }
 
-enum AlertsError: LocalizedError {
-    case http(Int)
-
-    var errorDescription: String? {
-        switch self {
-        case .http(let status): return "The server answered with HTTP \(status)"
-        }
-    }
-}
-
 @MainActor
 class AlertsService: NSObject, ObservableObject, UNUserNotificationCenterDelegate {
     @Published var alerts: [AlertItem] = []
@@ -39,7 +29,7 @@ class AlertsService: NSObject, ObservableObject, UNUserNotificationCenterDelegat
     /// Set while polling fails, so a broken connection is visible and not silent.
     @Published var connectionProblem: String?
 
-    private let authService: AuthenticationService
+    private let api: APIClient
     private let settings: AppSettings
     private var pollingTimer: Timer?
     private var isFetching = false
@@ -47,8 +37,8 @@ class AlertsService: NSObject, ObservableObject, UNUserNotificationCenterDelegat
     private var previousDownAlerts: Set<String> = []
     private var lastSnapshot = MonitorSnapshot.load()
 
-    init(authService: AuthenticationService, settings: AppSettings) {
-        self.authService = authService
+    init(api: APIClient, settings: AppSettings) {
+        self.api = api
         self.settings = settings
         super.init()
         requestNotificationPermission()
@@ -95,7 +85,7 @@ class AlertsService: NSObject, ObservableObject, UNUserNotificationCenterDelegat
         defer { isFetching = false }
 
         do {
-            let data = try await authorizedGET(settings.apiBaseURL.appending(path: "alerts"))
+            let data = try await api.data("alerts")
             let fetchedAlerts = try JSONDecoder().decode([AlertItem].self, from: data)
             // Polling can stop while the request runs.
             guard isPolling else { return }
@@ -136,31 +126,6 @@ class AlertsService: NSObject, ObservableObject, UNUserNotificationCenterDelegat
         guard var snapshot = lastSnapshot else { return }
         snapshot.notice = .appNotRunning
         publishSnapshot(snapshot)
-    }
-
-    private func authorizedGET(_ url: URL) async throws -> Data {
-        var retried = false
-        while true {
-            let token = try await authService.validAccessToken(forceRefresh: retried)
-            var request = URLRequest(url: url)
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-            request.setValue("application/json", forHTTPHeaderField: "Accept")
-
-            let (data, response) = try await URLSession.shared.data(for: request)
-            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            switch status {
-            case 200..<300:
-                return data
-            case 401 where !retried:
-                // The token may have been revoked before it expired: refresh once and try again.
-                retried = true
-            case 401:
-                authService.endSession(message: AuthError.sessionExpired.errorDescription)
-                throw AuthError.sessionExpired
-            default:
-                throw AlertsError.http(status)
-            }
-        }
     }
 
     private func processAlerts(_ newAlerts: [AlertItem]) {
