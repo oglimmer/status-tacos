@@ -35,7 +35,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		C9FCDA192E0D75090067C768 /* StatusTacosAlert.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = StatusTacosAlert.app; path = "Status Tacos Alert.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		C9FCDA192E0D75090067C768 /* Status Tacos Alert.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Status Tacos Alert.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		C9FCDA402E0D75090067C768 /* StatusTacosAlertWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = StatusTacosAlertWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -101,7 +101,7 @@
 		C9FCDA1A2E0D75090067C768 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				C9FCDA192E0D75090067C768 /* StatusTacosAlert.app */,
+				C9FCDA192E0D75090067C768 /* Status Tacos Alert.app */,
 				C9FCDA402E0D75090067C768 /* StatusTacosAlertWidget.appex */,
 			);
 			name = Products;
@@ -132,7 +132,7 @@
 			packageProductDependencies = (
 			);
 			productName = StatusTacosAlert;
-			productReference = C9FCDA192E0D75090067C768 /* StatusTacosAlert.app */;
+			productReference = C9FCDA192E0D75090067C768 /* Status Tacos Alert.app */;
 			productType = "com.apple.product-type.application";
 		};
 		C9FCDA482E0D75090067C768 /* StatusTacosAlertWidget */ = {
@@ -360,7 +360,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = StatusTacosAlert/StatusTacosAlert.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = SBFZ9G94BG;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -400,7 +400,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = StatusTacosAlert/StatusTacosAlert.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = SBFZ9G94BG;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;

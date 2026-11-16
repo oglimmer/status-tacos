@@ -4,6 +4,7 @@
 //
 
 import AppKit
+import Combine
 import SwiftUI
 
 /// A normal, resizable window with the monitor list. While it is open the app has a Dock icon and
@@ -11,17 +12,21 @@ import SwiftUI
 @MainActor
 final class MonitorsWindowController: NSWindowController, NSWindowDelegate {
     private let monitorsStore: MonitorsStore
+    private var subtitleSubscription: AnyCancellable?
 
     init(services: AppServices) {
         monitorsStore = services.monitorsStore
 
         let hostingController = NSHostingController(rootView: MonitorsWindowView(services: services))
-        // The SwiftUI title, subtitle and toolbar go to the window.
-        hostingController.sceneBridgingOptions = [.title, .toolbars]
+        // Only the toolbar comes from SwiftUI. The SwiftUI title does not always reach
+        // the window (it then shows "Untitled"), so AppKit sets title and subtitle.
+        hostingController.sceneBridgingOptions = [.toolbars]
+        hostingController.title = "Monitors"
 
         let window = NSWindow(contentViewController: hostingController)
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.toolbarStyle = .unified
+        window.title = "Monitors"
         window.isReleasedWhenClosed = false
         window.setContentSize(NSSize(width: 560, height: 720))
         window.center()
@@ -30,6 +35,14 @@ final class MonitorsWindowController: NSWindowController, NSWindowDelegate {
 
         super.init(window: window)
         window.delegate = self
+
+        subtitleSubscription = monitorsStore.$lastUpdated
+            .receive(on: RunLoop.main)
+            .sink { [weak window] lastUpdated in
+                window?.subtitle = lastUpdated.map {
+                    "Updated \($0.formatted(.dateTime.hour().minute().second()))"
+                } ?? ""
+            }
     }
 
     @available(*, unavailable)
@@ -82,8 +95,6 @@ struct MonitorsWindowView: View {
         )
         .padding(12)
         .frame(minWidth: 420, minHeight: 400)
-        .navigationTitle("Monitors")
-        .navigationSubtitle(subtitle)
         .toolbar {
             if authService.isAuthenticated {
                 ToolbarItem(placement: .primaryAction) {
@@ -98,10 +109,5 @@ struct MonitorsWindowView: View {
                 }
             }
         }
-    }
-
-    private var subtitle: String {
-        guard let lastUpdated = monitorsStore.lastUpdated else { return "" }
-        return "Updated \(lastUpdated.formatted(.dateTime.hour().minute().second()))"
     }
 }
