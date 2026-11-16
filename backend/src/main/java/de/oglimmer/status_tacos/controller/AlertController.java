@@ -41,6 +41,7 @@ public class AlertController {
     String statusValue = status != null ? status.getCurrentStatus().name() : "unknown";
 
     return AlertResponseDto.builder()
+        .monitorId(monitor.getId())
         .monitorName(monitor.getName())
         .tenantName(monitor.getTenant().getName())
         .status(statusValue)
@@ -48,6 +49,8 @@ public class AlertController {
             status != null && status.getCurrentStatus() == MonitorStatus.StatusType.down
                 ? status.getLastDownAt()
                 : null)
+        .environment(monitor.getEnvironment())
+        .state(monitor.getState())
         .build();
   }
 }
