@@ -21,6 +21,15 @@ struct MonitorSnapshot: Codable, Equatable {
         let tenantName: String
         let status: Status
         let downSince: Date?
+        /// PROD, STAGE or DEV. Nil when not set. Optional, so old stored data still decodes.
+        var environment: String? = nil
+        /// INACTIVE: not checked. Nil in old stored data.
+        var isPaused: Bool? = nil
+        /// Uptime of the last 24 hours in percent. Nil when not loaded.
+        var uptime24h: Double? = nil
+
+        /// Down and checked. A paused monitor keeps its last status, so it does not count.
+        var isDown: Bool { status == .down && isPaused != true }
     }
 
     var monitors: [Monitor]

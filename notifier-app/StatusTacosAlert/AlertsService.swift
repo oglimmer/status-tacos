@@ -12,13 +12,19 @@ import WidgetKit
 
 struct AlertItem: Codable, Identifiable {
     let id = UUID()
+    /// Nil from older servers.
+    let monitorId: Int?
     let monitorName: String
     let tenantName: String
     let status: String
     let downtimeStart: String?
+    /// PROD, STAGE or DEV. Nil when not set, and from older servers.
+    let environment: String?
+    /// ACTIVE, SILENT or INACTIVE. Nil from older servers.
+    let state: String?
 
     enum CodingKeys: String, CodingKey {
-        case monitorName, tenantName, status, downtimeStart
+        case monitorId, monitorName, tenantName, status, downtimeStart, environment, state
     }
 }
 
@@ -36,6 +42,11 @@ class AlertsService: NSObject, ObservableObject, UNUserNotificationCenterDelegat
     private let notificationCenter = UNUserNotificationCenter.current()
     private var previousDownAlerts: Set<String> = []
     private var lastSnapshot = MonitorSnapshot.load()
+    /// 24h uptime by monitor ID, for the widget. Loaded less often than the alerts.
+    private var uptimes24h: [Int: Double] = [:]
+    private var uptimesLoadedAt: Date?
+    /// Each change reloads the widget, and macOS limits reloads. So the uptime is not loaded on each poll.
+    private static let uptimeRefreshInterval: TimeInterval = 15 * 60
 
     init(api: APIClient, settings: AppSettings) {
         self.api = api
@@ -74,6 +85,8 @@ class AlertsService: NSObject, ObservableObject, UNUserNotificationCenterDelegat
         pollingTimer = nil
         isPolling = false
         alerts.removeAll()
+        uptimes24h = [:]
+        uptimesLoadedAt = nil
         previousDownAlerts.removeAll()
         connectionProblem = nil
         publishSnapshot(MonitorSnapshot(monitors: [], notice: .signedOut))
@@ -91,7 +104,9 @@ class AlertsService: NSObject, ObservableObject, UNUserNotificationCenterDelegat
             guard isPolling else { return }
             connectionProblem = nil
             processAlerts(fetchedAlerts)
-            publishSnapshot(MonitorSnapshot(monitors: fetchedAlerts.map(Self.snapshotMonitor), notice: nil))
+            await refreshUptimesIfDue()
+            guard isPolling else { return }
+            publishSnapshot(MonitorSnapshot(monitors: fetchedAlerts.map(snapshotMonitor), notice: nil))
         } catch {
             guard isPolling else { return }
             print("❌ Failed to fetch alerts: \(error.localizedDescription)")
@@ -104,12 +119,23 @@ class AlertsService: NSObject, ObservableObject, UNUserNotificationCenterDelegat
 
     // MARK: - Widget
 
-    private static func snapshotMonitor(_ alert: AlertItem) -> MonitorSnapshot.Monitor {
+    /// An error keeps the old values: the widget then shows no uptime or an old one, never a wrong status.
+    private func refreshUptimesIfDue() async {
+        if let uptimesLoadedAt, Date.now.timeIntervalSince(uptimesLoadedAt) < Self.uptimeRefreshInterval { return }
+        uptimesLoadedAt = .now
+        guard let history = try? await api.responseTimeHistory24hOfAllMonitors() else { return }
+        uptimes24h = Dictionary(history.compactMap { item in item.uptimePercentage24h.map { (item.monitorId, $0) } }) { first, _ in first }
+    }
+
+    private func snapshotMonitor(_ alert: AlertItem) -> MonitorSnapshot.Monitor {
         MonitorSnapshot.Monitor(
             name: alert.monitorName,
             tenantName: alert.tenantName,
             status: MonitorSnapshot.Status(rawValue: alert.status) ?? .unknown,
-            downSince: alert.downtimeStart.flatMap(BackendDate.parse)
+            downSince: alert.downtimeStart.flatMap(BackendDate.parse),
+            environment: alert.environment,
+            isPaused: alert.state == "INACTIVE",
+            uptime24h: alert.monitorId.flatMap { uptimes24h[$0] }
         )
     }
 

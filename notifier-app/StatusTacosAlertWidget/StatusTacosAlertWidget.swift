@@ -9,21 +9,23 @@ import WidgetKit
 struct MonitorEntry: TimelineEntry {
     let date: Date
     let snapshot: MonitorSnapshot?
+    let configuration: MonitorWidgetIntent
 }
 
-struct MonitorProvider: TimelineProvider {
+struct MonitorProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> MonitorEntry {
-        MonitorEntry(date: .now, snapshot: .preview)
+        MonitorEntry(date: .now, snapshot: .preview, configuration: MonitorWidgetIntent())
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (MonitorEntry) -> Void) {
+    func snapshot(for configuration: MonitorWidgetIntent, in context: Context) async -> MonitorEntry {
         let snapshot = MonitorSnapshot.load() ?? (context.isPreview ? .preview : nil)
-        completion(MonitorEntry(date: .now, snapshot: snapshot))
+        return MonitorEntry(date: .now, snapshot: snapshot, configuration: configuration)
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<MonitorEntry>) -> Void) {
+    func timeline(for configuration: MonitorWidgetIntent, in context: Context) async -> Timeline<MonitorEntry> {
         // The app reloads the widget when a status changes, so the widget never polls.
-        completion(Timeline(entries: [MonitorEntry(date: .now, snapshot: MonitorSnapshot.load())], policy: .never))
+        Timeline(entries: [MonitorEntry(date: .now, snapshot: MonitorSnapshot.load(), configuration: configuration)],
+                 policy: .never)
     }
 }
 
@@ -33,8 +35,9 @@ struct MonitorWidgetEntryView: View {
     let entry: MonitorEntry
 
     var body: some View {
-        MonitorWidgetView(snapshot: entry.snapshot, family: family, isFullColor: renderingMode == .fullColor)
-            .containerBackground(Brand.paper, for: .widget)
+        MonitorWidgetView(snapshot: entry.snapshot, configuration: entry.configuration,
+                          family: family, isFullColor: renderingMode == .fullColor)
+            .containerBackground(.background, for: .widget)
             .widgetURL(MonitorSnapshot.openMonitorsURL)
     }
 }
@@ -42,11 +45,12 @@ struct MonitorWidgetEntryView: View {
 @main
 struct StatusTacosAlertWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: MonitorSnapshot.widgetKind, provider: MonitorProvider()) { entry in
+        AppIntentConfiguration(kind: MonitorSnapshot.widgetKind, intent: MonitorWidgetIntent.self,
+                               provider: MonitorProvider()) { entry in
             MonitorWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("Monitors")
-        .description("See at a glance which monitors are up or down.")
+        .description("See which monitors are up or down. Edit the widget to filter by tenant and environment.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
@@ -54,17 +58,18 @@ struct StatusTacosAlertWidget: Widget {
 extension MonitorSnapshot {
     static let preview = MonitorSnapshot(
         monitors: [
-            Monitor(name: "Website", tenantName: "Demo", status: .up, downSince: nil),
-            Monitor(name: "Checkout API", tenantName: "Demo", status: .down, downSince: .now.addingTimeInterval(-1_260)),
-            Monitor(name: "Database", tenantName: "Demo", status: .up, downSince: nil),
+            Monitor(name: "Website", tenantName: "Demo", status: .up, downSince: nil, environment: "PROD"),
+            Monitor(name: "Checkout API", tenantName: "Demo", status: .down,
+                    downSince: .now.addingTimeInterval(-1_260), environment: "PROD"),
+            Monitor(name: "Database", tenantName: "Demo", status: .up, downSince: nil, environment: "STAGE"),
             Monitor(name: "Status page", tenantName: "Demo", status: .up, downSince: nil)
         ],
         notice: nil
     )
 }
 
-#Preview(as: .systemSmall) {
+#Preview(as: .systemMedium) {
     StatusTacosAlertWidget()
 } timeline: {
-    MonitorEntry(date: .now, snapshot: .preview)
+    MonitorEntry(date: .now, snapshot: .preview, configuration: MonitorWidgetIntent())
 }
