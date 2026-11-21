@@ -105,6 +105,14 @@ struct DowntimeTimelineTests {
         #expect(marks([oneMinute, almost]).map(\.isShort) == [true, false])
     }
 
+    @MainActor @Test func outageRowsUseTheColorOfTheirMark() {
+        #expect(DowntimeTimeline.isShort(59.9))
+        #expect(!DowntimeTimeline.isShort(60))
+        #expect(DowntimeBar.color(forDuration: 30) == DowntimeBar.shortOutageColor)
+        #expect(DowntimeBar.color(forDuration: 60) == Brand.down)
+        #expect(DowntimeBar.color(forDuration: 600) == DowntimeBar.color(isShort: false))
+    }
+
     @Test func shortMarksComeFirstSoRedIsDrawnOnTop() {
         let long = DownPeriod(start: at(1), end: at(1, 10))
         let short = DownPeriod(start: at(1, 30), end: at(1, 30).addingTimeInterval(20))
@@ -198,5 +206,156 @@ struct StatusMessageTests {
         #expect(status(.up, lastDownAt: now.addingTimeInterval(-4 * 86_400 - 100)).upMessage(now: now) == "Up for 4 days")
         #expect(status(.up, lastDownAt: now.addingTimeInterval(-86_400)).upMessage(now: now) == "Up for 1 day")
         #expect(status(.up).upMessage(now: now) == "No downtime recorded")
+    }
+}
+
+struct DateFormatsTests {
+    private static let utc = TimeZone(identifier: "UTC") ?? .gmt
+    private static let gregorian: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = utc
+        return calendar
+    }()
+    private static let us = Locale(identifier: "en_US")
+    private static let de = Locale(identifier: "de_DE")
+    /// Thursday, 2026-12-31 14:05:09 UTC.
+    private static let date = Date(timeIntervalSince1970: 1_798_725_909)
+    /// Monday, 2026-01-05 03:07:00 UTC: needs zero padding.
+    private static let earlyDate = Date(timeIntervalSince1970: 1_767_582_420)
+
+    /// ICU puts narrow or no-break spaces before AM/PM.
+    private func plain(_ text: String) -> String {
+        text.replacingOccurrences(of: "\u{202F}", with: " ").replacingOccurrences(of: "\u{00A0}", with: " ")
+    }
+
+    private func systemStyle(_ locale: Locale) -> Date.FormatStyle {
+        Date.FormatStyle(locale: locale, calendar: Self.gregorian, timeZone: Self.utc)
+    }
+
+    private func formats(_ date: DateFormatChoice, _ time: TimeFormatChoice) -> DateFormats {
+        DateFormats(date: date, time: time)
+    }
+
+    @Test func fixtureDatesAreRight() {
+        #expect(Self.gregorian.dateComponents([.year, .month, .day, .hour, .minute, .second, .weekday], from: Self.date)
+            == DateComponents(year: 2026, month: 12, day: 31, hour: 14, minute: 5, second: 9, weekday: 5))
+        #expect(Self.gregorian.dateComponents([.year, .month, .day, .hour, .minute], from: Self.earlyDate)
+            == DateComponents(year: 2026, month: 1, day: 5, hour: 3, minute: 7))
+    }
+
+    @Test(arguments: [Locale(identifier: "en_US"), Locale(identifier: "de_DE")])
+    func systemIsTheSameAsBefore(_ locale: Locale) {
+        let system = DateFormats()
+        let style = systemStyle(locale)
+        let (tz, cal, date) = (Self.utc, Self.gregorian, Self.date)
+        #expect(system.timeWithSeconds(date, locale: locale, timeZone: tz, calendar: cal)
+            == style.hour().minute().second().format(date))
+        #expect(system.windowEdge(date, locale: locale, timeZone: tz, calendar: cal)
+            == style.day().month().hour().minute().format(date))
+        #expect(system.outageStart(date, locale: locale, timeZone: tz, calendar: cal)
+            == style.weekday().day().month().hour().minute().format(date))
+        #expect(system.chartLabel(date, hourly: true, locale: locale, timeZone: tz, calendar: cal)
+            == style.hour().format(date))
+        #expect(system.chartLabel(date, hourly: false, locale: locale, timeZone: tz, calendar: cal)
+            == style.day().month(.abbreviated).format(date))
+    }
+
+    @Test(arguments: [
+        (DateFormatChoice.dmyDots, "31.12.2026", "31.12.", "05.01.2026"),
+        (.dmySlashes, "31/12/2026", "31/12", "05/01/2026"),
+        (.mdySlashes, "12/31/2026", "12/31", "01/05/2026"),
+        (.iso, "2026-12-31", "12-31", "2026-01-05"),
+    ])
+    func fixedDateChoices(_ choice: DateFormatChoice, _ full: String, _ short: String, _ early: String) {
+        for locale in [Self.us, Self.de] {
+            let formats = formats(choice, .h24)
+            let (tz, cal) = (Self.utc, Self.gregorian)
+            #expect(formats.outageStart(Self.date, locale: locale, timeZone: tz, calendar: cal) == "\(full) 14:05")
+            #expect(formats.outageStart(Self.earlyDate, locale: locale, timeZone: tz, calendar: cal) == "\(early) 03:07")
+            #expect(formats.windowEdge(Self.date, locale: locale, timeZone: tz, calendar: cal) == "\(full) 14:05")
+            #expect(formats.windowEdge(Self.earlyDate, locale: locale, timeZone: tz, calendar: cal) == "\(early) 03:07")
+            #expect(formats.chartLabel(Self.date, hourly: false, locale: locale, timeZone: tz, calendar: cal) == short)
+        }
+    }
+
+    @Test func outageStartHasNoWeekdayWithAFixedDate() {
+        let (tz, cal) = (Self.utc, Self.gregorian)
+        #expect(formats(.dmyDots, .h24).outageStart(Self.date, locale: Self.us, timeZone: tz, calendar: cal)
+            == "31.12.2026 14:05")
+        #expect(formats(.iso, .h24).outageStart(Self.date, locale: Self.de, timeZone: tz, calendar: cal)
+            == "2026-12-31 14:05")
+        #expect(plain(formats(.mdySlashes, .h12).outageStart(Self.date, locale: Self.us, timeZone: tz, calendar: cal))
+            == "12/31/2026 2:05 PM")
+    }
+
+    @Test func timeChoices() {
+        let (tz, cal) = (Self.utc, Self.gregorian)
+        // 24-hour in a 12-hour locale, 12-hour in a 24-hour locale.
+        #expect(formats(.system, .h24).timeWithSeconds(Self.date, locale: Self.us, timeZone: tz, calendar: cal) == "14:05:09")
+        #expect(plain(formats(.system, .h12).timeWithSeconds(Self.date, locale: Self.de, timeZone: tz, calendar: cal))
+            == "2:05:09 PM")
+        #expect(formats(.system, .system).timeWithSeconds(Self.date, locale: Self.de, timeZone: tz, calendar: cal) == "14:05:09")
+        #expect(plain(formats(.system, .system).timeWithSeconds(Self.date, locale: Self.us, timeZone: tz, calendar: cal))
+            == "2:05:09 PM")
+        #expect(formats(.dmyDots, .h24).timeWithSeconds(Self.earlyDate, locale: Self.us, timeZone: tz, calendar: cal) == "03:07:00")
+        #expect(plain(formats(.dmyDots, .h12).windowEdge(Self.earlyDate, locale: Self.de, timeZone: tz, calendar: cal))
+            == "05.01.2026 3:07 AM")
+    }
+
+    @Test func timeChoiceAppliesWithTheSystemDate() {
+        let (tz, cal) = (Self.utc, Self.gregorian)
+        let us24 = formats(.system, .h24).windowEdge(Self.date, locale: Self.us, timeZone: tz, calendar: cal)
+        #expect(us24.contains("14:05") && !us24.contains("PM") && us24.contains("Dec"))
+        let de12 = plain(formats(.system, .h12).outageStart(Self.date, locale: Self.de, timeZone: tz, calendar: cal))
+        #expect(de12.contains("2:05 PM") && de12.contains("Dez"))
+    }
+
+    @Test func dateChoiceAppliesWithTheSystemTime() {
+        let (tz, cal) = (Self.utc, Self.gregorian)
+        #expect(formats(.dmySlashes, .system).windowEdge(Self.date, locale: Self.de, timeZone: tz, calendar: cal)
+            == "31/12/2026 14:05")
+        #expect(plain(formats(.iso, .system).outageStart(Self.date, locale: Self.us, timeZone: tz, calendar: cal))
+            == "2026-12-31 2:05 PM")
+    }
+
+    @Test func chartHoursFollowTheTimeChoice() {
+        let (tz, cal) = (Self.utc, Self.gregorian)
+        #expect(formats(.system, .h24).chartLabel(Self.date, hourly: true, locale: Self.us, timeZone: tz, calendar: cal) == "14")
+        #expect(plain(formats(.system, .h12).chartLabel(Self.date, hourly: true, locale: Self.de, timeZone: tz, calendar: cal))
+            == "2 PM")
+    }
+
+    @MainActor
+    @Test func settingsAreStoredWithSystemAsDefault() throws {
+        let suite = "test.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let settings = AppSettings(defaults: defaults)
+        #expect(settings.dateFormats == DateFormats(date: .system, time: .system))
+
+        settings.dateFormat = .iso
+        settings.timeFormat = .h12
+        #expect(defaults.string(forKey: "settings.dateFormat") == "iso")
+        #expect(defaults.string(forKey: "settings.timeFormat") == "h12")
+        let reloaded = AppSettings(defaults: defaults)
+        #expect(reloaded.dateFormats == DateFormats(date: .iso, time: .h12))
+
+        // Connection reset keeps the formats.
+        reloaded.resetToDefaults()
+        #expect(AppSettings(defaults: defaults).dateFormat == .iso)
+    }
+
+    @MainActor
+    @Test func invalidStoredFormatsFallBackToSystem() throws {
+        let suite = "test.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        defaults.set("dd.MM.yyyy", forKey: "settings.dateFormat")
+        defaults.set(24, forKey: "settings.timeFormat")
+        let settings = AppSettings(defaults: defaults)
+        #expect(settings.dateFormat == .system)
+        #expect(settings.timeFormat == .system)
     }
 }

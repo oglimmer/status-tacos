@@ -11,10 +11,10 @@ struct MonitorDetailView: View {
     @AppStorage("monitorDetail.timeframe") private var timeframe: Timeframe = .day
     @Environment(\.scenePhase) private var scenePhase
     @Environment(PushStore.self) private var push
+    @Environment(AppSettings.self) private var settings
 
     private static let refreshInterval: Duration = .seconds(60)
     private static let maxOutages = 20
-    private static let windowFormat = Date.FormatStyle.dateTime.day().month().hour().minute()
 
     init(monitorID: Int, monitors: MonitorsStore, api: APIClient) {
         self.monitorID = monitorID
@@ -377,7 +377,7 @@ struct MonitorDetailView: View {
         } header: {
             Text("Outages")
         } footer: {
-            Text("\(snapshot.start, format: Self.windowFormat) – \(snapshot.end, format: Self.windowFormat)")
+            Text("\(settings.dateFormats.windowEdge(snapshot.start)) – \(settings.dateFormats.windowEdge(snapshot.end))")
         }
     }
 
@@ -397,7 +397,7 @@ struct MonitorDetailView: View {
                     .foregroundStyle(.secondary)
                 Text(Format.uptime(snapshot.uptimePercentage))
                     .font(.system(size: uptimeSize, weight: .medium).monospacedDigit())
-                    .foregroundStyle(health == .down ? Brand.down : UptimeLevel(snapshot.uptimePercentage).color)
+                    .foregroundStyle(uptimeColor(snapshot.uptimePercentage))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }
@@ -408,6 +408,16 @@ struct MonitorDetailView: View {
         }
         .padding(.vertical, 2)
         .accessibilityElement(children: .combine)
+    }
+
+    /// Red when the monitor is down. A green (good) uptime shows in the accent color; the other
+    /// levels keep their own color.
+    private func uptimeColor(_ percentage: Double?) -> Color {
+        if health == .down { return Brand.down }
+        switch UptimeLevel(percentage) {
+        case .excellent, .good: return settings.accentColor
+        case let level: return level.color
+        }
     }
 
     private func responseTimeGrid(_ times: PeriodSnapshot.ResponseTimeSummary) -> some View {
@@ -437,11 +447,12 @@ struct MonitorDetailView: View {
 private struct OutageRow: View {
     let outage: DownPeriod
     let isOngoing: Bool
+    @Environment(AppSettings.self) private var settings
 
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(outage.start, format: .dateTime.weekday().day().month().hour().minute())
+                Text(settings.dateFormats.outageStart(outage.start))
                     .foregroundStyle(.primary)
                 if isOngoing {
                     Text("Ongoing")
@@ -452,7 +463,7 @@ private struct OutageRow: View {
             Spacer()
             Text(Format.durationWords(outage.duration))
                 .monospacedDigit()
-                .foregroundStyle(Brand.down)
+                .foregroundStyle(DowntimeBar.color(forDuration: outage.duration))
         }
         .accessibilityElement(children: .combine)
     }

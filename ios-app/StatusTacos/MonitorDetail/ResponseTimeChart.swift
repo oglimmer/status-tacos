@@ -6,6 +6,7 @@ import UIKit
 /// height are downtime; short ones are widened so they stay visible.
 struct ResponseTimeChart: View {
     let snapshot: PeriodSnapshot
+    @Environment(AppSettings.self) private var settings
 
     private struct Point: Identifiable {
         let date: Date
@@ -25,14 +26,13 @@ struct ResponseTimeChart: View {
     }
 
     /// Hours for 24 hours, days for longer windows. The default labels are too long.
-    private var xLabelFormat: Date.FormatStyle {
+    private var hourlyLabels: Bool {
         snapshot.end.timeIntervalSince(snapshot.start) <= 36 * 60 * 60
-            ? .dateTime.hour()
-            : .dateTime.day().month(.abbreviated)
     }
 
     var body: some View {
         let points = points
+        let dateFormats = settings.dateFormats
         let outages = DetailPresentation.chartBands(
             periods: snapshot.downPeriods, start: snapshot.start, end: snapshot.end)
 
@@ -68,10 +68,14 @@ struct ResponseTimeChart: View {
             }
             .chartXScale(domain: snapshot.start...snapshot.end)
             .chartXAxis {
-                AxisMarks(values: .automatic(desiredCount: 4)) { _ in
+                AxisMarks(values: .automatic(desiredCount: 4)) { value in
                     AxisGridLine()
                     AxisTick()
-                    AxisValueLabel(format: xLabelFormat)
+                    AxisValueLabel {
+                        if let date = value.as(Date.self) {
+                            Text(dateFormats.chartLabel(date, hourly: hourlyLabels))
+                        }
+                    }
                 }
             }
             .chartYAxis {

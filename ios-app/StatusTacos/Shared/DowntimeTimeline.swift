@@ -16,6 +16,11 @@ enum DowntimeTimeline {
     /// Marks are at least this wide, so a one-minute outage on a 7-day bar is still visible.
     static let minimumMarkWidth: CGFloat = 3
 
+    /// True when an outage of this length is short (yellow). Bar marks and outage rows both use it.
+    static func isShort(_ duration: TimeInterval) -> Bool {
+        duration < shortOutage
+    }
+
     /// Start of the checked part of [start, end). Before it the bar shows no data.
     /// - Returns: nil when there are no checks. An older server sends no first check: then the
     ///   whole window counts as checked.
@@ -37,7 +42,7 @@ enum DowntimeTimeline {
             let duration = periodEnd.timeIntervalSince(periodStart)
             let markWidth = min(width, max(minimumWidth, width * CGFloat(duration) / CGFloat(total)))
             let x = width * CGFloat(periodStart.timeIntervalSince(start)) / CGFloat(total)
-            return Mark(x: max(0, min(x, width - markWidth)), width: markWidth, isShort: duration < shortOutage)
+            return Mark(x: max(0, min(x, width - markWidth)), width: markWidth, isShort: isShort(duration))
         }
         return marks.filter(\.isShort) + marks.filter { !$0.isShort }
     }
@@ -81,6 +86,16 @@ struct DowntimeBar: View {
     static let unchecked = Color(light: 0xF0F0F3, dark: 0x2C2C2E)
     static let shortOutageColor = Brand.masa
 
+    /// Color of a short or long outage mark.
+    static func color(isShort: Bool) -> Color {
+        isShort ? shortOutageColor : Brand.down
+    }
+
+    /// Color of an outage of this length, the same as its mark on the bar.
+    static func color(forDuration duration: TimeInterval) -> Color {
+        color(isShort: DowntimeTimeline.isShort(duration))
+    }
+
     var body: some View {
         Canvas { context, size in
             context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Self.unchecked))
@@ -94,7 +109,7 @@ struct DowntimeBar: View {
             for mark in DowntimeTimeline.marks(periods: periods, start: start, end: end, width: size.width) {
                 context.fill(
                     Path(CGRect(x: mark.x, y: 0, width: mark.width, height: size.height)),
-                    with: .color(mark.isShort ? Self.shortOutageColor : Brand.down))
+                    with: .color(Self.color(isShort: mark.isShort)))
             }
         }
         .frame(height: height)

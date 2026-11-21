@@ -8,7 +8,7 @@ struct MonitorListView: View {
     @State private var stateChangeError: String?
     /// 0 means all tenants.
     @AppStorage("monitorList.tenantFilter") private var tenantFilter = 0
-    @AppStorage("monitorList.sort") private var sort = MonitorSort.status
+    @AppStorage("monitorList.sort") private var sort = MonitorSort.name
     @AppStorage("monitorList.sortAscending") private var sortAscending = true
     /// Time frame of the uptime and the downtime bar of each row.
     @AppStorage("monitorList.timeframe") private var timeframe = Timeframe.week
@@ -17,6 +17,8 @@ struct MonitorListView: View {
     @Environment(AppSettings.self) private var settings
 
     private static let refreshInterval: Duration = .seconds(30)
+    /// The gap between the health groups.
+    private static let groupSpacing: CGFloat = 12
 
     init(api: APIClient) {
         _store = State(initialValue: MonitorsStore(api: api))
@@ -24,29 +26,21 @@ struct MonitorListView: View {
 
     var body: some View {
         List {
-            // A header without rows: it sits closer to the toolbar than a first row.
+            // A header without rows: it sits closer to the toolbar than a first row, and its menus
+            // are outside of the row tap handling.
             Section {
             } header: {
-                titleRow
-                    .textCase(nil)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4))
-            }
-            .listSectionSpacing(0)
-
-            if !store.tenants.isEmpty {
-                Section {
-                    tenantPicker
+                VStack(spacing: 0) {
+                    titleRow
+                        .padding(.horizontal, 4)
+                    if !store.tenants.isEmpty || !store.monitors.isEmpty {
+                        filterRow
+                    }
                 }
-                .listSectionSpacing(12)
-            }
-
-            if !store.monitors.isEmpty {
-                Section {
-                    SummaryHeader(monitors: filteredByTenant, timeframe: $timeframe, accent: settings.accentColor)
-                }
+                .textCase(nil)
                 .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
             }
+            .listSectionSpacing(Self.groupSpacing)
 
             if let error = store.errorMessage, !store.monitors.isEmpty {
                 Section {
@@ -56,10 +50,9 @@ struct MonitorListView: View {
                 }
             }
 
-            ForEach(MonitorListSection.sections(
-                visibleMonitors, sort: sort, ascending: sortAscending, tenantName: selectedTenant?.name)
-            ) { section in
+            ForEach(MonitorListSection.sections(visibleMonitors, sort: sort, ascending: sortAscending)) { section in
                 monitorSection(section)
+                    .listSectionSpacing(Self.groupSpacing)
             }
         }
         .listStyle(.insetGrouped)
@@ -136,7 +129,7 @@ struct MonitorListView: View {
                 .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 0)
             if let lastUpdated = store.lastUpdated {
-                Text("Updated \(lastUpdated, format: .dateTime.hour().minute().second())")
+                Text("Updated \(settings.dateFormats.timeWithSeconds(lastUpdated))")
                     .font(.subheadline.monospacedDigit())
                     .foregroundStyle(Color(.secondaryLabel))
                     .lineLimit(1)
@@ -177,8 +170,6 @@ struct MonitorListView: View {
                 .swipeActions(edge: .trailing) { swipeActions(for: monitor) }
                 .contextMenu { stateMenu(for: monitor) }
             }
-        } header: {
-            Text(section.title)
         }
     }
 
@@ -251,11 +242,25 @@ struct MonitorListView: View {
         }
     }
 
-    // MARK: - Tenants
+    // MARK: - Tenant and time frame
 
-    /// A menu with its own label, so a long tenant name stays on one line and truncates
-    /// instead of wrapping and squeezing the "Tenant" title.
-    private var tenantPicker: some View {
+    /// The tenant menu on the left, the time frame on the right.
+    private var filterRow: some View {
+        HStack(spacing: 8) {
+            if store.tenants.isEmpty {
+                Spacer(minLength: 0)
+            } else {
+                tenantMenu
+            }
+            if !store.monitors.isEmpty {
+                timeframeMenu
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// Only the tenant name: a long name stays on one line and truncates.
+    private var tenantMenu: some View {
         Menu {
             Picker("Tenant", selection: $tenantFilter) {
                 Text("All tenants").tag(0)
@@ -264,21 +269,47 @@ struct MonitorListView: View {
                 }
             }
         } label: {
-            HStack(spacing: 8) {
-                Label("Tenant", systemImage: "building.2")
-                    .layoutPriority(1)
-                Spacer(minLength: 12)
+            HStack(spacing: 6) {
                 Text(selectedTenant?.name ?? "All tenants")
+                    .font(.body)
                     .lineLimit(1)
                     .truncationMode(.tail)
+                Spacer(minLength: 0)
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.footnote.weight(.semibold))
             }
-            .foregroundStyle(settings.accentColor)
+            .menuTile(accent: settings.accentColor)
         }
         .tint(settings.accentColor)
         .accessibilityLabel("Tenant")
         .accessibilityValue(selectedTenant?.name ?? "All tenants")
+    }
+
+    /// "7d" with a menu of the three time frames. Its width is that of the longest value, so the
+    /// row does not move when the value changes.
+    private var timeframeMenu: some View {
+        Menu {
+            Picker("Uptime of the last", selection: $timeframe) {
+                ForEach(Timeframe.allCases) { Text($0.title).tag($0) }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                ZStack(alignment: .leading) {
+                    ForEach(Timeframe.allCases) { option in
+                        Text(option.rawValue).opacity(option == timeframe ? 1 : 0)
+                    }
+                }
+                .font(.subheadline.weight(.semibold).monospacedDigit())
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption2.weight(.semibold))
+            }
+            .lineLimit(1)
+            .fixedSize()
+            .menuTile(accent: settings.accentColor)
+        }
+        .tint(settings.accentColor)
+        .accessibilityLabel("Time frame")
+        .accessibilityValue(timeframe.title)
     }
 
     private var selectedTenant: Tenant? {
@@ -314,149 +345,31 @@ struct MonitorListView: View {
     }
 }
 
-/// Counts per health, with the most important first, then the time frame of the rows.
-/// Number and word on one line when all tiles fit, else the word goes under the number.
-private struct SummaryHeader: View {
-    let monitors: [MonitorSummary]
-    @Binding var timeframe: Timeframe
-    let accent: Color
-
-    var body: some View {
-        ViewThatFits(in: .horizontal) {
-            row(stacked: false)
-            row(stacked: true)
-        }
-    }
-
-    private func row(stacked: Bool) -> some View {
-        HStack(spacing: 8) {
-            tile(.down, stacked: stacked)
-            tile(.up, stacked: stacked)
-            tile(.paused, stacked: stacked)
-            timeframeMenu
-        }
-        // All tiles get the height of the tallest.
-        .fixedSize(horizontal: false, vertical: true)
-    }
-
-    private func tile(_ health: MonitorHealth, stacked: Bool) -> some View {
-        let count = monitors.filter { $0.health == health }.count
-        let style = MonitorCounterStyle(health: health, count: count)
-        let layout = stacked
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 0))
-            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 6))
-        return layout {
-            number(count, style)
-            word(health, style)
-        }
-        .lineLimit(1)
-        // The text keeps its width, so `ViewThatFits` sees when the row is too narrow.
-        .fixedSize(horizontal: true, vertical: false)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 18))
-        .accessibilityElement(children: .combine)
-    }
-
-    /// "7d" with a menu of the three time frames. Its width is that of the longest value, so the
-    /// row does not move when the value changes.
-    private var timeframeMenu: some View {
-        Menu {
-            Picker("Uptime of the last", selection: $timeframe) {
-                ForEach(Timeframe.allCases) { Text($0.title).tag($0) }
-            }
-        } label: {
-            HStack(spacing: 4) {
-                ZStack(alignment: .leading) {
-                    ForEach(Timeframe.allCases) { option in
-                        Text(option.rawValue).opacity(option == timeframe ? 1 : 0)
-                    }
-                }
-                .font(.subheadline.weight(.semibold).monospacedDigit())
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.caption2.weight(.semibold))
-            }
-            .lineLimit(1)
-            .fixedSize()
-            .foregroundStyle(accent)
-            .padding(.horizontal, 12)
-            .frame(minHeight: 44, maxHeight: .infinity)
+private extension View {
+    /// A rounded tile of the menu row, at least 44 pt high.
+    func menuTile(accent: Color) -> some View {
+        foregroundStyle(accent)
+            .padding(.horizontal, 14)
+            .frame(minHeight: 44)
             .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 18))
             .contentShape(.rect(cornerRadius: 18))
-        }
-        .accessibilityLabel("Time frame")
-        .accessibilityValue(timeframe.title)
-    }
-
-    private func number(_ count: Int, _ style: MonitorCounterStyle) -> some View {
-        Text("\(count)")
-            .font(.title.weight(.medium).monospacedDigit())
-            .foregroundStyle(style.numberColor)
-    }
-
-    private func word(_ health: MonitorHealth, _ style: MonitorCounterStyle) -> some View {
-        Text(health.title)
-            .font(.subheadline)
-            .foregroundStyle(style.wordColor)
     }
 }
 
-/// Colors of a counter tile: only the down count is red, and only when there is one.
-struct MonitorCounterStyle {
-    enum Tone: Equatable { case down, up, neutral }
-
-    let number: Tone
-    let word: Tone
-
-    init(health: MonitorHealth, count: Int) {
-        switch health {
-        case .down where count > 0:
-            number = .down
-            word = .down
-        case .up:
-            number = .up
-            word = .neutral
-        default:
-            number = .neutral
-            word = .neutral
-        }
-    }
-
-    var numberColor: AnyShapeStyle { Self.style(number) }
-    var wordColor: AnyShapeStyle { Self.style(word) }
-
-    private static func style(_ tone: Tone) -> AnyShapeStyle {
-        switch tone {
-        case .down: AnyShapeStyle(Brand.down)
-        case .up: AnyShapeStyle(Brand.up)
-        case .neutral: AnyShapeStyle(.secondary)
-        }
-    }
-}
-
-/// One group of the monitor list.
+/// One health group of the monitor list. It has no title: the row icons show the health.
 struct MonitorListSection: Identifiable {
-    let id: String
-    let title: String
+    let health: MonitorHealth
     let monitors: [MonitorSummary]
 
-    /// The status sort groups by health: down, no data, up, paused (reversed when descending). With
-    /// a tenant filter the up group carries the tenant name. Other sorts: one group with all monitors.
-    static func sections(
-        _ monitors: [MonitorSummary], sort: MonitorSort, ascending: Bool, tenantName: String?
-    ) -> [MonitorListSection] {
+    var id: MonitorHealth { health }
+
+    /// Groups by health in the fixed order down, no data, paused, up, whatever the sort. The sort
+    /// orders the rows inside each group. Empty groups are left out.
+    static func sections(_ monitors: [MonitorSummary], sort: MonitorSort, ascending: Bool) -> [MonitorListSection] {
         let sorted = monitors.sorted(by: sort, ascending: ascending)
-        guard sort == .status else {
-            return sorted.isEmpty ? [] : [MonitorListSection(
-                id: "all", title: "All monitors (\(sorted.count))", monitors: sorted)]
-        }
-        let healths = ascending ? MonitorHealth.allCases : MonitorHealth.allCases.reversed()
-        return healths.compactMap { health in
+        return MonitorHealth.allCases.compactMap { health in
             let rows = sorted.filter { $0.health == health }
-            guard !rows.isEmpty else { return nil }
-            let name = health == .up ? (tenantName ?? health.title) : health.title
-            return MonitorListSection(id: "\(health)", title: "\(name) (\(rows.count))", monitors: rows)
+            return rows.isEmpty ? nil : MonitorListSection(health: health, monitors: rows)
         }
     }
 }

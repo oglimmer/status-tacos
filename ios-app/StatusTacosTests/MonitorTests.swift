@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Testing
 @testable import StatusTacos
 
@@ -14,12 +15,18 @@ private func status(_ id: Int, _ type: StatusType, lastDownAt: Date? = nil) -> M
                      lastDownAt: lastDownAt, consecutiveFailures: nil, lastResponseTimeMs: 100, lastStatusCode: 200)
 }
 
-private func stats(_ id: Int, uptime: Double?) -> MonitorUptime {
+private func stats(_ id: Int, uptime: Double?, down: [DownPeriod]? = nil) -> MonitorUptime {
     MonitorUptime(stats: UptimeStatsDTO(monitorId: id, periodType: .sevenDays,
                    periodStart: Date(timeIntervalSince1970: 0), periodEnd: Date(timeIntervalSince1970: 7 * 86_400),
                    intervalMinutes: 60, totalChecks: 10, successfulChecks: 9, uptimePercentage: uptime,
                    minResponseTimeMs: nil, maxResponseTimeMs: nil, avgResponseTimeMs: nil, p99ResponseTimeMs: nil,
-                   responseTimeDataPoints: nil, statusDownPeriods: nil))
+                   responseTimeDataPoints: nil, statusDownPeriods: down))
+}
+
+/// A down period of `minutes`, starting `hours` after the start of the week window.
+private func down(hours: Double, minutes: Double) -> DownPeriod {
+    let start = Date(timeIntervalSince1970: hours * 3600)
+    return DownPeriod(start: start, end: start.addingTimeInterval(minutes * 60))
 }
 
 struct MonitorSummaryTests {
@@ -49,7 +56,7 @@ struct MonitorSummaryTests {
         #expect(health == ["Down": .down, "Up": .up, "New": .pending, "Off": .paused, "Quiet": .down])
     }
 
-    @Test func sortsByHealthThenByName() {
+    @Test func mergeSortsByHealthThenByName() {
         let merged = MonitorSummary.merge(
             monitors: [
                 monitor(1, "b up"), monitor(2, "a paused", state: .inactive), monitor(3, "Z down"),
@@ -60,7 +67,7 @@ struct MonitorSummaryTests {
                        status(7, .up), status(8, .up)],
             uptimes: [])
         #expect(merged.map(\.name) == [
-            "a down", "Z down", "pending", "A up", "b up", "item 9", "item 10", "a paused",
+            "a down", "Z down", "pending", "a paused", "A up", "b up", "item 9", "item 10",
         ])
     }
 
@@ -108,17 +115,45 @@ struct MonitorSummaryTests {
         #expect(merged.sorted(by: .created, ascending: false).map(\.name) == ["Last", "Middle", "First", "Older server"])
     }
 
-    @Test func sortsByStatusInBothDirections() {
+    @Test func sortsByTotalDowntimeWithoutDataLast() {
         let merged = MonitorSummary.merge(
-            monitors: [monitor(1, "Up"), monitor(2, "Paused", state: .inactive), monitor(3, "Down"),
-                       monitor(4, "Pending")],
-            statuses: [status(1, .up), status(3, .down)],
-            uptimes: [])
-        #expect(merged.sorted(by: .status, ascending: true).map(\.name) == ["Down", "Pending", "Up", "Paused"])
-        #expect(merged.sorted(by: .status, ascending: false).map(\.name) == ["Paused", "Up", "Pending", "Down"])
+            monitors: [monitor(1, "Long"), monitor(2, "None"), monitor(3, "Short"), monitor(4, "No data"),
+                       monitor(5, "Two")],
+            statuses: [],
+            uptimes: [stats(1, uptime: 90, down: [down(hours: 1, minutes: 90)]),
+                      stats(2, uptime: 100),
+                      stats(3, uptime: 99, down: [down(hours: 1, minutes: 5)]),
+                      stats(5, uptime: 98, down: [down(hours: 1, minutes: 10), down(hours: 5, minutes: 10)])])
+        #expect(merged.first { $0.id == 5 }?.totalDowntime == TimeInterval(20 * 60))
+        #expect(merged.first { $0.id == 4 }?.totalDowntime == nil)
+        #expect(merged.sorted(by: .totalDowntime, ascending: false).map(\.name)
+            == ["Long", "Two", "Short", "None", "No data"])
+        #expect(merged.sorted(by: .totalDowntime, ascending: true).map(\.name)
+            == ["None", "Short", "Two", "Long", "No data"])
     }
 
-    @Test func statusSortGroupsByEnvironmentInsideAHealth() {
+    @Test func totalDowntimeCountsOnlyTheWindow() {
+        // The window is the first 7 days; this period starts 30 minutes before its end.
+        let summary = MonitorSummary.merge(
+            monitors: [monitor(1, "A")], statuses: [],
+            uptimes: [stats(1, uptime: 99, down: [down(hours: 7 * 24 - 0.5, minutes: 120)])])[0]
+        #expect(summary.totalDowntime == TimeInterval(30 * 60))
+    }
+
+    @Test func noStatusSort() {
+        #expect(MonitorSort(rawValue: "status") == nil)
+        #expect(MonitorSort.allCases == [.name, .lastDown, .totalDowntime, .tenant, .created])
+    }
+
+    @Test func storedStatusSortFallsBackToName() throws {
+        let defaults = try #require(UserDefaults(suiteName: "MonitorSortTests"))
+        defer { defaults.removePersistentDomain(forName: "MonitorSortTests") }
+        defaults.set("status", forKey: "monitorList.sort")
+        let sort = AppStorage(wrappedValue: MonitorSort.name, "monitorList.sort", store: defaults)
+        #expect(sort.wrappedValue == .name)
+    }
+
+    @Test func groupsByEnvironmentInsideAHealth() {
         let merged = MonitorSummary.merge(
             monitors: [
                 monitor(1, "a none"), monitor(2, "b dev", environment: .dev), monitor(3, "c stage", environment: .stage),
@@ -129,10 +164,8 @@ struct MonitorSummaryTests {
             statuses: [status(1, .up), status(2, .up), status(3, .up), status(4, .up), status(5, .up),
                        status(6, .down), status(7, .down), status(8, .down)],
             uptimes: [])
-        let ascending = ["x down prod", "z down dev", "y down none", "a prod", "d prod", "c stage", "b dev", "a none"]
-        #expect(merged.map(\.name) == ascending)
-        #expect(merged.sorted(by: .status, ascending: true).map(\.name) == ascending)
-        #expect(merged.sorted(by: .status, ascending: false).map(\.name) == ascending.reversed())
+        #expect(merged.map(\.name)
+            == ["x down prod", "z down dev", "y down none", "a prod", "d prod", "c stage", "b dev", "a none"])
         #expect(merged.first?.environment == .prod)
     }
 
@@ -146,7 +179,7 @@ struct MonitorSummaryTests {
                        status(2, .up, lastDownAt: Date(timeIntervalSince1970: 5)),
                        status(3, .up, lastDownAt: Date(timeIntervalSince1970: 5))],
             uptimes: [])
-        for sort in [MonitorSort.name, .lastDown, .tenant, .created] {
+        for sort in MonitorSort.allCases {
             #expect(merged.sorted(by: sort, ascending: true).map(\.name) == ["a", "b", "c"])
         }
     }
@@ -168,7 +201,7 @@ struct MonitorSummaryTests {
     }
 
     @Test func datesStartWithTheNewest() {
-        #expect(MonitorSort.allCases.filter { !$0.startsAscending } == [.lastDown, .created])
+        #expect(MonitorSort.allCases.filter { !$0.startsAscending } == [.lastDown, .totalDowntime, .created])
     }
 
     @Test func toleratesDuplicateResults() {

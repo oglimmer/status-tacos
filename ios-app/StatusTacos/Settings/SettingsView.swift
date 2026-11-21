@@ -52,6 +52,8 @@ struct SettingsView: View {
 
                 AppearanceSection()
 
+                DateTimeSection()
+
                 Section {
                     LabeledContent("Server", value: settings.serverURL.absoluteString)
                     LabeledContent("Issuer", value: settings.issuerURL.absoluteString)
@@ -120,6 +122,27 @@ struct SettingsView: View {
         let version = info?["CFBundleShortVersionString"] as? String ?? "?"
         let build = info?["CFBundleVersion"] as? String ?? "?"
         return "\(version) (\(build))"
+    }
+}
+
+/// Date and time format of every absolute date and time in the app.
+private struct DateTimeSection: View {
+    @Environment(AppSettings.self) private var settings
+
+    var body: some View {
+        @Bindable var settings = settings
+        Section("Date & time") {
+            Picker("Date format", selection: $settings.dateFormat) {
+                ForEach(DateFormatChoice.allCases, id: \.self) { choice in
+                    Text(choice.title).tag(choice)
+                }
+            }
+            Picker("Time format", selection: $settings.timeFormat) {
+                ForEach(TimeFormatChoice.allCases, id: \.self) { choice in
+                    Text(choice.title).tag(choice)
+                }
+            }
+        }
     }
 }
 

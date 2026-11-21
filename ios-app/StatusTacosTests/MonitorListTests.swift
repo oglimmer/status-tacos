@@ -32,54 +32,28 @@ private let mixed = [
 ]
 
 struct MonitorListSectionTests {
-    @Test func statusSortGroupsByHealthWithCounts() {
-        let sections = MonitorListSection.sections(mixed, sort: .status, ascending: true, tenantName: nil)
-        #expect(sections.map(\.title) == ["Down (1)", "No data (1)", "Up (2)", "Paused (1)"])
-        #expect(sections[2].monitors.map(\.name) == ["API", "Shop"])
+    @Test func groupsByHealthDownNoDataPausedUp() {
+        let sections = MonitorListSection.sections(mixed, sort: .name, ascending: true)
+        #expect(sections.map(\.health) == [.down, .pending, .paused, .up])
+        #expect(sections.map { $0.monitors.map(\.name) } == [["Login"], ["New"], ["Old"], ["API", "Shop"]])
     }
 
     @Test func leavesOutEmptyGroups() {
         let sections = MonitorListSection.sections(
-            [summary(1, "Shop"), summary(2, "API")], sort: .status, ascending: true, tenantName: nil)
-        #expect(sections.map(\.title) == ["Up (2)"])
+            [summary(1, "Shop"), summary(2, "Old", state: .inactive, status: nil)], sort: .name, ascending: true)
+        #expect(sections.map(\.health) == [.paused, .up])
+        #expect(MonitorListSection.sections([], sort: .name, ascending: true).isEmpty)
     }
 
-    @Test func upGroupCarriesTheTenantName() {
-        let sections = MonitorListSection.sections(mixed, sort: .status, ascending: true, tenantName: "Kammer")
-        #expect(sections.map(\.title) == ["Down (1)", "No data (1)", "Kammer (2)", "Paused (1)"])
-    }
-
-    @Test func descendingReversesTheGroups() {
-        let sections = MonitorListSection.sections(mixed, sort: .status, ascending: false, tenantName: nil)
-        #expect(sections.map(\.title) == ["Paused (1)", "Up (2)", "No data (1)", "Down (1)"])
-    }
-
-    @Test func otherSortsShowOneGroup() {
-        let sections = MonitorListSection.sections(mixed, sort: .name, ascending: true, tenantName: "Kammer")
-        #expect(sections.map(\.title) == ["All monitors (5)"])
-        #expect(sections[0].monitors.map(\.name) == ["API", "Login", "New", "Old", "Shop"])
-        #expect(MonitorListSection.sections([], sort: .name, ascending: true, tenantName: nil).isEmpty)
-    }
-}
-
-struct MonitorCounterStyleTests {
-    @Test func downIsRedOnlyWithDownMonitors() {
-        #expect(MonitorCounterStyle(health: .down, count: 0).number == .neutral)
-        #expect(MonitorCounterStyle(health: .down, count: 0).word == .neutral)
-        #expect(MonitorCounterStyle(health: .down, count: 2).number == .down)
-        #expect(MonitorCounterStyle(health: .down, count: 2).word == .down)
-    }
-
-    @Test func upHasAGreenNumberAndAGreyWord() {
-        let style = MonitorCounterStyle(health: .up, count: 23)
-        #expect(style.number == .up)
-        #expect(style.word == .neutral)
-    }
-
-    @Test func pausedIsGrey() {
-        let style = MonitorCounterStyle(health: .paused, count: 3)
-        #expect(style.number == .neutral)
-        #expect(style.word == .neutral)
+    @Test func sortsInsideTheGroupsInBothDirections() {
+        let monitors = mixed + [summary(6, "Cart", status: .down), summary(7, "Blog")]
+        let ascending = MonitorListSection.sections(monitors, sort: .name, ascending: true)
+        #expect(ascending.map { $0.monitors.map(\.name) }
+            == [["Cart", "Login"], ["New"], ["Old"], ["API", "Blog", "Shop"]])
+        let descending = MonitorListSection.sections(monitors, sort: .name, ascending: false)
+        #expect(descending.map(\.health) == [.down, .pending, .paused, .up])
+        #expect(descending.map { $0.monitors.map(\.name) }
+            == [["Login", "Cart"], ["New"], ["Old"], ["Shop", "Blog", "API"]])
     }
 }
 

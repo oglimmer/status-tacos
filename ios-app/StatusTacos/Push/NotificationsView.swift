@@ -4,6 +4,7 @@ import SwiftUI
 struct NotificationsView: View {
     let monitors: MonitorsStore
     @Environment(PushStore.self) private var push
+    @Environment(AppSettings.self) private var settings
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
@@ -74,8 +75,8 @@ struct NotificationsView: View {
         Section {
             switch push.permission {
             case .allowed:
-                Label("Notifications are allowed", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(Brand.up)
+                Text("Notifications are allowed")
+                    .foregroundStyle(settings.accentColor)
                 if let error = push.registrationError {
                     Label("This device could not register: \(error)", systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(Brand.silent)
@@ -113,6 +114,7 @@ private struct TenantPushSection: View {
     let tenant: Tenant
     let monitors: [MonitorSummary]
     @Environment(PushStore.self) private var push
+    @Environment(AppSettings.self) private var settings
 
     private var alert: PushAlertDTO? { push.alert(forTenant: tenant.id) }
     private var isSaving: Bool { push.savingTenantIDs.contains(tenant.id) }
@@ -130,6 +132,7 @@ private struct TenantPushSection: View {
                     }
                 }
             }
+            .tint(settings.accentColor)
             .disabled(isSaving)
 
             if let alert, alert.isActive {
@@ -179,7 +182,7 @@ private struct TenantPushSection: View {
         } label: {
             HStack {
                 Image(systemName: monitor.health.symbol)
-                    .foregroundStyle(monitor.health.color)
+                    .foregroundStyle(monitor.health == .up ? settings.accentColor : monitor.health.color)
                 Text(monitor.name)
                     .foregroundStyle(.primary)
                 Spacer()

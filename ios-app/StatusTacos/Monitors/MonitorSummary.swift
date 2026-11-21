@@ -1,14 +1,15 @@
 import Foundation
 import SwiftUI
 
-/// What the user needs to see first. The order is the sort order of the list.
+/// What the user needs to see first. The order is the order of the groups in the list:
+/// down, no data, paused, up.
 enum MonitorHealth: Int, Comparable, CaseIterable, Sendable {
     case down
     /// Checked, but no result yet.
     case pending
-    case up
     /// INACTIVE: not checked.
     case paused
+    case up
 
     static func < (lhs: Self, rhs: Self) -> Bool { lhs.rawValue < rhs.rawValue }
 
@@ -170,7 +171,13 @@ struct MonitorSummary: Identifiable, Sendable {
         return (start, end, checkedFrom)
     }
 
-    /// Joins the API results by monitor ID and sorts like the status sort.
+    /// Down time in the time frame of the list. Nil without uptime data.
+    var totalDowntime: TimeInterval? {
+        guard let window = uptimeWindow, let periods = uptime?.downPeriods else { return nil }
+        return DowntimeTimeline.totalDowntime(periods: periods, start: window.start, end: window.end)
+    }
+
+    /// Joins the API results by monitor ID and sorts by health (see `sortedForDisplay`).
     static func merge(
         monitors: [MonitorDTO], statuses: [MonitorStatusDTO], uptimes: [MonitorUptime],
         timeframe: Timeframe = .week
@@ -196,22 +203,23 @@ struct MonitorSummary: Identifiable, Sendable {
     }
 }
 
-/// Sort order of the monitor list. The raw value is stored in the user defaults.
+/// Sort order inside the health groups of the monitor list. The raw value is stored in the user
+/// defaults; an unknown value (like the old "status") gives the default.
 enum MonitorSort: String, CaseIterable, Sendable {
-    /// Grouped by health, down first. In a group: by environment (production first), then by name.
-    case status
     case name
     /// The latest failed check.
     case lastDown
+    /// Down time in the time frame of the list.
+    case totalDowntime
     /// Tenant name, then monitor name.
     case tenant
     case created
 
     var title: String {
         switch self {
-        case .status: "Status"
         case .name: "Name"
         case .lastDown: "Last downtime"
+        case .totalDowntime: "Total downtime"
         case .tenant: "Tenant, then name"
         case .created: "Created"
         }
@@ -219,30 +227,32 @@ enum MonitorSort: String, CaseIterable, Sendable {
 
     var symbol: String {
         switch self {
-        case .status: "heart.text.square"
         case .name: "textformat"
         case .lastDown: "exclamationmark.triangle"
+        case .totalDowntime: "hourglass"
         case .tenant: "building.2"
         case .created: "calendar"
         }
     }
 
-    /// The direction a sort starts with: dates show the newest first.
+    /// The direction a sort starts with: dates show the newest first, downtime the most first.
     var startsAscending: Bool {
         switch self {
-        case .lastDown, .created: false
-        case .status, .name, .tenant: true
+        case .lastDown, .totalDowntime, .created: false
+        case .name, .tenant: true
         }
     }
 }
 
 extension MonitorSummary {
-    /// Monitors without a value for the sort come last: never down, no tenant, or an older server.
+    /// Monitors without a value for the sort come last: never down, no uptime data, no tenant, or an
+    /// older server.
     fileprivate func hasValue(for sort: MonitorSort) -> Bool {
         switch sort {
-        case .status, .name: true
+        case .name: true
         // Inactive monitors have no status.
         case .lastDown: status?.lastDownAt != nil
+        case .totalDowntime: totalDowntime != nil
         case .tenant: tenant != nil
         case .created: createdAt != nil
         }
@@ -254,13 +264,9 @@ extension MonitorSummary {
     /// Ascending order by the sort alone. Ties go on by name.
     fileprivate func compare(to other: MonitorSummary, by sort: MonitorSort) -> ComparisonResult {
         switch sort {
-        case .status:
-            switch comparison(health, other.health) {
-            case .orderedSame: comparison(environmentRank, other.environmentRank)
-            case let order: order
-            }
         case .name: .orderedSame
         case .lastDown: comparison(status?.lastDownAt ?? .distantPast, other.status?.lastDownAt ?? .distantPast)
+        case .totalDowntime: comparison(totalDowntime ?? 0, other.totalDowntime ?? 0)
         case .tenant: (tenant?.name ?? "").localizedStandardCompare(other.tenant?.name ?? "")
         case .created: comparison(createdAt ?? .distantPast, other.createdAt ?? .distantPast)
         }
@@ -268,12 +274,18 @@ extension MonitorSummary {
 }
 
 extension Array where Element == MonitorSummary {
+    /// By health (down first), then by environment (production first, none last), then by name and ID.
     func sortedForDisplay() -> [MonitorSummary] {
-        sorted(by: .status, ascending: true)
+        sorted { lhs, rhs in
+            var order = comparison(lhs.health, rhs.health)
+            if order == .orderedSame { order = comparison(lhs.environmentRank, rhs.environmentRank) }
+            if order == .orderedSame { order = lhs.name.localizedStandardCompare(rhs.name) }
+            if order == .orderedSame { order = comparison(lhs.id, rhs.id) }
+            return order == .orderedAscending
+        }
     }
 
-    /// Sorts by the key, then by name, then by ID. The status sort has the environment between health
-    /// and name (production first, monitors without an environment last). Descending reverses all of it. Monitors without a
+    /// Sorts by the key, then by name, then by ID. Descending reverses all of it. Monitors without a
     /// value for the key come last in both directions.
     func sorted(by sort: MonitorSort, ascending: Bool) -> [MonitorSummary] {
         sorted { lhs, rhs in

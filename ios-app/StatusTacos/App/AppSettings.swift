@@ -19,6 +19,8 @@ final class AppSettings {
         static let issuerURL = "settings.issuerURL"
         static let clientID = "settings.clientID"
         static let accentColorHex = "settings.accentColorHex"
+        static let dateFormat = "settings.dateFormat"
+        static let timeFormat = "settings.timeFormat"
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -44,6 +46,19 @@ final class AppSettings {
 
     var accentColor: Color { Self.color(hex: accentColorHex) ?? Brand.teal }
 
+    /// Date format of every absolute date in the app.
+    var dateFormat: DateFormatChoice {
+        didSet { defaults.set(dateFormat.rawValue, forKey: Keys.dateFormat) }
+    }
+
+    /// 12-hour or 24-hour clock for every absolute time in the app.
+    var timeFormat: TimeFormatChoice {
+        didSet { defaults.set(timeFormat.rawValue, forKey: Keys.timeFormat) }
+    }
+
+    /// Formats dates and times with `dateFormat` and `timeFormat`.
+    var dateFormats: DateFormats { DateFormats(date: dateFormat, time: timeFormat) }
+
     /// Stores the color when `normalizedHex` accepts the text.
     /// - Returns: false for invalid input; the stored color stays.
     @discardableResult
@@ -64,6 +79,8 @@ final class AppSettings {
         clientID = defaults.string(forKey: Keys.clientID).flatMap(Self.normalizedClientID) ?? Self.defaultClientID
         accentColorHex = defaults.string(forKey: Keys.accentColorHex).flatMap(Self.normalizedHex)
             ?? Self.defaultAccentColorHex
+        dateFormat = defaults.string(forKey: Keys.dateFormat).flatMap(DateFormatChoice.init(rawValue:)) ?? .system
+        timeFormat = defaults.string(forKey: Keys.timeFormat).flatMap(TimeFormatChoice.init(rawValue:)) ?? .system
     }
 
     var apiBaseURL: URL { serverURL.appending(path: "api/v1") }
@@ -72,7 +89,7 @@ final class AppSettings {
         OIDCConfiguration(issuer: issuerURL, clientID: clientID, redirectURI: Self.redirectURI)
     }
 
-    /// Resets the connection. The appearance stays.
+    /// Resets the connection. The appearance and the date and time formats stay.
     func resetToDefaults() {
         serverURL = Self.defaultServerURL
         issuerURL = Self.defaultIssuerURL
