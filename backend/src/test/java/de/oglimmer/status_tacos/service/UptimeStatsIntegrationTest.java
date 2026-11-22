@@ -106,6 +106,10 @@ class UptimeStatsIntegrationTest {
   @Autowired private MonitorRepository monitorRepository;
   @Autowired private AlertContactRepository alertContactRepository;
   @Autowired private JdbcTemplate jdbc;
+  @Autowired private MonitorService monitorService;
+
+  @Autowired
+  private org.springframework.transaction.support.TransactionTemplate transactionTemplate;
 
   private Tenant tenant;
   private Monitor monitor;
@@ -310,6 +314,72 @@ class UptimeStatsIntegrationTest {
             .containsEntry(slow.getId(), expected);
       }
     }
+  }
+
+  @Test
+  void uptime_manualChecksMoveTimeAndAddNone() {
+    // Hourly checks at hh:50: 10 UP, 10 DOWN, 4 UP. Without manual checks: 14 h UP of 24 h.
+    Monitor slow = saveMonitor("Manual", MonitorState.ACTIVE);
+    LocalDateTime base = NOW.minusDays(2).truncatedTo(ChronoUnit.HOURS).plusMinutes(50);
+    for (int k = 0; k < 24; k++) {
+      insertCheck(slow, base.plusHours(k), k < 10 || k >= 20, 3600, 0);
+    }
+    // Manual DOWN 20 min after the last UP check (in the next hour): -2400. That hour then has
+    // negative UP seconds (only the moved time and a DOWN check).
+    insertCheck(slow, base.plusHours(9).plusMinutes(20), false, 0, -2400);
+    // Manual UP 30 min after the first DOWN check: +1800
+    insertCheck(slow, base.plusHours(10).plusMinutes(30), true, 0, 1800);
+    // (14 h - 2400 s + 1800 s) / 24 h = 57.638 %
+    BigDecimal expected = new BigDecimal("57.63");
+
+    for (boolean rolledUp : List.of(false, true)) {
+      if (rolledUp) {
+        rollupService.rollUp();
+      }
+      UptimeStatsResponseDto stats =
+          statsService
+              .getStats(Set.of(tenant.getId()), slow.getId(), StatsPeriod.SEVEN_DAYS)
+              .orElseThrow();
+      assertThat(stats.getTotalChecks()).isEqualTo(26);
+      assertThat(stats.getSuccessfulChecks()).isEqualTo(15);
+      assertThat(stats.getUptimePercentage()).as("rolled up: " + rolledUp).isEqualTo(expected);
+      assertThat(statsService.getUptimePercentages(List.of(slow), StatsPeriod.SEVEN_DAYS))
+          .containsEntry(slow.getId(), expected);
+    }
+  }
+
+  @Test
+  void checkRequest_isSetOnce_survivesASaveAndIsClearedAfterTheCheck() {
+    Monitor target = saveMonitor("Requested", MonitorState.ACTIVE);
+    Instant first = NOW.toInstant(ZoneOffset.UTC);
+
+    monitorService.requestCheck(tenant.getId(), target.getId());
+    clock.set(NOW.plusSeconds(5));
+    monitorService.requestCheck(tenant.getId(), target.getId());
+    Monitor loaded = monitorRepository.findById(target.getId()).orElseThrow();
+    // An edit of the monitor does not touch the request
+    loaded.setName("Requested, renamed");
+    monitorRepository.save(loaded);
+
+    loaded = monitorRepository.findById(target.getId()).orElseThrow();
+    assertThat(loaded.getCheckRequestedAt()).isEqualTo(first);
+
+    Instant seen = loaded.getCheckRequestedAt();
+    transactionTemplate.executeWithoutResult(
+        status -> monitorService.clearCheckRequest(target.getId(), seen));
+    assertThat(monitorRepository.findById(target.getId()).orElseThrow().getCheckRequestedAt())
+        .isNull();
+  }
+
+  @Test
+  void checkRequest_ofInactiveMonitor_isRefused() {
+    Monitor inactive = saveMonitor("Off", MonitorState.INACTIVE);
+
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () -> monitorService.requestCheck(tenant.getId(), inactive.getId()))
+        .isInstanceOf(IllegalStateException.class);
+    assertThat(monitorRepository.findById(inactive.getId()).orElseThrow().getCheckRequestedAt())
+        .isNull();
   }
 
   @Test
@@ -566,6 +636,22 @@ class UptimeStatsIntegrationTest {
           ps.setBoolean(6, c.up());
           ps.setInt(7, checkInterval);
         });
+  }
+
+  private void insertCheck(
+      Monitor target, LocalDateTime at, boolean up, int checkInterval, int upAdjustSeconds) {
+    jdbc.update(
+        "INSERT INTO check_results (monitor_id, tenant_id, checked_at, status_code,"
+            + " response_time_ms, is_up, check_interval, up_adjust_seconds)"
+            + " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        target.getId(),
+        tenant.getId(),
+        at,
+        up ? 200 : 500,
+        up ? 100 : null,
+        up,
+        checkInterval,
+        upAdjustSeconds);
   }
 
   private Monitor saveMonitor(String name, MonitorState state) {

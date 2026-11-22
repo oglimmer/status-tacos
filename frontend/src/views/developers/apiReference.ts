@@ -514,6 +514,20 @@ export const API_GROUPS: EndpointGroup[] = [
         ],
       },
       {
+        method: 'POST',
+        path: '/v1/monitors/{id}/check',
+        summary: 'Check the monitor now: in the next run of the check job, within about 15 seconds.',
+        errors: [
+          '404: no such monitor in your tenants.',
+          '409: the monitor gets no checks now (INACTIVE, or in its daily pause).',
+        ],
+        notes: [
+          'The answer is 202 Accepted without a body.',
+          'Until the check ran, the monitor has checkRequestedAt. More calls before that give no extra check.',
+          'The check changes the status, outages and alerts like any check. It adds no time to the uptime: it moves the rest of the time of the check before it to its own result.',
+        ],
+      },
+      {
         method: 'PATCH',
         path: '/v1/monitors/{id}/tenant',
         summary: 'Move a monitor with all its history to another tenant.',

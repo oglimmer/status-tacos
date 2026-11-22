@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.mockito.Mockito.lenient;
@@ -158,7 +159,8 @@ class MonitorExecutionServiceTest {
             eq(Duration.ofSeconds(5)),
             eq(false)))
         .thenReturn(successfulHttpResult);
-    when(checkResultService.saveCheckResult(eq(TEST_TENANT_ID), eq(testMonitor), any()))
+    when(checkResultService.saveCheckResult(
+            eq(TEST_TENANT_ID), eq(testMonitor), any(), anyBoolean()))
         .thenReturn(testCheckResult);
     when(monitorStatusService.updateMonitorStatus(
             eq(TEST_TENANT_ID), eq(testMonitor), eq(testCheckResult)))
@@ -180,7 +182,8 @@ class MonitorExecutionServiceTest {
             eq(null),
             eq(Duration.ofSeconds(5)),
             eq(false));
-    verify(checkResultService).saveCheckResult(eq(TEST_TENANT_ID), eq(testMonitor), any());
+    verify(checkResultService)
+        .saveCheckResult(eq(TEST_TENANT_ID), eq(testMonitor), any(), anyBoolean());
     verify(monitorStatusService)
         .updateMonitorStatus(eq(TEST_TENANT_ID), eq(testMonitor), eq(testCheckResult));
   }
@@ -220,7 +223,8 @@ class MonitorExecutionServiceTest {
             .consecutiveFailures(1)
             .build();
 
-    when(checkResultService.saveCheckResult(eq(TEST_TENANT_ID), eq(testMonitor), any()))
+    when(checkResultService.saveCheckResult(
+            eq(TEST_TENANT_ID), eq(testMonitor), any(), anyBoolean()))
         .thenReturn(failedCheckResult);
     when(monitorStatusService.updateMonitorStatus(
             eq(TEST_TENANT_ID), eq(testMonitor), eq(failedCheckResult)))
@@ -242,7 +246,8 @@ class MonitorExecutionServiceTest {
             eq(null),
             eq(Duration.ofSeconds(5)),
             eq(false));
-    verify(checkResultService).saveCheckResult(eq(TEST_TENANT_ID), eq(testMonitor), any());
+    verify(checkResultService)
+        .saveCheckResult(eq(TEST_TENANT_ID), eq(testMonitor), any(), anyBoolean());
     verify(monitorStatusService)
         .updateMonitorStatus(eq(TEST_TENANT_ID), eq(testMonitor), eq(failedCheckResult));
   }
@@ -273,7 +278,8 @@ class MonitorExecutionServiceTest {
             .errorMessage("Internal error: Network timeout")
             .build();
 
-    when(checkResultService.saveCheckResult(eq(TEST_TENANT_ID), eq(testMonitor), any()))
+    when(checkResultService.saveCheckResult(
+            eq(TEST_TENANT_ID), eq(testMonitor), any(), anyBoolean()))
         .thenReturn(errorCheckResult);
     when(monitorStatusService.updateMonitorStatus(eq(TEST_TENANT_ID), eq(testMonitor), any()))
         .thenReturn(testMonitorStatus);
@@ -295,7 +301,8 @@ class MonitorExecutionServiceTest {
             eq(null),
             eq(Duration.ofSeconds(5)),
             eq(false));
-    verify(checkResultService).saveCheckResult(eq(TEST_TENANT_ID), eq(testMonitor), any());
+    verify(checkResultService)
+        .saveCheckResult(eq(TEST_TENANT_ID), eq(testMonitor), any(), anyBoolean());
     verify(monitorStatusService).updateMonitorStatus(eq(TEST_TENANT_ID), eq(testMonitor), any());
   }
 
@@ -327,7 +334,8 @@ class MonitorExecutionServiceTest {
             eq(false)))
         .thenReturn(successfulHttpResult);
     // For example no free database connection
-    when(checkResultService.saveCheckResult(eq(TEST_TENANT_ID), eq(testMonitor), any()))
+    when(checkResultService.saveCheckResult(
+            eq(TEST_TENANT_ID), eq(testMonitor), any(), anyBoolean()))
         .thenThrow(new RuntimeException("Could not open JPA EntityManager for transaction"));
 
     CheckResult result = monitorExecutionService.executeMonitorCheck(testMonitor);
@@ -338,8 +346,9 @@ class MonitorExecutionServiceTest {
         .saveCheckResult(
             eq(TEST_TENANT_ID),
             eq(testMonitor),
-            argThat(HttpClientService.HttpCheckResult::getIsUp));
-    verify(checkResultService, times(1)).saveCheckResult(any(), any(), any());
+            argThat(HttpClientService.HttpCheckResult::getIsUp),
+            anyBoolean());
+    verify(checkResultService, times(1)).saveCheckResult(any(), any(), any(), anyBoolean());
     verifyNoInteractions(monitorStatusService, alertService);
   }
 
@@ -391,7 +400,7 @@ class MonitorExecutionServiceTest {
     when(httpClientService.performHealthCheck(
             anyString(), any(), any(), any(), any(), any(), any(), any(), anyBoolean()))
         .thenReturn(successfulHttpResult);
-    when(checkResultService.saveCheckResult(eq(TEST_TENANT_ID), any(), any()))
+    when(checkResultService.saveCheckResult(eq(TEST_TENANT_ID), any(), any(), anyBoolean()))
         .thenReturn(testCheckResult);
     when(monitorStatusService.updateMonitorStatus(eq(TEST_TENANT_ID), any(), any()))
         .thenReturn(testMonitorStatus);
@@ -412,7 +421,7 @@ class MonitorExecutionServiceTest {
             eq(null),
             eq(Duration.ofSeconds(5)),
             eq(false));
-    verify(checkResultService).saveCheckResult(eq(TEST_TENANT_ID), any(), any());
+    verify(checkResultService).saveCheckResult(eq(TEST_TENANT_ID), any(), any(), anyBoolean());
     verify(monitorStatusService).updateMonitorStatus(eq(TEST_TENANT_ID), any(), any());
   }
 
@@ -424,7 +433,8 @@ class MonitorExecutionServiceTest {
     monitorExecutionService.executeMonitorCheck(testMonitor);
 
     // Saved, but nothing sent yet: the alert waits on the alert thread
-    verify(checkResultService).saveCheckResult(eq(TEST_TENANT_ID), eq(testMonitor), any());
+    verify(checkResultService)
+        .saveCheckResult(eq(TEST_TENANT_ID), eq(testMonitor), any(), anyBoolean());
     verifyNoInteractions(alertService);
     runQueuedAlert();
     verify(alertService)
@@ -608,7 +618,8 @@ class MonitorExecutionServiceTest {
     when(httpClientService.performHealthCheck(
             any(), any(), any(), any(), any(), any(), any(), any(), anyBoolean()))
         .thenReturn(httpResult);
-    when(checkResultService.saveCheckResult(eq(TEST_TENANT_ID), eq(testMonitor), any()))
+    when(checkResultService.saveCheckResult(
+            eq(TEST_TENANT_ID), eq(testMonitor), any(), anyBoolean()))
         .thenReturn(saved);
     when(monitorStatusService.updateMonitorStatus(TEST_TENANT_ID, testMonitor, saved))
         .thenReturn(status);
@@ -739,7 +750,7 @@ class MonitorExecutionServiceTest {
     when(httpClientService.performHealthCheck(
             anyString(), any(), any(), any(), any(), any(), any(), any(), anyBoolean()))
         .thenReturn(successfulHttpResult);
-    when(checkResultService.saveCheckResult(eq(TEST_TENANT_ID), any(), any()))
+    when(checkResultService.saveCheckResult(eq(TEST_TENANT_ID), any(), any(), anyBoolean()))
         .thenReturn(testCheckResult);
     when(monitorStatusService.updateMonitorStatus(eq(TEST_TENANT_ID), any(), any()))
         .thenReturn(testMonitorStatus);
@@ -768,6 +779,91 @@ class MonitorExecutionServiceTest {
             any(),
             any(),
             anyBoolean());
+  }
+
+  @Test
+  void executeAllActiveMonitors_checksARequestedMonitorThatIsNotDue_asManualCheck() {
+    // A run in which the hourly monitor with id 1 is due
+    Monitor probe = Monitor.builder().id(1).checkInterval(3600).build();
+    Instant base = Instant.parse("2026-11-05T01:00:00Z");
+    Instant time = base;
+    for (int run = 0;
+        !MonitorExecutionService.isDue(
+            probe, MonitorExecutionService.slotOf(time.toEpochMilli(), 15_000), 15_000);
+        run++) {
+      time = base.plusSeconds(15L * run);
+    }
+    Clock clock = Clock.fixed(time, ZoneOffset.UTC);
+    MonitorExecutionService service =
+        new MonitorExecutionService(
+            httpClientService,
+            checkResultService,
+            monitorStatusService,
+            monitorService,
+            tenantService,
+            alertService,
+            peerService,
+            taskExecutor,
+            alertExecutor,
+            applicationContext,
+            clock,
+            15_000L,
+            Duration.ofSeconds(5));
+    ReflectionTestUtils.setField(service, "self", service);
+    long slot = MonitorExecutionService.slotOf(time.toEpochMilli(), 15_000);
+
+    // Hourly monitors: one is due in this slot, the others are not
+    List<Monitor> hourly = new java.util.ArrayList<>();
+    for (int id = 1; id <= 1000; id++) {
+      hourly.add(
+          Monitor.builder()
+              .id(id)
+              .name("M" + id)
+              .url("https://m" + id + ".example")
+              .state(MonitorState.ACTIVE)
+              .tenantId(TEST_TENANT_ID)
+              .checkInterval(3600)
+              .build());
+    }
+    Monitor due =
+        hourly.stream()
+            .filter(m -> MonitorExecutionService.isDue(m, slot, 15_000))
+            .findFirst()
+            .orElseThrow();
+    List<Monitor> notDue =
+        hourly.stream().filter(m -> !MonitorExecutionService.isDue(m, slot, 15_000)).toList();
+    Monitor requested = notDue.get(0);
+    requested.setCheckRequestedAt(time.minusSeconds(5));
+    Monitor quiet = notDue.get(1);
+
+    when(tenantService.getAllActiveTenants()).thenReturn(List.of(testTenant));
+    when(monitorService.getMonitorsByState(Set.of(TEST_TENANT_ID), MonitorState.ACTIVE))
+        .thenReturn(List.of(due, requested, quiet));
+    when(monitorService.getMonitorsByState(Set.of(TEST_TENANT_ID), MonitorState.SILENT))
+        .thenReturn(List.of());
+    doAnswer(
+            invocation -> {
+              ((Runnable) invocation.getArgument(0)).run();
+              return null;
+            })
+        .when(taskExecutor)
+        .execute(any(Runnable.class));
+    when(httpClientService.performHealthCheck(
+            anyString(), any(), any(), any(), any(), any(), any(), any(), anyBoolean()))
+        .thenReturn(successfulHttpResult);
+    when(checkResultService.saveCheckResult(eq(TEST_TENANT_ID), any(), any(), anyBoolean()))
+        .thenReturn(testCheckResult);
+    when(monitorStatusService.updateMonitorStatus(eq(TEST_TENANT_ID), any(), any()))
+        .thenReturn(testMonitorStatus);
+
+    service.executeAllActiveMonitors();
+
+    verify(checkResultService).saveCheckResult(eq(TEST_TENANT_ID), eq(due), any(), eq(false));
+    verify(checkResultService).saveCheckResult(eq(TEST_TENANT_ID), eq(requested), any(), eq(true));
+    verify(checkResultService, never())
+        .saveCheckResult(eq(TEST_TENANT_ID), eq(quiet), any(), anyBoolean());
+    verify(monitorService).clearCheckRequest(requested.getId(), time.minusSeconds(5));
+    verify(monitorService, never()).clearCheckRequest(eq(due.getId()), any());
   }
 
   @Test

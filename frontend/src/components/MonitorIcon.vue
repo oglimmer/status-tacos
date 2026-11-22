@@ -14,6 +14,7 @@ export type MonitorIconName =
   | 'arrow-up'
   | 'arrow-down'
   | 'plus'
+  | 'refresh'
 
 defineProps<{ name: MonitorIconName }>()
 </script>
@@ -84,6 +85,10 @@ defineProps<{ name: MonitorIconName }>()
     <template v-else-if="name === 'plus'">
       <path d="M12 5v14" />
       <path d="M5 12h14" />
+    </template>
+    <template v-else-if="name === 'refresh'">
+      <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+      <path d="M21 3v6h-6" />
     </template>
     <template v-else-if="name === 'close'">
       <path d="M18 6 6 18" />

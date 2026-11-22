@@ -208,6 +208,33 @@ public class MonitorController {
     return ResponseEntity.notFound().build();
   }
 
+  /**
+   * Check now: the check job checks the monitor in its next run (at most one run interval later),
+   * also when the monitor is not due. 202 when the check is queued, 409 when the monitor gets no
+   * checks now (not ACTIVE or SILENT, or in its daily pause), 404 when not found.
+   */
+  @PostMapping("/{id}/check")
+  public ResponseEntity<Map<String, String>> requestCheck(@PathVariable Integer id) {
+    Set<Integer> tenantIds = userTenantResolver.getCurrentUserTenantIds();
+    for (Integer tenantId : tenantIds) {
+      try {
+        monitorService.requestCheck(tenantId, id);
+        return ResponseEntity.accepted().build();
+      } catch (IllegalArgumentException e) {
+        log.debug("Monitor {} not found in tenant {}", id, tenantId);
+      } catch (IllegalStateException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+            .body(
+                Map.of(
+                    "error",
+                    "no_checks_now",
+                    "message",
+                    "This monitor gets no checks now: it is inactive or in its daily pause."));
+      }
+    }
+    return ResponseEntity.notFound().build();
+  }
+
   // Legacy endpoint for backward compatibility
   @PatchMapping("/{id}/toggle-status")
   public ResponseEntity<MonitorResponseDto> toggleMonitorStatus(@PathVariable Integer id) {

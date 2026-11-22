@@ -66,6 +66,15 @@ public class CheckResult {
   @Builder.Default
   private Integer checkInterval = 15;
 
+  /**
+   * Only for a manual check, 0 for a scheduled one. A manual check has checkInterval 0: it adds no
+   * time. It moves the rest of the time of the scheduled check before it to its own state: +n UP
+   * seconds after a DOWN check, -n after an UP check. Uptime = (UP seconds + adjust) / all seconds.
+   */
+  @Column(name = "up_adjust_seconds", nullable = false)
+  @Builder.Default
+  private Integer upAdjustSeconds = 0;
+
   @Column(name = "error_message", columnDefinition = "TEXT")
   private String errorMessage;
 

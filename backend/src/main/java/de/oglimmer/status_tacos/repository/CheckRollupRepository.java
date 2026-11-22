@@ -18,7 +18,9 @@ import org.springframework.stereotype.Repository;
  * SQL for the check roll-ups (MariaDB). All time ranges are half-open: {@code [from, to)}.
  *
  * <p>Response-time values (rt_*) and histograms count successful checks only. The *_seconds columns
- * sum the check interval of the checks: the uptime weights each check with its interval.
+ * sum the check interval of the checks: the uptime weights each check with its interval. up_seconds
+ * also sums up_adjust_seconds of the manual checks, so in one hour it can be below 0 or above
+ * total_seconds. Only the sum over a period is a true uptime.
  */
 @Repository
 @RequiredArgsConstructor
@@ -73,7 +75,8 @@ public class CheckRollupRepository {
       COUNT(*) AS total_checks,
       COALESCE(SUM(is_up), 0) AS up_checks,
       COALESCE(SUM(check_interval), 0) AS total_seconds,
-      COALESCE(SUM(CASE WHEN is_up = 1 THEN check_interval END), 0) AS up_seconds,
+      COALESCE(SUM(CASE WHEN is_up = 1 THEN check_interval END), 0)
+        + COALESCE(SUM(up_adjust_seconds), 0) AS up_seconds,
       COALESCE(SUM(CASE WHEN is_up = 1 AND response_time_ms IS NOT NULL THEN 1 ELSE 0 END), 0)
         AS rt_count,
       COALESCE(SUM(CASE WHEN is_up = 1 THEN response_time_ms END), 0) AS rt_sum,

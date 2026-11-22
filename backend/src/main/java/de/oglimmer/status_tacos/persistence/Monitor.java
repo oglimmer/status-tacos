@@ -87,6 +87,14 @@ public class Monitor {
   @Column(name = "environment", length = 10)
   private MonitorEnvironment environment;
 
+  /**
+   * A user asked for a check now: the check job checks the monitor in its next run, also when it is
+   * not due. Null: no open request. Only written with the queries of MonitorRepository, never by a
+   * save of the entity, so an edit of the monitor does not remove or bring back a request.
+   */
+  @Column(name = "check_requested_at", insertable = false, updatable = false)
+  private Instant checkRequestedAt;
+
   @Column(name = "http_headers", columnDefinition = "JSON")
   @JdbcTypeCode(SqlTypes.JSON)
   private Map<String, String> httpHeaders;

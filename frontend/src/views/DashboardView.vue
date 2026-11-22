@@ -246,6 +246,15 @@ const handleStateChange = async (id: number, newState: MonitorState, silentFor?:
   }
 }
 
+// The check runs in the next run of the check job. The 15 s refresh then shows the result.
+const handleCheckNow = async (id: number) => {
+  try {
+    await monitorsStore.requestCheck(id)
+  } catch (err) {
+    console.error('Failed to request a check:', err)
+  }
+}
+
 const refreshMonitorData = async () => {
   try {
     await Promise.all([
@@ -539,6 +548,7 @@ onUnmounted(() => {
                 @toggle-expanded="toggleMonitorExpanded"
                 @edit="openEditModal"
                 @state-change="handleStateChange"
+                @check-now="handleCheckNow"
                 @delete="handleMonitorDelete"
               />
             </li>

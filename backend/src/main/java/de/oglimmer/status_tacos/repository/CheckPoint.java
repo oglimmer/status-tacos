@@ -9,4 +9,5 @@ public record CheckPoint(
     LocalDateTime checkedAt,
     Boolean isUp,
     Integer responseTimeMs,
-    Integer checkInterval) {}
+    Integer checkInterval,
+    Integer upAdjustSeconds) {}

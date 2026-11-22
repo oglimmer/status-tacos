@@ -26,6 +26,13 @@ public interface CheckResultRepository extends JpaRepository<CheckResult, Long> 
   Optional<CheckResult> findTopByMonitorIdAndTenantIdOrderByCheckedAtDesc(
       Integer monitorId, Integer tenantId);
 
+  /** The newest check of the monitor, scheduled or manual. */
+  Optional<CheckResult> findTopByMonitorIdOrderByCheckedAtDescIdDesc(Integer monitorId);
+
+  /** The newest scheduled check of the monitor: minInterval 0, manual checks have interval 0. */
+  Optional<CheckResult> findTopByMonitorIdAndCheckIntervalGreaterThanOrderByCheckedAtDescIdDesc(
+      Integer monitorId, Integer minInterval);
+
   @Query(
       "SELECT cr FROM CheckResult cr WHERE cr.monitor.id = :monitorId "
           + "AND cr.tenantId = :tenantId AND cr.checkedAt >= :since ORDER BY cr.checkedAt DESC")
@@ -37,7 +44,8 @@ public interface CheckResultRepository extends JpaRepository<CheckResult, Long> 
   /** Checks of the monitors in [from, to), oldest first. */
   @Query(
       "SELECT new de.oglimmer.status_tacos.repository.CheckPoint(cr.monitor.id, cr.checkedAt,"
-          + " cr.isUp, cr.responseTimeMs, cr.checkInterval) FROM CheckResult cr WHERE cr.monitor.id IN :monitorIds"
+          + " cr.isUp, cr.responseTimeMs, cr.checkInterval, cr.upAdjustSeconds) FROM CheckResult cr"
+          + " WHERE cr.monitor.id IN :monitorIds"
           + " AND cr.checkedAt >= :from AND cr.checkedAt < :to ORDER BY cr.checkedAt, cr.id")
   List<CheckPoint> findCheckPoints(
       @Param("monitorIds") Collection<Integer> monitorIds,

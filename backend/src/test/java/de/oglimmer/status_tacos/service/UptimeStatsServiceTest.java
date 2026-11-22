@@ -36,6 +36,25 @@ class UptimeStatsServiceTest {
   }
 
   @Test
+  void uptime_withMovedTimeOutsideTheWindow_staysBetween0And100() {
+    assertThat(UptimeStatsService.uptimePercentage(-300, 600)).isEqualTo(new BigDecimal("0.00"));
+    assertThat(UptimeStatsService.uptimePercentage(900, 600)).isEqualTo(new BigDecimal("100.00"));
+  }
+
+  @Test
+  void history24h_manualUpCheck_movesTheRestOfTheDownCheckToUp() {
+    // DOWN check for 1 h, 10 minutes later a manual UP check: 600 s DOWN, 3000 s UP
+    ResponseTimeHistoryResponseDto history =
+        history24h(
+            List.of(
+                new CheckPoint(1, NOW.minusMinutes(20), false, null, 3600, 0),
+                new CheckPoint(1, NOW.minusMinutes(10), true, 100, 0, 3000)));
+
+    assertThat(history.getUptimePercentage24h()).isEqualTo(new BigDecimal("83.33"));
+    assertThat(history.getTotalChecks24h()).isEqualTo(2);
+  }
+
+  @Test
   void uptime_withoutChecks_isNull() {
     assertThat(UptimeStatsService.uptimePercentage(0, 0)).isNull();
   }
@@ -64,12 +83,12 @@ class UptimeStatsServiceTest {
     List<CheckPoint> checks = new ArrayList<>();
     // 100 successful checks with 1..100 ms, plus failed checks with a high response time
     for (int i = 1; i <= 100; i++) {
-      checks.add(new CheckPoint(1, NOW.minusMinutes(i), true, i, 60));
+      checks.add(new CheckPoint(1, NOW.minusMinutes(i), true, i, 60, 0));
     }
-    checks.add(new CheckPoint(1, NOW.minusMinutes(101), false, 5000, 60));
-    checks.add(new CheckPoint(1, NOW.minusMinutes(102), false, null, 60));
+    checks.add(new CheckPoint(1, NOW.minusMinutes(101), false, 5000, 60, 0));
+    checks.add(new CheckPoint(1, NOW.minusMinutes(102), false, null, 60, 0));
     // A successful check without a response time does not count
-    checks.add(new CheckPoint(1, NOW.minusMinutes(103), true, null, 60));
+    checks.add(new CheckPoint(1, NOW.minusMinutes(103), true, null, 60, 0));
 
     ResponseTimeHistoryResponseDto history = history24h(checks);
 
@@ -86,7 +105,7 @@ class UptimeStatsServiceTest {
   @Test
   void history24h_oneCheck_allValuesAreThatCheck() {
     ResponseTimeHistoryResponseDto history =
-        history24h(List.of(new CheckPoint(1, NOW.minusMinutes(1), true, 123, 60)));
+        history24h(List.of(new CheckPoint(1, NOW.minusMinutes(1), true, 123, 60, 0)));
 
     assertThat(history.getMinResponseTimeMs()).isEqualTo(123);
     assertThat(history.getMaxResponseTimeMs()).isEqualTo(123);
@@ -98,7 +117,7 @@ class UptimeStatsServiceTest {
   @Test
   void history24h_withoutSuccessfulChecks_hasNoResponseTimes() {
     ResponseTimeHistoryResponseDto onlyDown =
-        history24h(List.of(new CheckPoint(1, NOW.minusMinutes(1), false, 900, 60)));
+        history24h(List.of(new CheckPoint(1, NOW.minusMinutes(1), false, 900, 60, 0)));
     ResponseTimeHistoryResponseDto noChecks = history24h(List.of());
 
     for (ResponseTimeHistoryResponseDto history : List.of(onlyDown, noChecks)) {

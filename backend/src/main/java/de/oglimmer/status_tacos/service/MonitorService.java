@@ -167,6 +167,33 @@ public class MonitorService {
     return monitorRepository.findTenantIdForShare(monitorId);
   }
 
+  /**
+   * Asks for a check of the monitor in the next run of the check job (see
+   * Monitor.checkRequestedAt).
+   *
+   * @throws IllegalArgumentException the monitor is not in the tenant
+   * @throws IllegalStateException the monitor gets no checks now: not ACTIVE or SILENT, or in its
+   *     daily pause
+   */
+  public void requestCheck(Integer tenantId, Integer id) {
+    Monitor monitor =
+        monitorRepository
+            .findByIdAndTenantId(id, tenantId)
+            .orElseThrow(() -> new IllegalArgumentException("Monitor not found with ID: " + id));
+    Instant now = clock.instant();
+    if (DailyPause.isPaused(monitor, now)
+        || monitorRepository.requestCheck(id, tenantId, now) == 0) {
+      throw new IllegalStateException("Monitor " + id + " gets no checks now");
+    }
+    log.info("Check of monitor {} requested", id);
+  }
+
+  /** See MonitorRepository.clearCheckRequest. Runs in the transaction of the check result. */
+  @Transactional(propagation = Propagation.MANDATORY)
+  public void clearCheckRequest(Integer id, Instant seen) {
+    monitorRepository.clearCheckRequest(id, seen);
+  }
+
   public void deleteMonitor(Integer tenantId, Integer id) {
     log.info("Deleting monitor ID: {}", id);
 

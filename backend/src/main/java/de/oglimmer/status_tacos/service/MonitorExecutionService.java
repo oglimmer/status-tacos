@@ -136,8 +136,18 @@ public class MonitorExecutionService {
    * @return the saved result, or null if it could not be saved
    */
   public CheckResult executeMonitorCheck(Monitor monitor) {
+    return executeMonitorCheck(monitor, false);
+  }
+
+  /**
+   * @param manual a check a user asked for that is not due in this run (see
+   *     Monitor.checkRequestedAt). It changes status, outages and alerts like any check, but it
+   *     adds no time to the uptime (see CheckResult.upAdjustSeconds).
+   */
+  CheckResult executeMonitorCheck(Monitor monitor, boolean manual) {
     log.debug(
-        "Executing check for monitor: {} ({}) for tenant: {}",
+        "Executing {} check for monitor: {} ({}) for tenant: {}",
+        manual ? "manual" : "scheduled",
         monitor.getName(),
         monitor.getUrl(),
         monitor.getTenantId());
@@ -170,7 +180,7 @@ public class MonitorExecutionService {
     SavedCheck saved;
     try {
       // Save results in a separate transaction (using self-reference for proxy)
-      saved = getSelf().saveCheckResultAndUpdateStatus(monitor, httpResult);
+      saved = getSelf().saveCheckResultAndUpdateStatus(monitor, httpResult, manual);
     } catch (Exception e) {
       log.error(
           "Could not save check result for monitor {}, result dropped: {}",
@@ -194,16 +204,20 @@ public class MonitorExecutionService {
 
   @Transactional
   protected SavedCheck saveCheckResultAndUpdateStatus(
-      Monitor monitor, HttpClientService.HttpCheckResult httpResult) {
+      Monitor monitor, HttpClientService.HttpCheckResult httpResult, boolean manual) {
     // The monitor was loaded before the HTTP check. Its tenant can have changed (tenant move), so
     // read the current tenant. The shared lock waits for a running move to commit.
     monitorService.lockTenantId(monitor.getId()).ifPresent(monitor::setTenantId);
 
     // Save check result and update status in a single transaction
     CheckResult checkResult =
-        checkResultService.saveCheckResult(monitor.getTenantId(), monitor, httpResult);
+        checkResultService.saveCheckResult(monitor.getTenantId(), monitor, httpResult, manual);
     MonitorStatus status =
         monitorStatusService.updateMonitorStatus(monitor.getTenantId(), monitor, checkResult);
+    // The request is done, also when the monitor was due anyway in this run
+    if (monitor.getCheckRequestedAt() != null) {
+      monitorService.clearCheckRequest(monitor.getId(), monitor.getCheckRequestedAt());
+    }
     return new SavedCheck(checkResult, status);
   }
 
@@ -287,15 +301,23 @@ public class MonitorExecutionService {
 
     Instant now = clock.instant();
     long slot = slotOf(now.toEpochMilli(), checkIntervalMs);
-    // A monitor in its daily pause has no check: no DOWN result, no alert, no uptime change
-    List<Monitor> monitorsToCheck =
+    // A monitor in its daily pause has no check: no DOWN result, no alert, no uptime change.
+    // A monitor that is not due is checked when a user asked for a check (a manual check).
+    Set<Integer> dueIds =
         monitors.stream()
             .filter(monitor -> isDue(monitor, slot, checkIntervalMs))
+            .map(Monitor::getId)
+            .collect(Collectors.toSet());
+    List<Monitor> monitorsToCheck =
+        monitors.stream()
+            .filter(
+                monitor ->
+                    dueIds.contains(monitor.getId()) || monitor.getCheckRequestedAt() != null)
             .filter(monitor -> !DailyPause.isPaused(monitor, now))
             .toList();
 
     log.debug(
-        "{} of {} monitors are due in slot {} ({} active, {} silent)",
+        "{} of {} monitors are checked in slot {} ({} active, {} silent)",
         monitorsToCheck.size(),
         monitors.size(),
         slot,
@@ -307,7 +329,8 @@ public class MonitorExecutionService {
             .map(
                 monitor ->
                     CompletableFuture.runAsync(
-                            () -> executeMonitorCheck(monitor), startExecutor(monitor))
+                            () -> executeMonitorCheck(monitor, !dueIds.contains(monitor.getId())),
+                            startExecutor(monitor))
                         .exceptionally(
                             throwable -> {
                               log.error(

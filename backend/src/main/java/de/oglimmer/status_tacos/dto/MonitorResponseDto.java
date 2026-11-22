@@ -33,6 +33,9 @@ public class MonitorResponseDto {
   private String dailyPauseUntil;
   private String dailyPauseTimezone;
 
+  /** A check now is queued for the next run of the check job. Null: no open request. */
+  private Instant checkRequestedAt;
+
   /** DEV, STAGE or PROD. Null (left out of the JSON): not set. */
   private MonitorEnvironment environment;
 

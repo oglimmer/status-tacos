@@ -58,6 +58,8 @@ export interface MonitorResponse {
   state: MonitorState
   // End of the silence (UTC, with Z). Only for SILENT.
   silentUntil?: string
+  // A check now is queued for the next run of the check job (about 15 s). Null: no open request.
+  checkRequestedAt?: string | null
   // Daily pause without checks: HH:mm in dailyPauseTimezone. Missing: no daily pause.
   dailyPauseFrom?: string | null
   dailyPauseUntil?: string | null
@@ -345,6 +347,16 @@ export const useMonitorsStore = defineStore('monitors', () => {
     }
   }
 
+  // Check now: the server checks the monitor in its next run (about 15 s). The card shows
+  // "Check queued" until the next refresh of the monitors gets the request back as done.
+  const requestCheck = async (id: number): Promise<void> => {
+    await apiService.postVoid(`/monitors/${id}/check`, null, authStore.user)
+    const monitor = monitors.value.find(m => m.id === id)
+    if (monitor) {
+      monitor.checkRequestedAt = new Date().toISOString()
+    }
+  }
+
   // Moves the monitor with all its history to another tenant. Alert contacts that are limited to
   // selected monitors lose this monitor.
   const moveMonitorToTenant = async (id: number, tenantId: number): Promise<MonitorResponse> => {
@@ -430,6 +442,7 @@ export const useMonitorsStore = defineStore('monitors', () => {
     updateMonitor,
     deleteMonitor,
     updateMonitorState,
+    requestCheck,
     moveMonitorToTenant,
     toggleMonitorStatus,
     getMonitorById,

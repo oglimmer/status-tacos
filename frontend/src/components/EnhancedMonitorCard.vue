@@ -59,6 +59,7 @@ interface EnhancedMonitorCardEmits {
   'toggle-expanded': [id: number]
   'edit': [monitor: MonitorResponse]
   'state-change': [id: number, state: MonitorState, silentFor?: SilentFor]
+  'check-now': [id: number]
   'delete': [id: number]
   'toggle-select': [id: number]
 }
@@ -125,6 +126,16 @@ const silentUntilText = computed(() => (silentEnd.value ? `until ${formatSilence
 const pausedChipText = computed(() =>
   pausedNow.value && dailyPause.value ? `Paused until ${dailyPause.value.until} ${dailyPause.value.timezone}` : null
 )
+
+// Check now: only for monitors that get checks now
+const checkQueued = computed(() => !!props.monitor.checkRequestedAt)
+const canCheckNow = computed(() => props.monitor.state !== 'INACTIVE' && !pausedNow.value)
+const checkNowTitle = computed(() => {
+  if (props.monitor.state === 'INACTIVE') return 'Inactive monitors get no checks'
+  if (pausedNow.value) return 'No checks in the daily pause'
+  if (checkQueued.value) return 'The check runs in the next 15 seconds'
+  return 'Check in the next 15 seconds, not at the next interval'
+})
 
 const onRowClick = () => {
   if (props.selectable) emit('toggle-select', props.monitor.id)
@@ -369,6 +380,16 @@ function get24hStatusDownPeriods(history: ResponseTimeHistory | null): Array<{ s
           :silent-until="monitor.silentUntil"
           @state-change="(newState, silentFor) => $emit('state-change', monitor.id, newState, silentFor)"
         />
+        <button
+          type="button"
+          class="btn btn-sm btn-outline"
+          :disabled="!canCheckNow || checkQueued"
+          :title="checkNowTitle"
+          @click="$emit('check-now', monitor.id)"
+        >
+          <MonitorIcon name="refresh" />
+          {{ checkQueued ? 'Check queued' : 'Check now' }}
+        </button>
         <button type="button" class="btn btn-sm btn-outline mi-delete" @click="$emit('delete', monitor.id)">Delete</button>
       </div>
     </div>

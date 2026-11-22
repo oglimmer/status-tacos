@@ -197,9 +197,10 @@ public class UptimeStatsService {
               long up = checks.stream().filter(CheckPoint::isUp).count();
               long upSeconds =
                   checks.stream()
-                      .filter(CheckPoint::isUp)
-                      .mapToLong(CheckPoint::checkInterval)
-                      .sum();
+                          .filter(CheckPoint::isUp)
+                          .mapToLong(CheckPoint::checkInterval)
+                          .sum()
+                      + checks.stream().mapToLong(CheckPoint::upAdjustSeconds).sum();
               long totalSeconds = checks.stream().mapToLong(CheckPoint::checkInterval).sum();
               TreeMap<LocalDateTime, Integer> maxByBucket = new TreeMap<>();
               ResponseTimes responseTimes = new ResponseTimes();
@@ -365,6 +366,9 @@ public class UptimeStatsService {
     if (total == 0) {
       return null;
     }
+    // A manual check moves time of the check before it (CheckResult.upAdjustSeconds). When that
+    // check is outside the window, the moved time can go below 0 or above the total.
+    up = Math.clamp(up, 0, total);
     // Rounded down: 99.996 % is shown as 99.99 %, never as 100 %.
     return BigDecimal.valueOf(up * 100).divide(BigDecimal.valueOf(total), 2, RoundingMode.DOWN);
   }

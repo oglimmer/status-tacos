@@ -118,4 +118,26 @@ public interface MonitorRepository extends JpaRepository<Monitor, Integer> {
       "UPDATE Monitor m SET m.state = 'ACTIVE', m.silentUntil = NULL, m.updatedAt = :updatedAt"
           + " WHERE m.state = 'SILENT' AND m.silentUntil <= :now")
   int endExpiredSilences(@Param("now") Instant now, @Param("updatedAt") LocalDateTime updatedAt);
+
+  /**
+   * Asks for a check now (see Monitor.checkRequestedAt). An open request keeps its time. Only for
+   * ACTIVE and SILENT monitors: the check job checks no other monitors. Returns the number of
+   * monitors (0 or 1).
+   */
+  @Modifying
+  @Query(
+      "UPDATE Monitor m SET m.checkRequestedAt = COALESCE(m.checkRequestedAt, :now)"
+          + " WHERE m.id = :id AND m.tenantId = :tenantId AND m.state IN ('ACTIVE', 'SILENT')")
+  int requestCheck(
+      @Param("id") Integer id, @Param("tenantId") Integer tenantId, @Param("now") Instant now);
+
+  /**
+   * Ends the request after the check. A request that came after {@code seen} stays open: the check
+   * started before it, so it gets its own check.
+   */
+  @Modifying
+  @Query(
+      "UPDATE Monitor m SET m.checkRequestedAt = NULL"
+          + " WHERE m.id = :id AND m.checkRequestedAt <= :seen")
+  int clearCheckRequest(@Param("id") Integer id, @Param("seen") Instant seen);
 }

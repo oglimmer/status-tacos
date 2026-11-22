@@ -257,7 +257,8 @@ public class PromQueryService {
                   row ->
                       row.totalSeconds() == 0
                           ? null
-                          : (double) row.upSeconds() / row.totalSeconds();
+                          // Manual checks can move time across hours, see CheckRollupRepository
+                          : Math.clamp((double) row.upSeconds() / row.totalSeconds(), 0.0, 1.0);
               case DURATION_SECONDS_AVG_1H ->
                   row -> row.rtCount() == 0 ? null : row.rtSum() / 1000.0 / row.rtCount();
               case DURATION_SECONDS_MAX_1H ->
