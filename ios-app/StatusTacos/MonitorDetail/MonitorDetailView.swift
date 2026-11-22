@@ -292,7 +292,7 @@ struct MonitorDetailView: View {
     // MARK: - Current status
 
     private var nowSection: some View {
-        Section("Current status") {
+        Section {
             if let status = store.status {
                 let isDown = status.currentStatus == .down
                 if let checked = status.lastCheckedAt {
@@ -323,6 +323,40 @@ struct MonitorDetailView: View {
             } else {
                 Text("No check result yet.")
                     .foregroundStyle(.secondary)
+            }
+            checkNowButton
+        } header: {
+            Text("Current status")
+        } footer: {
+            Text("Check Now checks within about 15 seconds, not at the next interval.")
+        }
+    }
+
+    private var checkNowButton: some View {
+        let isQueued = monitors.checkQueuedIDs.contains(monitorID)
+        return Button {
+            checkNow()
+        } label: {
+            HStack {
+                Label(isQueued ? "Check Queued" : "Check Now", systemImage: "arrow.clockwise")
+                Spacer()
+                if isQueued {
+                    ProgressView()
+                        .tint(.secondary)
+                }
+            }
+            .contentShape(.rect)
+        }
+        .disabled(isQueued)
+    }
+
+    private func checkNow() {
+        Task {
+            do {
+                try await monitors.checkNow(monitor: monitorID)
+                await store.refresh()
+            } catch {
+                stateChangeError = error.localizedDescription
             }
         }
     }

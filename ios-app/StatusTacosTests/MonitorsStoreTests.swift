@@ -76,11 +76,16 @@ extension SessionTests {
 
     // MARK: - Monitor state
 
-    private func makeStateStore(log: RequestLog, patch: @escaping @Sendable (URLRequest) -> (Int, String)) -> MonitorsStore {
+    /// `patch` answers the PATCH requests, and the POST of a check.
+    private func makeStateStore(
+        log: RequestLog, checkWait: Duration = .seconds(20),
+        patch: @escaping @Sendable (URLRequest) -> (Int, String)
+    ) -> MonitorsStore {
         StubURLProtocol.handler = { request in
             let url = request.url!
             log.append("\(request.httpMethod ?? "?") \(url.path())\(url.query().map { "?" + $0 } ?? "")")
             if request.httpMethod == "PATCH" { return patch(request) }
+            if request.httpMethod == "POST", url.path().hasSuffix("/check") { return patch(request) }
             if url.path().hasSuffix("/users/me") { return (200, #"{"tenants":[{"id":10,"name":"Prod"}]}"#) }
             if url.path().hasSuffix("/monitors") { return (200, monitorsJSON) }
             if url.path().hasSuffix("/monitor-statuses") { return (200, #"[{"monitorId":1,"currentStatus":"up"}]"#) }
@@ -90,7 +95,33 @@ extension SessionTests {
         let tokens = TokenSet(accessToken: "a", refreshToken: "r", idToken: nil, expiresAt: .distantFuture)
         let session = StubURLProtocol.session()
         let auth = AuthStore(settings: settings, tokenStore: MemoryTokenStore(tokens), session: session)
-        return MonitorsStore(api: APIClient(settings: settings, auth: auth, session: session))
+        return MonitorsStore(api: APIClient(settings: settings, auth: auth, session: session), checkWait: checkWait)
+    }
+
+    @Test func checkNowAsksTheServerThenReloads() async throws {
+        let log = RequestLog()
+        let store = makeStateStore(log: log, checkWait: .zero) { _ in (202, "") }
+        await store.refresh()
+        let loadsBefore = log.all.filter { $0 == "GET /api/v1/monitor-statuses" }.count
+
+        try await store.checkNow(monitor: 1)
+
+        #expect(log.all.contains("POST /api/v1/monitors/1/check"))
+        // After the wait, the list loads the new status
+        #expect(log.all.filter { $0 == "GET /api/v1/monitor-statuses" }.count == loadsBefore + 1)
+        #expect(store.checkQueuedIDs.isEmpty)
+    }
+
+    @Test func refusedCheckShowsTheMessageOfTheServer() async {
+        let store = makeStateStore(log: RequestLog(), checkWait: .zero) { _ in
+            (409, #"{"error":"no_checks_now","message":"This monitor gets no checks now."}"#)
+        }
+        await store.refresh()
+
+        await #expect(throws: APIError.server("This monitor gets no checks now.")) {
+            try await store.checkNow(monitor: 1)
+        }
+        #expect(store.checkQueuedIDs.isEmpty)
     }
 
     @Test func silencingSendsTheStateAndUpdatesTheList() async throws {

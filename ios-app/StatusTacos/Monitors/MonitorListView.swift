@@ -220,6 +220,15 @@ struct MonitorListView: View {
     /// All states, for a long press on a row.
     @ViewBuilder
     private func stateMenu(for monitor: MonitorSummary) -> some View {
+        if monitor.state != .inactive {
+            Button {
+                checkNow(monitor)
+            } label: {
+                Label(store.checkQueuedIDs.contains(monitor.id) ? "Check Queued" : "Check Now",
+                      systemImage: "arrow.clockwise")
+            }
+            .disabled(store.checkQueuedIDs.contains(monitor.id))
+        }
         Section("Monitoring") {
             ForEach(MonitorState.selectable, id: \.self) { state in
                 Button {
@@ -228,6 +237,16 @@ struct MonitorListView: View {
                     Label(state.title, systemImage: monitor.state == state ? "checkmark" : state.symbol)
                 }
                 .disabled(monitor.state == state || store.updatingStateIDs.contains(monitor.id))
+            }
+        }
+    }
+
+    private func checkNow(_ monitor: MonitorSummary) {
+        Task {
+            do {
+                try await store.checkNow(monitor: monitor.id)
+            } catch {
+                stateChangeError = error.localizedDescription
             }
         }
     }

@@ -10,6 +10,8 @@ final class MonitorsStore {
     private(set) var errorMessage: String?
     /// Monitors with a state change in progress.
     private(set) var updatingStateIDs: Set<Int> = []
+    /// Monitors with a "check now" that has not run yet.
+    private(set) var checkQueuedIDs: Set<Int> = []
     /// Time frame of the uptime in the list. Call `refresh()` after a change.
     var timeframe: Timeframe = .week
     /// Tenants of the user, from /users/me. Nil until loaded.
@@ -18,9 +20,12 @@ final class MonitorsStore {
     @ObservationIgnored private let api: APIClient
     /// A refresh was asked for while one was running: its data may be too old.
     @ObservationIgnored private var refreshAgain = false
+    /// Time from "check now" to the reload: the next run (at most 15 s), its start spread and the check.
+    @ObservationIgnored private let checkWait: Duration
 
-    init(api: APIClient) {
+    init(api: APIClient, checkWait: Duration = .seconds(20)) {
         self.api = api
+        self.checkWait = checkWait
     }
 
     /// Tenants of the user, by name. Falls back to the tenants of the monitors when /users/me fails.
@@ -101,5 +106,17 @@ final class MonitorsStore {
             .sortedForDisplay()
         // A monitor that is active again has an old status: load the current one.
         Task { await refresh() }
+    }
+
+    /// Check now: asks the server for a check, waits for it and then loads the new status.
+    /// Throws when the server refuses, for example in the daily pause. A second call while a check
+    /// is queued does nothing.
+    func checkNow(monitor id: Int) async throws {
+        guard !checkQueuedIDs.contains(id) else { return }
+        checkQueuedIDs.insert(id)
+        defer { checkQueuedIDs.remove(id) }
+        try await api.requestCheck(monitorID: id)
+        try? await Task.sleep(for: checkWait)
+        await refresh()
     }
 }

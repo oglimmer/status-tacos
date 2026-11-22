@@ -77,6 +77,12 @@ final class APIClient {
         try await send("PATCH", "monitors/\(monitorID)/state", query: [URLQueryItem(name: "state", value: state.rawValue)])
     }
 
+    /// Check now: the server checks the monitor in its next run, within about 15 seconds.
+    /// Refused (409, with a message) for an inactive monitor and in the daily pause.
+    func requestCheck(monitorID: Int) async throws {
+        try await sendNoContent("POST", "monitors/\(monitorID)/check")
+    }
+
     // MARK: - iOS push alerts
 
     func pushStatus() async throws -> PushStatusDTO {
@@ -169,7 +175,7 @@ final class APIClient {
             case 404:
                 throw APIError.notFound
             default:
-                // The push endpoints explain 400 and 409 answers: {"message": "..."}.
+                // The push and check endpoints explain 400 and 409 answers: {"message": "..."}.
                 if let message = try? JSONDecoder().decode(ServerMessage.self, from: data).message {
                     throw APIError.server(message)
                 }
